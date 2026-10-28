@@ -11,7 +11,7 @@
   "scripts": {
     "dev": "expo start",
     "fake:trakt": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON test/core/trakt-fake/serve.ts",
-    "typecheck": "expo customize tsconfig.json && tsc --noEmit && tsc --noEmit -p src/core && tsc --noEmit -p test",
+    "typecheck": "expo customize tsconfig.json && tsc --noEmit && tsc --noEmit -p src/core && tsc --noEmit -p test && tsc --noEmit -p test/core",
     "format": "biome check --write . && dprint fmt",
     "test": "vitest run",
     "test:native": "EXPO_PUBLIC_TRAKT_CLIENT_ID=test-client jest",
