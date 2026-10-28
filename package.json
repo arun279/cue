@@ -19,8 +19,9 @@
     "check:spell": "cspell --no-progress --no-summary",
     "check:arch": "depcruise packages --config .dependency-cruiser.cjs",
     "check:core-portable": "vitest run --project core test/ci/core-portable.test.ts",
+    "check:deps": "pnpm --filter @cue/native exec expo install --check",
     "check:bundle": "EXPO_ATLAS=true pnpm --filter @cue/native exec expo export --platform ios --platform android --output-dir dist && node scripts/check-shipped-modules.mjs && node scripts/check-store-bundle.mjs",
-    "check": "biome check --error-on-warnings . && oxlint && dprint check && pnpm check:spell && pnpm typecheck && pnpm check:arch && knip && jscpd && pnpm check:bundle && vitest run && pnpm test:native",
+    "check": "biome check --error-on-warnings . && oxlint && dprint check && pnpm check:spell && pnpm typecheck && pnpm check:deps && pnpm check:arch && knip && jscpd && pnpm check:bundle && vitest run && pnpm test:native",
     "prepare": "lefthook install"
   },
   "devDependencies": {
