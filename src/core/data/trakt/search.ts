@@ -1,16 +1,6 @@
-import type { MovieIds, ShowIds } from "../../domain/model/ids";
+import type { SearchHit } from "../../domain/discover";
+import type { ShowIds } from "../../domain/model/ids";
 import type { MovieSummary, SearchResult, ShowSummary } from "./schemas";
-
-export interface SearchHit {
-  readonly key: string;
-  readonly type: "show" | "movie";
-  readonly traktId: number;
-  readonly title: string;
-  readonly year: number | null;
-  readonly posters: readonly string[];
-  readonly tmdbId: number | null;
-  readonly ids: ShowIds | MovieIds;
-}
 
 type SchemaShow = NonNullable<SearchResult["show"]>;
 type SchemaMedia = SchemaShow | NonNullable<SearchResult["movie"]>;

@@ -12,7 +12,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { queryKeys } from "@/core/data/query-keys";
-import type { LibraryEntry } from "@/core/data/trakt/library";
+import type { LibraryEntry } from "@/core/domain/model/library";
 import type { QueuedOp } from "@/core/domain/write-queue/types";
 import { useMarkControl } from "@/core/hooks/useMarkControl";
 import { useMarkWatched } from "@/core/hooks/useMarkWatched";

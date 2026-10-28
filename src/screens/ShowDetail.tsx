@@ -2,7 +2,7 @@ import { useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { SeasonView } from "@/core/data/trakt/show-detail";
+import type { SeasonView } from "@/core/domain/show-detail";
 import { defaultSeason, seasonConfirmation } from "@/core/domain/show-detail";
 import { useMarkWatched } from "@/core/hooks/useMarkWatched";
 import { usePrefs } from "@/core/prefs/prefs-store";

@@ -1,9 +1,9 @@
 import { type UseQueryResult, useQueries, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { firstUnwatchedAired, type SeasonView, toEpisodeRef } from "../data/trakt/show-detail";
 import { hiddenShowIdsOf, recentCalendarStart, selectVisibleEntries } from "../domain/calendar";
 import { dayKeyOf } from "../domain/day";
 import { needsNextEpisode, reconcileRecentlyAired } from "../domain/recently-aired";
+import { firstUnwatchedAired, type SeasonView, toEpisodeRef } from "../domain/show-detail";
 import { DAY_MS, localTimeZone } from "../domain/time";
 import { usePrefs } from "../prefs/prefs-store";
 import { thresholdMsFromDays } from "../prefs/threshold";

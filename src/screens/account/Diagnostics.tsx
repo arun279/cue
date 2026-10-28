@@ -1,7 +1,7 @@
 import { setStringAsync } from "expo-clipboard";
 import type { ReactElement } from "react";
 import { View } from "react-native";
-import { incidentReport, PROBLEM_LABELS } from "@/core/data/trakt/diagnostics";
+import { incidentReport, PROBLEM_LABELS } from "@/core/domain/diagnostics";
 import { useAppVersion } from "@/core/ports/app-version";
 import { useReadIncidents } from "@/core/stores/read-incidents-store";
 import { showSnack } from "@/core/stores/snackbar-store";

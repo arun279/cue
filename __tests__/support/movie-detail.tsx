@@ -1,6 +1,6 @@
-import type { MovieEntry, MovieHeader } from "@/core/data/trakt/movie-library";
 import type { WatchlistItem } from "@/core/data/trakt/schemas";
-import type { SearchHit } from "@/core/data/trakt/search";
+import type { SearchHit } from "@/core/domain/discover";
+import type { MovieEntry, MovieHeader } from "@/core/domain/model/movie";
 import { buildMarkMovieOp } from "@/core/domain/write-queue/ops";
 import type { WriteReceipt } from "@/core/domain/write-queue/receipt";
 import type { CueRuntime } from "@/core/runtime/runtime";

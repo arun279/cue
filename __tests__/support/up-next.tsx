@@ -1,9 +1,9 @@
 import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactElement, type ReactNode, useState } from "react";
-import type { LibraryEntry } from "@/core/data/trakt/library";
-import type { MovieEntry } from "@/core/data/trakt/movie-library";
 import { type CalendarEntry, recentCalendarStart } from "@/core/domain/calendar";
 import { dayKeyOf } from "@/core/domain/day";
+import type { LibraryEntry } from "@/core/domain/model/library";
+import type { MovieEntry } from "@/core/domain/model/movie";
 import { localTimeZone } from "@/core/domain/time";
 import type { QueuedOp } from "@/core/domain/write-queue/types";
 import { type Haptics, HapticsProvider } from "@/core/ports/haptics";

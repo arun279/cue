@@ -1,6 +1,4 @@
 import { useEffect, useState } from "react";
-import type { LibraryEntry } from "@/core/data/trakt/library";
-import type { MovieEntry } from "@/core/data/trakt/movie-library";
 import {
   chipBuckets,
   type LibrarySort,
@@ -10,6 +8,8 @@ import {
   sortMovies,
   sortShows,
 } from "@/core/domain/library-buckets";
+import type { LibraryEntry } from "@/core/domain/model/library";
+import type { MovieEntry } from "@/core/domain/model/movie";
 import type { SegmentOption } from "../../ui/SegmentedControl";
 import { TEST_IDS } from "../../ui/test-ids";
 

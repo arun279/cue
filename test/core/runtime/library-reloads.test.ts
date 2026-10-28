@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import { queryKeys } from "@/core/data/query-keys";
-import type { LibraryEntry } from "@/core/data/trakt/library";
+import type { LibraryEntry } from "@/core/domain/model/library";
 import { buildBulkMarkOps } from "@/core/domain/write-queue/bulk";
 import { buildMarkEpisodeOp } from "@/core/domain/write-queue/ops";
 import type { QueuedOp } from "@/core/domain/write-queue/types";

@@ -1,15 +1,15 @@
 import { createContext, useContext } from "react";
 import type { InvalidationKey } from "../data/query-invalidation";
-import type { EpisodeDetail } from "../data/trakt/episode-detail";
-import type { LibraryEntry } from "../data/trakt/library";
-import type { MovieEntry, MovieHeader } from "../data/trakt/movie-library";
 import type { WatchlistItem } from "../data/trakt/schemas";
-import type { SearchHit } from "../data/trakt/search";
-import type { SeasonView, ShowInfo, ShowProgress } from "../data/trakt/show-detail";
-import type { UserProfile } from "../data/trakt/user-profile";
 import type { CalendarEntry } from "../domain/calendar";
+import type { SearchHit } from "../domain/discover";
+import type { EpisodeDetail } from "../domain/episode-detail";
 import type { HistoryEntry, HistoryRange } from "../domain/history";
+import type { LibraryEntry } from "../domain/model/library";
+import type { MovieEntry, MovieHeader } from "../domain/model/movie";
+import type { UserProfile } from "../domain/model/user";
 import type { EpisodePlay, MoviePlay } from "../domain/reversal";
+import type { SeasonView, ShowInfo, ShowProgress } from "../domain/show-detail";
 import type { WriteReceipt } from "../domain/write-queue/receipt";
 import type { QueuedOp } from "../domain/write-queue/types";
 

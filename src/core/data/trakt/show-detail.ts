@@ -1,6 +1,6 @@
-import { resolveStill } from "../../domain/image-source";
 import type { EpisodeIds, ShowIds } from "../../domain/model/ids";
-import { type EpisodeKey, type EpisodeRef, episodesLeftFrom } from "../../domain/model/library";
+import { episodesLeftFrom } from "../../domain/model/library";
+import type { EpisodeView, SeasonView, ShowInfo, ShowProgress } from "../../domain/show-detail";
 import { isAired } from "../../domain/time";
 import type { EpisodeData, Progress, SeasonData, ShowDetailData } from "./schemas";
 
@@ -13,92 +13,6 @@ export function artOf(images: ShowDetailData["images"]): {
   readonly backdrops: readonly string[];
 } {
   return { posters: images?.poster ?? [], backdrops: images?.fanart ?? [] };
-}
-
-export interface EpisodeView {
-  readonly season: number;
-  readonly number: number;
-  readonly title: string | null;
-  readonly firstAired: string | null;
-  readonly ids: EpisodeIds;
-  readonly stills: readonly string[];
-  readonly watched: boolean;
-  readonly watchedAt: string | null;
-  readonly aired: boolean;
-}
-
-export interface SeasonView {
-  readonly number: number;
-  readonly title: string | null;
-  readonly isSpecial: boolean;
-  // Trakt's progress read omits hidden seasons from its breakdown.
-  readonly isHidden: boolean;
-  readonly episodes: readonly EpisodeView[];
-  readonly airedCount: number;
-  readonly completedCount: number;
-}
-
-export type EpisodeMatch = (season: number, number: number, aired: boolean) => boolean;
-
-export function patchEpisodes(
-  seasons: readonly SeasonView[],
-  match: EpisodeMatch,
-  watched: boolean,
-): SeasonView[] {
-  return seasons.map((season) => {
-    let changed = false;
-    const episodes = season.episodes.map((episode) => {
-      if (match(season.number, episode.number, episode.aired) && episode.watched !== watched) {
-        changed = true;
-        return { ...episode, watched };
-      }
-      return episode;
-    });
-    if (!changed) return season;
-    return { ...season, episodes, completedCount: episodes.filter((e) => e.watched).length };
-  });
-}
-
-export function firstUnwatchedAired(seasons: readonly SeasonView[]): EpisodeView | null {
-  for (const season of seasons) {
-    if (season.isSpecial || season.isHidden) continue;
-    const episode = season.episodes.find((candidate) => candidate.aired && !candidate.watched);
-    if (episode !== undefined) return episode;
-  }
-  return null;
-}
-
-export function toEpisodeRef(episode: EpisodeView): EpisodeRef {
-  return {
-    season: episode.season,
-    number: episode.number,
-    title: episode.title,
-    firstAired: episode.firstAired,
-    still: resolveStill(episode.stills),
-    ids: episode.ids,
-  };
-}
-
-export interface ShowInfo {
-  readonly ids: ShowIds;
-  readonly title: string;
-  readonly year: number | null;
-  readonly status: string;
-  readonly network: string | null;
-  readonly genres: readonly string[];
-  readonly runtime: number | null;
-  readonly overview: string | null;
-  readonly posters: readonly string[];
-  readonly backdrops: readonly string[];
-}
-
-export interface ShowProgress {
-  readonly aired: number;
-  readonly completed: number;
-  readonly lastWatchedAt: string | null;
-  readonly left: number;
-  readonly lastAired: EpisodeKey | null;
-  readonly nextEpisode: EpisodeView | null;
 }
 
 export function toEpisodeIds(ids: {

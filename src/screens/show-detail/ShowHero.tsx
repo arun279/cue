@@ -1,8 +1,8 @@
 import { Image } from "expo-image";
 import { type ReactElement, type ReactNode, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import type { SeasonView } from "@/core/data/trakt/show-detail";
 import { resolveBackdrop } from "@/core/domain/image-source";
+import type { SeasonView } from "@/core/domain/show-detail";
 import { watchedSummary } from "@/core/domain/show-detail";
 import { useGenreLabels } from "@/core/hooks/useGenreLabels";
 import { SPACE, useColors } from "../../ui/tokens";

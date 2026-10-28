@@ -1,8 +1,8 @@
 import { useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-import type { TraktFailure } from "@/core/data/trakt/client";
-import type { LibraryEntry } from "@/core/data/trakt/library";
+import type { LibraryEntry } from "@/core/domain/model/library";
+import type { TraktFailure } from "@/core/domain/read-failure";
 import type { UpNextEmptyKind } from "@/core/domain/up-next";
 import { readFailureBody } from "@/core/sync-contract";
 import { Button } from "../../ui/Button";

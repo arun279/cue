@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { EpisodeDetail } from "@/core/data/trakt/episode-detail";
+import type { EpisodeDetail } from "@/core/domain/episode-detail";
 import { airsLine, sheetMetaLine } from "@/core/domain/episode-detail";
 import { epCode } from "@/core/domain/model/library";
 import { episodeNavigation } from "@/core/domain/show-detail";

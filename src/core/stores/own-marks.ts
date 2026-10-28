@@ -1,6 +1,6 @@
-import type { EpisodeDetail } from "../data/trakt/episode-detail";
-import { advancePastNext, type LibraryEntry } from "../data/trakt/library";
-import { patchEpisodes, type SeasonView } from "../data/trakt/show-detail";
+import type { EpisodeDetail } from "../domain/episode-detail";
+import { advancePastNext, type LibraryEntry } from "../domain/model/library";
+import { patchEpisodes, type SeasonView } from "../domain/show-detail";
 
 export interface OwnMark {
   readonly preCompleted: number;

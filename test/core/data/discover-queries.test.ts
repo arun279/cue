@@ -1,6 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { afterEach, expect, it, vi } from "vitest";
-import type { SearchHit } from "@/core/data/trakt/search";
+import type { SearchHit } from "@/core/domain/discover";
 import { browseQuery, searchQuery } from "@/core/queries/discover";
 import { buildRuntime } from "./_runtime";
 

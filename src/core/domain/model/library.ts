@@ -1,3 +1,4 @@
+import { isAired } from "../time";
 import type { EpisodeIds } from "./ids";
 
 export interface EpisodeRef {
@@ -51,4 +52,45 @@ export interface LibraryShow {
   readonly nextEpisode: EpisodeRef | null;
   readonly lastAired: EpisodeKey | null;
   readonly pendingAdvance: boolean;
+}
+
+export interface LibraryEntry extends LibraryShow {
+  readonly tmdbId: number | null;
+  readonly runtime: number | null;
+  readonly posters: readonly string[];
+}
+
+export function advancePastNext(entry: LibraryEntry, watchedAt: string): LibraryEntry {
+  const current = entry.nextEpisode;
+  const nextEpisode: EpisodeRef | null =
+    current === null ||
+    entry.lastAired === null ||
+    current.season !== entry.lastAired.season ||
+    current.number >= entry.lastAired.number
+      ? null
+      : {
+          season: current.season,
+          number: current.number + 1,
+          title: null,
+          firstAired: null,
+          still: null,
+          ids: { trakt: 0 },
+        };
+  return {
+    ...entry,
+    completed: entry.completed + 1,
+    left: Math.max(0, entry.left - 1),
+    lastWatchedAt: watchedAt,
+    plays: entry.plays === null ? null : entry.plays + 1,
+    nextEpisode,
+    pendingAdvance: true,
+  };
+}
+
+export function quickMarkable(entry: LibraryEntry, now: number): boolean {
+  return (
+    !entry.pendingAdvance &&
+    entry.nextEpisode !== null &&
+    isAired(entry.nextEpisode.firstAired, now)
+  );
 }

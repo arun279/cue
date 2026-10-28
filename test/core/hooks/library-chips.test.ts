@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { LibraryEntry } from "@/core/data/trakt/library";
 import { chipBuckets, sortShows } from "@/core/domain/library-buckets";
+import type { LibraryEntry } from "@/core/domain/model/library";
 import { DAY, iso, makeShow, NOW, THRESHOLD } from "../domain/_helpers";
 
 function entry(overrides: Partial<LibraryEntry> = {}): LibraryEntry {

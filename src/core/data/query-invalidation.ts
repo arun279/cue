@@ -1,7 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
+import type { LibraryEntry } from "../domain/model/library";
 import { type ActivitySection, advanced, type LastActivities } from "../domain/sync-activities";
 import { queryKeys } from "./query-keys";
-import type { LibraryEntry } from "./trakt/library";
 
 export type InvalidationKey = readonly unknown[];
 

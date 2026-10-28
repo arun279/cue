@@ -3,9 +3,9 @@
 import { QueryClient } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { LibraryEntry } from "@/core/data/trakt/library";
-import type { EpisodeView, SeasonView } from "@/core/data/trakt/show-detail";
 import type { CalendarEntry } from "@/core/domain/calendar";
+import type { LibraryEntry } from "@/core/domain/model/library";
+import type { EpisodeView, SeasonView } from "@/core/domain/show-detail";
 import { type LibrarySnapshot, useLibrarySnapshot } from "@/core/hooks/useLibrarySnapshot";
 import type { CueRuntime } from "@/core/runtime/runtime";
 import { partialRuntime, withRuntime } from "../support/runtime";

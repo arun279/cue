@@ -1,10 +1,12 @@
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { queryKeys } from "../data/query-keys";
-import { assembleLibrary, type LibraryEntry } from "../data/trakt/library";
-import { assembleMovieLibrary, type MovieEntry } from "../data/trakt/movie-library";
+import { assembleLibrary } from "../data/trakt/library";
+import { assembleMovieLibrary } from "../data/trakt/movie-library";
 import type { WatchlistItem } from "../data/trakt/schemas";
-import type { SearchHit } from "../data/trakt/search";
+import type { SearchHit } from "../domain/discover";
+import type { LibraryEntry } from "../domain/model/library";
+import type { MovieEntry } from "../domain/model/movie";
 import { buildAddWatchlistOp, buildRemoveWatchlistOp } from "../domain/write-queue/ops";
 import {
   type MovieLibraryData,

@@ -1,34 +1,13 @@
-import type { EpisodeIds } from "../../domain/model/ids";
+import type { EpisodeDetail } from "../../domain/episode-detail";
+import type { EpisodeKey } from "../../domain/model/library";
 import { episodeNavigation } from "../../domain/show-detail";
 import { isAired } from "../../domain/time";
 import type { EpisodeData, Progress } from "./schemas";
 import { stillsOf, toEpisodeIds } from "./show-detail";
 
-interface EpisodeNav {
-  readonly season: number;
-  readonly number: number;
-}
-
-export interface EpisodeDetail {
-  readonly showId: number;
-  readonly season: number;
-  readonly number: number;
-  readonly title: string | null;
-  readonly overview: string | null;
-  readonly firstAired: string | null;
-  readonly runtime: number | null;
-  readonly ids: EpisodeIds;
-  readonly stills: readonly string[];
-  readonly aired: boolean;
-  readonly watched: boolean;
-  readonly watchedAt: string | null;
-  readonly prev: EpisodeNav | null;
-  readonly next: EpisodeNav | null;
-}
-
 const key = (season: number, number: number): string => `${season}:${number}`;
 
-interface ProgressEpisode extends EpisodeNav {
+interface ProgressEpisode extends EpisodeKey {
   readonly watched: boolean;
   readonly watchedAt: string | null;
 }
@@ -50,8 +29,8 @@ function flattenProgress(progress: Progress): ProgressEpisode[] {
 
 function navigation(
   episodes: readonly ProgressEpisode[],
-  target: EpisodeNav,
-): { readonly prev: EpisodeNav | null; readonly next: EpisodeNav | null } {
+  target: EpisodeKey,
+): { readonly prev: EpisodeKey | null; readonly next: EpisodeKey | null } {
   const ordering = new Map(
     episodes.map(({ season, number }) => [key(season, number), { season, number }]),
   );
@@ -87,7 +66,7 @@ export function assembleEpisodeDetail(
 
 function watchState(
   episodes: readonly ProgressEpisode[],
-  target: EpisodeNav,
+  target: EpisodeKey,
 ): Pick<EpisodeDetail, "watched" | "watchedAt"> {
   const watched = episodes.find(
     (item) => item.season === target.season && item.number === target.number,

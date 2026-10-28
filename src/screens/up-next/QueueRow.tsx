@@ -1,9 +1,13 @@
 import { useRouter } from "expo-router";
 import { memo, type ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
-import { type LibraryEntry, quickMarkable } from "@/core/data/trakt/library";
 import { airedLastNight } from "@/core/domain/day";
-import { type EpisodeRef, epCode } from "@/core/domain/model/library";
+import {
+  type EpisodeRef,
+  epCode,
+  type LibraryEntry,
+  quickMarkable,
+} from "@/core/domain/model/library";
 import { localTimeZone, toMs } from "@/core/domain/time";
 import { lastWatchedPhrase, leftNote, watchedPercent, withEpisodeTitle } from "@/core/format";
 import { useAlertsMute } from "@/core/hooks/useAlertsMute";

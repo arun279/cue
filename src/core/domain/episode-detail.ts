@@ -1,4 +1,5 @@
-import { epCode } from "./model/library";
+import type { EpisodeIds } from "./model/ids";
+import { type EpisodeKey, epCode } from "./model/library";
 
 export function detailDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
@@ -34,4 +35,21 @@ export function episodeStatus(watched: boolean, watchedAt: string | null, plays:
 export function airsLine(iso: string): string {
   const date = new Date(iso);
   return `Airs ${date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }).replace(",", "")} · ${date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+}
+
+export interface EpisodeDetail {
+  readonly showId: number;
+  readonly season: number;
+  readonly number: number;
+  readonly title: string | null;
+  readonly overview: string | null;
+  readonly firstAired: string | null;
+  readonly runtime: number | null;
+  readonly ids: EpisodeIds;
+  readonly stills: readonly string[];
+  readonly aired: boolean;
+  readonly watched: boolean;
+  readonly watchedAt: string | null;
+  readonly prev: EpisodeKey | null;
+  readonly next: EpisodeKey | null;
 }

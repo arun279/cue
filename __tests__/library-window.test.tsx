@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react-native";
 import { Platform } from "react-native";
-import type { ShowInfo } from "@/core/data/trakt/show-detail";
+import type { ShowInfo } from "@/core/domain/show-detail";
 import { TEST_IDS } from "../src/ui/test-ids";
 import "./support/screen-mocks";
 import { largeLibrary } from "./support/large-library";

@@ -1,6 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { queryKeys } from "../data/query-keys";
-import type { ShowInfo } from "../data/trakt/show-detail";
+import type { ShowInfo } from "../domain/show-detail";
 import type { CueRuntime } from "../runtime/runtime";
 import { episodeWithOwnMark, seasonsWithOwnMark } from "../stores/own-marks";
 import { CONTENT_STALE_TIME_MS, USER_STATE_STALE_TIME } from "./freshness";

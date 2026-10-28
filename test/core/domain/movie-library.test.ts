@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { MovieEntry } from "@/core/data/trakt/movie-library";
 import { movieBuckets, sortMovies } from "@/core/domain/library-buckets";
+import type { MovieEntry } from "@/core/domain/model/movie";
 
 const movie = (overrides: Partial<MovieEntry>): MovieEntry => ({
   movieId: 1,

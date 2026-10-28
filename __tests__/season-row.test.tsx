@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react-native";
 import { StyleSheet, type TextStyle } from "react-native";
-import type { EpisodeView, SeasonView } from "@/core/data/trakt/show-detail";
+import type { EpisodeView, SeasonView } from "@/core/domain/show-detail";
 import { SeasonRow } from "../src/screens/show-detail/SeasonRow";
 import { EPISODE_NUMBER_WIDTH } from "../src/ui/tokens";
 import { atFontScale } from "./support/font-scale";

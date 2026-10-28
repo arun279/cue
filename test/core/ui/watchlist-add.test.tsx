@@ -4,10 +4,10 @@ import { notifyManager, QueryClient } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { beforeAll, expect, it } from "vitest";
 import { queryKeys } from "@/core/data/query-keys";
-import type { LibraryEntry } from "@/core/data/trakt/library";
-import type { MovieEntry } from "@/core/data/trakt/movie-library";
 import type { WatchlistItem } from "@/core/data/trakt/schemas";
-import type { SearchHit } from "@/core/data/trakt/search";
+import type { SearchHit } from "@/core/domain/discover";
+import type { LibraryEntry } from "@/core/domain/model/library";
+import type { MovieEntry } from "@/core/domain/model/movie";
 import type { QueuedOp } from "@/core/domain/write-queue/types";
 import { useWatchlistAdd, type WatchlistAddView } from "@/core/hooks/useWatchlistAdd";
 import type {

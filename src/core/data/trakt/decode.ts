@@ -1,9 +1,5 @@
 import { z } from "zod";
-
-export interface DecodeIssue {
-  readonly path: string;
-  readonly message: string;
-}
+import type { DecodeIssue } from "../../domain/read-failure";
 
 export type Decoded<T> =
   | { readonly ok: true; readonly data: T; readonly skipped: readonly DecodeIssue[] }

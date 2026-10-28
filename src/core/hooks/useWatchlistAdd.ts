@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import type { WatchlistItem } from "../data/trakt/schemas";
-import type { SearchHit } from "../data/trakt/search";
+import type { SearchHit } from "../domain/discover";
 import { usePrefs } from "../prefs/prefs-store";
 import { libraryQuery, movieLibraryQuery, movieWatchlistQuery } from "../queries/library";
 import { useRuntime } from "../runtime/runtime";

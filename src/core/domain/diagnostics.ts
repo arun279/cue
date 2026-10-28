@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ReadProblem } from "./client";
+import type { ReadProblem } from "./read-failure";
 
 type ProblemKind = ReadProblem["kind"];
 

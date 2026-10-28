@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { TraktClient, type TraktFailure, unwrapRead } from "@/core/data/trakt/client";
+import { TraktClient, unwrapRead } from "@/core/data/trakt/client";
 import { DEFAULT_TRAKT_POLICY } from "@/core/data/trakt/policy";
+import type { TraktFailure } from "@/core/domain/read-failure";
 import { createTraktFake } from "../trakt-fake/fake.ts";
 
 const fake = createTraktFake();

@@ -8,8 +8,8 @@ import {
   View,
   type ViewStyle,
 } from "react-native";
-import { type WatchTotals, watchTotals } from "@/core/data/trakt/watch-totals";
 import { humanizeWatchMinutes } from "@/core/domain/time";
+import { type WatchTotals, watchTotals } from "@/core/domain/watch-totals";
 import { usePrefs } from "@/core/prefs/prefs-store";
 import { combineStatus } from "@/core/queries/freshness";
 import { libraryQuery, movieLibraryQuery } from "@/core/queries/library";

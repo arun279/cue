@@ -1,8 +1,8 @@
 import { hashKey, type QueryClient } from "@tanstack/react-query";
 import { invalidateChangedShows } from "../data/query-invalidation";
 import { queryKeys } from "../data/query-keys";
-import type { EpisodeDetail } from "../data/trakt/episode-detail";
-import type { SeasonView } from "../data/trakt/show-detail";
+import type { EpisodeDetail } from "../domain/episode-detail";
+import type { SeasonView } from "../domain/show-detail";
 import { historyTargetsOf } from "../domain/write-queue/ops";
 import type { QueuedOp } from "../domain/write-queue/types";
 import type { UpNextData } from "./runtime";

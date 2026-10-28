@@ -6,12 +6,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  TraktClient,
-  TraktReadError,
-  type TraktResult,
-  unwrapRead,
-} from "@/core/data/trakt/client";
+import { TraktClient, type TraktResult, unwrapRead } from "@/core/data/trakt/client";
 import { DEFAULT_TRAKT_POLICY } from "@/core/data/trakt/policy";
 import {
   loadUpNextEntries,
@@ -20,6 +15,7 @@ import {
   subscribeReadPause,
   withReadRateRetry,
 } from "@/core/data/trakt/read-budget";
+import { TraktReadError } from "@/core/domain/read-failure";
 import { emptyAccount, libraryShow, type ShowSpec } from "../trakt-fake/account.ts";
 import { createTraktFake } from "../trakt-fake/fake.ts";
 

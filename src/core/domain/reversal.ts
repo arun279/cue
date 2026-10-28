@@ -126,3 +126,29 @@ export function markedAt(marks: readonly MarkedEpisodes[]): (play: EpisodePlay) 
         mark.traktIds.has(play.episodeTrakt) || mark.positions.has(`${play.season}:${play.number}`),
     )?.watchedAt ?? null;
 }
+
+export function markLanded(
+  toState: "present" | "absent",
+  preCompleted: number,
+  freshCompleted: number,
+): boolean {
+  return toState === "present" ? freshCompleted > preCompleted : freshCompleted < preCompleted;
+}
+
+export type AdditiveMatch =
+  | { readonly episodeTrakt: number }
+  | { readonly season: number; readonly number: number };
+
+export function additiveLanded(
+  plays: readonly EpisodePlay[],
+  match: AdditiveMatch,
+  watchedAt: string,
+): boolean {
+  return plays.some((play) => {
+    const matches =
+      "episodeTrakt" in match
+        ? play.episodeTrakt === match.episodeTrakt
+        : play.season === match.season && play.number === match.number;
+    return matches && isOwnPlay(play.watchedAt, watchedAt);
+  });
+}

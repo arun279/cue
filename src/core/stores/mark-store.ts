@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { LibraryEntry } from "../data/trakt/library";
+import type { LibraryEntry } from "../domain/model/library";
 import { resetOwnMarks } from "./own-marks";
 import { resetWriteLocks } from "./write-locks";
 

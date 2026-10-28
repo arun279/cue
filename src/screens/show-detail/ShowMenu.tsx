@@ -1,8 +1,8 @@
 import * as WebBrowser from "expo-web-browser";
 import type { ReactElement } from "react";
 import { Platform } from "react-native";
-import type { LibraryEntry } from "@/core/data/trakt/library";
-import type { SeasonView } from "@/core/data/trakt/show-detail";
+import type { LibraryEntry } from "@/core/domain/model/library";
+import type { SeasonView } from "@/core/domain/show-detail";
 import { earlierUnwatchedCount, episodeCount } from "@/core/domain/show-detail";
 import { useAlertsMute } from "@/core/hooks/useAlertsMute";
 import { useHideShow } from "@/core/hooks/useHideShow";

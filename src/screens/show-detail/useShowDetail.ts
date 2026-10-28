@@ -1,13 +1,13 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
-import type { LibraryEntry } from "@/core/data/trakt/library";
+import type { LibraryEntry } from "@/core/domain/model/library";
+import { episodesLeftFrom } from "@/core/domain/model/library";
 import {
   firstUnwatchedAired,
   type SeasonView,
   type ShowInfo,
   type ShowProgress,
   toEpisodeRef,
-} from "@/core/data/trakt/show-detail";
-import { episodesLeftFrom } from "@/core/domain/model/library";
+} from "@/core/domain/show-detail";
 import { combineStatus } from "@/core/queries/freshness";
 import { libraryQuery } from "@/core/queries/library";
 import { showInfoQuery, showProgressQuery, showSeasonsQuery } from "@/core/queries/shows";

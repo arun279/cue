@@ -8,14 +8,13 @@ import {
   TraktClient,
   unwrapRead,
 } from "../data/trakt/client";
-import { parseIncidents, type ReadIncident, recordIncident } from "../data/trakt/diagnostics";
 import { assembleEpisodeDetail } from "../data/trakt/episode-detail";
 import {
   assembleEpisodePlays,
   assembleHistoryEntries,
   assembleMoviePlays,
 } from "../data/trakt/history";
-import { additiveLanded, markLanded, showIdSet } from "../data/trakt/library";
+import { showIdSet } from "../data/trakt/library";
 import { assembleMovieHeader, assembleMovieLibrary } from "../data/trakt/movie-library";
 import type { TraktPolicy } from "../data/trakt/policy";
 import {
@@ -53,8 +52,11 @@ import {
 } from "../data/trakt/search";
 import { assembleSeasons, assembleShowInfo, assembleShowProgress } from "../data/trakt/show-detail";
 import { createTraktTransport } from "../data/trakt/transport";
-import { assembleUserProfile, type UserProfile } from "../data/trakt/user-profile";
+import { assembleUserProfile } from "../data/trakt/user-profile";
+import { parseIncidents, type ReadIncident, recordIncident } from "../domain/diagnostics";
 import type { Token } from "../domain/model/token";
+import type { UserProfile } from "../domain/model/user";
+import { additiveLanded, markLanded } from "../domain/reversal";
 import type { LastActivities } from "../domain/sync-activities";
 import { WriteQueue } from "../domain/write-queue/queue";
 import type { QueuedOp } from "../domain/write-queue/types";

@@ -1,4 +1,4 @@
-import type { EpisodeRef, LibraryShow } from "@/core/domain/model/library";
+import type { EpisodeRef, LibraryEntry, LibraryShow } from "@/core/domain/model/library";
 import type { DispatchResult } from "@/core/domain/write-queue/types";
 
 export const DAY = 24 * 60 * 60 * 1000;
@@ -67,3 +67,31 @@ export function fakeClock(start = 0): {
     },
   };
 }
+
+export const baseEntry: LibraryEntry = {
+  showId: 1,
+  title: "Show",
+  year: null,
+  status: "returning series",
+  hidden: false,
+  inWatchlist: false,
+  addedAt: null,
+  lastWatchedAt: "2026-07-01T00:00:00.000Z",
+  plays: null,
+  aired: 10,
+  completed: 3,
+  left: 7,
+  nextEpisode: {
+    season: 1,
+    number: 4,
+    title: "Four",
+    firstAired: "2026-06-01T00:00:00.000Z",
+    still: null,
+    ids: { trakt: 4004 },
+  },
+  lastAired: { season: 1, number: 10 },
+  tmdbId: null,
+  runtime: null,
+  posters: [],
+  pendingAdvance: false,
+};

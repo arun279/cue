@@ -10,9 +10,9 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { LibraryEntry } from "@/core/data/trakt/library";
 import { buildCalendarDays } from "@/core/domain/calendar";
 import { dayKeyOf } from "@/core/domain/day";
+import type { LibraryEntry } from "@/core/domain/model/library";
 import { buildOnTheWay } from "@/core/domain/on-the-way";
 import { sortLapsed, sortQueue } from "@/core/domain/queue-order";
 import { DAY_MS, localTimeZone } from "@/core/domain/time";

@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react-native";
-import type { LibraryEntry } from "@/core/data/trakt/library";
+import type { LibraryEntry } from "@/core/domain/model/library";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { ROW_MIN_HEIGHT } from "../src/ui/tokens";
 import "./support/screen-mocks";

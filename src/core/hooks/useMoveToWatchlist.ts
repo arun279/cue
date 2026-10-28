@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "../data/query-keys";
-import type { LibraryEntry } from "../data/trakt/library";
+import type { LibraryEntry } from "../domain/model/library";
 import { buildAddWatchlistOp, buildRemoveWatchlistOp } from "../domain/write-queue/ops";
 import { useRuntime } from "../runtime/runtime";
 import { showSnack, showUndoable } from "../stores/snackbar-store";

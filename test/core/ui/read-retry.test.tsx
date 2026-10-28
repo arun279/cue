@@ -10,18 +10,14 @@
 import { onlineManager, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  TraktClient,
-  TraktReadError,
-  type TraktResult,
-  unwrapRead,
-} from "@/core/data/trakt/client";
+import { TraktClient, type TraktResult, unwrapRead } from "@/core/data/trakt/client";
 import { DEFAULT_TRAKT_POLICY } from "@/core/data/trakt/policy";
 import {
   loadUpNextEntries,
   resetReadPause,
   withReadRateRetry,
 } from "@/core/data/trakt/read-budget";
+import { TraktReadError } from "@/core/domain/read-failure";
 import { backoffMs } from "@/core/domain/write-queue/classify";
 import { useReadRetry } from "@/core/hooks/useReadRetry";
 import { queryStatus, retryingPast } from "@/core/queries/freshness";

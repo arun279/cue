@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import * as WebBrowser from "expo-web-browser";
-import { TraktReadError } from "@/core/data/trakt/client";
-import type { SearchHit } from "@/core/data/trakt/search";
+import type { SearchHit } from "@/core/domain/discover";
+import { TraktReadError } from "@/core/domain/read-failure";
 import { persistMediaVisibility } from "@/core/prefs/media-visibility";
 import { movieHeaderQuery } from "@/core/queries/movies";
 import { MovieDetail } from "../src/screens/MovieDetail";

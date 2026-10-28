@@ -1,4 +1,4 @@
-import type { SearchHit } from "@/core/data/trakt/search";
+import type { SearchHit } from "@/core/domain/discover";
 import type { BrowseData } from "@/core/runtime/runtime";
 
 export const BROWSE_CELLS = 9;

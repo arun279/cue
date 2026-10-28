@@ -1,15 +1,15 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { invalidateShowProgress } from "../data/query-invalidation";
 import { queryKeys } from "../data/query-keys";
-import type { EpisodeDetail } from "../data/trakt/episode-detail";
-import type { LibraryEntry } from "../data/trakt/library";
+import type { EpisodeDetail } from "../domain/episode-detail";
+import type { LibraryEntry } from "../domain/model/library";
 import {
   type EpisodeMatch,
   patchEpisodes,
   type SeasonView,
   type ShowProgress,
   toEpisodeRef,
-} from "../data/trakt/show-detail";
+} from "../domain/show-detail";
 import type { UpNextData } from "../runtime/runtime";
 import { forgetOwnMark, isBehindOwnMark, keepOwnMark, type OwnMark } from "../stores/own-marks";
 
