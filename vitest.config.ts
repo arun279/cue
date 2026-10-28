@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 // Git exports GIT_DIR and friends into the pre-push hook that runs these tests;
@@ -7,7 +8,7 @@ for (const name of Object.keys(process.env)) {
 }
 
 export default defineConfig({
-  resolve: { alias: { "@/": new URL("./src/", import.meta.url).pathname } },
+  resolve: { alias: { "@/": fileURLToPath(new URL("./src/", import.meta.url)) } },
   test: {
     // The app's own tests under __tests__ run on jest-expo, which has the React Native runtime.
     projects: [
