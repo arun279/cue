@@ -6,7 +6,8 @@
 // bans below carry both spellings.
 const RE_REACT = "(^|/)node_modules/react/";
 const RE_REACT_DOM = "(^|/)node_modules/react-dom/";
-const RE_NATIVE = ["(^|/)node_modules/(expo|react-native)([-/]|$)", "^(expo|react-native)([-/]|$)"];
+const NATIVE = "(@expo/|@expo-google-fonts/|@react-native|(expo|react-native)([-/]|$))";
+const RE_NATIVE = [`(^|/)node_modules/${NATIVE}`, `^${NATIVE}`];
 const RE_IN_REPO = "^(?!node_modules/)";
 /** @type {import("dependency-cruiser").IConfiguration} */
 module.exports = {
@@ -25,6 +26,18 @@ module.exports = {
         "dependency-cruiser's own no-non-package-json: code may import only what package.json declares. `nodeLinker: hoisted` (pnpm-workspace.yaml) puts every transitive dependency in the root node_modules where anything can reach it undeclared, which is the strictness the default linker exists to provide and the price React Native's resolvers charge for it. knip's dependency lane does not close this: it counts an import as declared when a declared package lists it as a peer dependency.",
       from: {},
       to: { dependencyTypes: ["npm-no-pkg", "npm-unknown", "unknown"] },
+    },
+    {
+      name: "shipped-code-takes-no-dev-dependencies",
+      severity: "error",
+      comment:
+        "dependency-cruiser's own not-to-dev-dep. The app bundles everything app, src and modules import, so a devDependency there (react-dom, msw, vitest, a testing library) would ship test tooling to users. Type-only imports are erased and stay allowed.",
+      from: { path: "^(app|src|modules)/" },
+      to: {
+        dependencyTypes: ["npm-dev"],
+        dependencyTypesNot: ["type-only"],
+        pathNot: "(^|/)node_modules/@types/",
+      },
     },
     {
       name: "domain-stays-pure",
@@ -54,7 +67,7 @@ module.exports = {
       name: "ports-have-no-impls",
       severity: "error",
       comment:
-        "A port is a seam the apps fill, so it may take value imports from the domain, from its sibling ports and from react, and nothing else. Stated that way rather than as 'types only': token-store.ts imports tokenSchema, a zod value, from domain/model/token, and three of the ports publish a React context and hook beside their interface, which is how a component reaches the injected instance. React is the injection mechanism rather than an implementation, and everything an implementation would actually need (the DOM or expo) is still banned here by core-stays-portable and by biome's globals override over src/core.",
+        "A port is a seam the app fills, so it may take value imports from the domain, from its sibling ports and from react, and nothing else. Stated that way rather than as 'types only': token-store.ts imports tokenSchema, a zod value, from domain/model/token, and three of the ports publish a React context and hook beside their interface, which is how a component reaches the injected instance. React is the injection mechanism rather than an implementation, and everything an implementation would actually need (the DOM or expo) is still banned here by core-stays-portable and by biome's globals override over src/core.",
       from: { path: "^src/core/ports/" },
       to: {
         dependencyTypesNot: ["type-only"],
@@ -65,7 +78,7 @@ module.exports = {
       name: "core-stays-portable",
       severity: "error",
       comment:
-        "The core executes independently of its Expo host, so it takes neither DOM libraries nor React Native or Expo. Anchored at src because its test suite runs on Node and reads git.",
+        "The core executes independently of its Expo host, so it takes neither DOM libraries nor React Native or Expo. Anchored at src because its tests run on Node and render hooks with React DOM.",
       from: { path: "^src/core/" },
       to: { path: [RE_REACT_DOM, ...RE_NATIVE] },
     },
