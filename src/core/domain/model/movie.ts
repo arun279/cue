@@ -28,3 +28,10 @@ export interface MovieHeader {
   readonly backdrops: readonly string[];
   readonly tmdbId: number | null;
 }
+
+export type MovieListing = Omit<MovieEntry, "watched" | "watchedAt">;
+
+/** A movie saved to the watchlist or the collection that has no play yet. */
+export function unwatchedMovie(listing: MovieListing): MovieEntry {
+  return { ...listing, watched: false, watchedAt: null };
+}

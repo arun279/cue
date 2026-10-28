@@ -60,6 +60,35 @@ export interface LibraryEntry extends LibraryShow {
   readonly posters: readonly string[];
 }
 
+export type ShowListing = Pick<
+  LibraryEntry,
+  | "showId"
+  | "title"
+  | "year"
+  | "status"
+  | "hidden"
+  | "inWatchlist"
+  | "addedAt"
+  | "posters"
+  | "tmdbId"
+>;
+
+/** A show saved to the watchlist or the collection that has no play yet. */
+export function notStartedShow(listing: ShowListing): LibraryEntry {
+  return {
+    ...listing,
+    lastWatchedAt: null,
+    plays: 0,
+    aired: 0,
+    completed: 0,
+    left: 0,
+    nextEpisode: null,
+    lastAired: null,
+    runtime: null,
+    pendingAdvance: false,
+  };
+}
+
 export function advancePastNext(entry: LibraryEntry, watchedAt: string): LibraryEntry {
   const current = entry.nextEpisode;
   const nextEpisode: EpisodeRef | null =

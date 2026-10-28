@@ -1,5 +1,5 @@
 import type { MovieIds } from "../../domain/model/ids";
-import type { MovieEntry, MovieHeader } from "../../domain/model/movie";
+import { type MovieEntry, type MovieHeader, unwatchedMovie } from "../../domain/model/movie";
 import { laterOf } from "../../domain/time";
 import type { CollectionMovie, MovieDetailData, WatchedMovie, WatchlistItem } from "./schemas";
 import { artOf } from "./show-detail";
@@ -86,18 +86,19 @@ function toMovieEntry(
   watched: WatchedMovie | undefined,
   saved: Saved | undefined,
 ): MovieEntry {
-  return {
+  const entry = unwatchedMovie({
     movieId: media.movieId,
     ids: media.ids,
     title: media.title,
     year: media.year,
-    watched: watched !== undefined,
-    watchedAt: watched?.last_watched_at ?? null,
     ...savedFields(saved),
     posters: media.posters,
     tmdbId: media.tmdbId,
     runtime: media.runtime,
-  };
+  });
+  return watched === undefined
+    ? entry
+    : { ...entry, watched: true, watchedAt: watched.last_watched_at ?? null };
 }
 
 function toMovieEntries(

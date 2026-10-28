@@ -4,6 +4,7 @@ import {
   type EpisodeKey,
   type EpisodeRef,
   type LibraryEntry,
+  notStartedShow,
 } from "../../domain/model/library";
 import { laterOf, toMs } from "../../domain/time";
 import type { CollectionShow, HiddenItem, Progress, WatchedShow, WatchlistItem } from "./schemas";
@@ -96,24 +97,15 @@ function savedFields(
 
 function toNotStartedEntry(saved: Saved, hidden: boolean): LibraryEntry {
   const { show } = saved;
-  return {
+  return notStartedShow({
     showId: show.ids.trakt,
     title: show.title,
     year: show.year ?? null,
     status: show.status ?? "",
     hidden,
     ...savedFields(saved),
-    lastWatchedAt: null,
-    plays: 0,
-    aired: 0,
-    completed: 0,
-    left: 0,
-    nextEpisode: null,
-    lastAired: null,
     tmdbId: show.ids.tmdb ?? null,
-    runtime: null,
-    pendingAdvance: false,
-  };
+  });
 }
 
 function savedShows(input: LibraryInput): Map<number, Saved> {

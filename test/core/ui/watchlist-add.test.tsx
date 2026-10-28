@@ -27,9 +27,9 @@ const show: SearchHit = {
   traktId: 1,
   title: "Refetched Show",
   year: 2026,
-  posters: [],
-  tmdbId: null,
-  ids: { trakt: 1 },
+  posters: ["walter-r2.trakt.tv/images/shows/000/001/posters/thumb/1.jpg"],
+  tmdbId: 101,
+  ids: { trakt: 1, tmdb: 101 },
 };
 
 const movie: SearchHit = { ...show, key: "movie:1", type: "movie", title: "Dune" };
@@ -105,9 +105,9 @@ it("lists an added show in the library at once and drops it again when the add i
       left: 0,
       nextEpisode: null,
       lastAired: null,
-      tmdbId: null,
+      tmdbId: show.tmdbId,
       runtime: null,
-      posters: [],
+      posters: show.posters,
       pendingAdvance: false,
     },
   ]);
@@ -166,7 +166,9 @@ it("adds a movie to the movie watchlist and movie library once, then revalidates
   await act(async () => view.current.add(movie));
   await act(async () => view.current.add(movie));
 
-  expect(submitted.map((op) => op.request.body)).toEqual([{ movies: [{ ids: { trakt: 1 } }] }]);
+  expect(submitted.map((op) => op.request.body)).toEqual([
+    { movies: [{ ids: { trakt: 1, tmdb: 101 } }] },
+  ]);
   const listed = {
     movieId: movie.traktId,
     ids: movie.ids,
@@ -177,8 +179,8 @@ it("adds a movie to the movie watchlist and movie library once, then revalidates
     inWatchlist: true,
     inCollection: false,
     addedAt: expect.any(String),
-    posters: [],
-    tmdbId: null,
+    posters: movie.posters,
+    tmdbId: movie.tmdbId,
     runtime: null,
   };
   expect(client.getQueryData<MovieLibraryData>(queryKeys.movieLibrary())?.entries).toEqual([

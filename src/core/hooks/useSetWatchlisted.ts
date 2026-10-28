@@ -2,8 +2,8 @@ import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { queryKeys } from "../data/query-keys";
 import type { SearchHit } from "../domain/discover";
-import type { LibraryEntry } from "../domain/model/library";
-import type { MovieEntry } from "../domain/model/movie";
+import { type LibraryEntry, notStartedShow } from "../domain/model/library";
+import { type MovieEntry, unwatchedMovie } from "../domain/model/movie";
 import { buildAddWatchlistOp, buildRemoveWatchlistOp } from "../domain/write-queue/ops";
 import {
   type MovieLibraryData,
@@ -15,11 +15,11 @@ import { useOptimisticWrite } from "./useOptimisticWrite";
 
 export type WatchlistTitle = Pick<
   SearchHit,
-  "type" | "traktId" | "ids" | "title" | "year" | "posters"
+  "type" | "traktId" | "ids" | "title" | "year" | "posters" | "tmdbId"
 >;
 
-function listedShow({ ids, title, year, posters }: WatchlistTitle): LibraryEntry {
-  return {
+function listedShow({ ids, title, year, posters, tmdbId }: WatchlistTitle): LibraryEntry {
+  return notStartedShow({
     showId: ids.trakt,
     title,
     year,
@@ -27,35 +27,24 @@ function listedShow({ ids, title, year, posters }: WatchlistTitle): LibraryEntry
     hidden: false,
     inWatchlist: true,
     addedAt: new Date().toISOString(),
-    lastWatchedAt: null,
-    plays: 0,
-    aired: 0,
-    completed: 0,
-    left: 0,
-    nextEpisode: null,
-    lastAired: null,
-    tmdbId: ids.tmdb ?? null,
-    runtime: null,
     posters,
-    pendingAdvance: false,
-  };
+    tmdbId,
+  });
 }
 
-function listedMovie({ ids, title, year, posters }: WatchlistTitle): MovieEntry {
-  return {
+function listedMovie({ ids, title, year, posters, tmdbId }: WatchlistTitle): MovieEntry {
+  return unwatchedMovie({
     movieId: ids.trakt,
     ids,
     title,
     year,
-    watched: false,
-    watchedAt: null,
     inWatchlist: true,
     inCollection: false,
     addedAt: new Date().toISOString(),
     posters,
-    tmdbId: ids.tmdb ?? null,
+    tmdbId,
     runtime: null,
-  };
+  });
 }
 
 // The library holds every watchlisted show; the movie library is built from the movie watchlist.
