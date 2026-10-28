@@ -1,3 +1,5 @@
+import { READ_RETRY } from "../../domain/read-failure";
+
 export type TimeoutClass = "read" | "list" | "write";
 
 export interface TraktPolicy {
@@ -15,8 +17,8 @@ export interface TraktPolicy {
 
 export const DEFAULT_TRAKT_POLICY: TraktPolicy = {
   timeoutMs: { read: 15_000, list: 15_000, write: 15_000 },
-  readAttempts: 3,
-  retryDelayMs: { base: 1100, max: 30_000 },
+  readAttempts: READ_RETRY.attempts,
+  retryDelayMs: READ_RETRY.delayMs,
   rateLimit: { retries: 3, backoffMs: { base: 1000, max: 30_000 } },
   readConcurrency: 6,
   // Trakt caps extended=progress watched pages at 100 items (trakt/trakt-api discussion #775).

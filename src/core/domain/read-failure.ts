@@ -31,6 +31,9 @@ export class TraktReadError extends Error {
   }
 }
 
+/** How often, and on what backoff, a read that failed in a way that heals is tried again. */
+export const READ_RETRY = { attempts: 3, delayMs: { base: 1100, max: 30_000 } } as const;
+
 export function healsOnRetry(failure: TraktFailure): boolean {
   if (failure.kind === "network" || failure.kind === "timeout") return true;
   return failure.kind === "server" && failure.status >= 500;
