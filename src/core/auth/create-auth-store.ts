@@ -1,5 +1,4 @@
 import { createStore } from "zustand/vanilla";
-import { sessionTeardown } from "../app/session";
 import {
   type DeviceCode,
   type DeviceTokenResult,
@@ -12,6 +11,7 @@ import { createPkcePair } from "../data/auth/pkce";
 import type { Token } from "../domain/model/token";
 import type { CryptoPort } from "../ports/crypto";
 import type { TokenStore } from "../ports/token-store";
+import { sessionTeardown } from "../runtime/session";
 import type { AuthActions, AuthState, AuthStore } from "./store";
 
 export interface AuthDeps {

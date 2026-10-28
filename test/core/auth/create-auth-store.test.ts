@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PendingWritesError, sessionTeardown } from "@/core/app/session";
 import { type AuthDeps, createAuthStore } from "@/core/auth/create-auth-store";
 import { pollDeviceToken, requestDeviceCode, revokeToken } from "@/core/data/auth/oauth";
 import { createPkcePair } from "@/core/data/auth/pkce";
 import { createTokenStore, type TokenStore } from "@/core/ports/token-store";
+import { PendingWritesError, sessionTeardown } from "@/core/runtime/session";
 import { memoryKeyValueStore } from "../support/stores";
 
 vi.mock("@/core/data/auth/oauth", () => ({

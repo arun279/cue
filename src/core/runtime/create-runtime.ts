@@ -1,4 +1,3 @@
-import { PendingWritesError, type TeardownOptions } from "../app/session";
 import { changedActivityKeys } from "../data/query-invalidation";
 import { createAuthorizedFetch } from "../data/trakt/authorized-fetch";
 import { assembleCalendarEntries } from "../data/trakt/calendar";
@@ -86,6 +85,7 @@ import type {
   SubmitOutcome,
   UpNextData,
 } from "./runtime";
+import { PendingWritesError, type TeardownOptions } from "./session";
 import { createWriteReceipts } from "./write-receipts";
 
 const ACTIVITIES_KEY = "cue.last-activities";
