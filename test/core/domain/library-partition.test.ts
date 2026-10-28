@@ -1,7 +1,7 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { assembleLibrary } from "@/core/data/trakt/library";
-import { assembleMovieLibrary } from "@/core/data/trakt/movie-library";
+import { assembleMovieLibrary, assembleMovieWatchlist } from "@/core/data/trakt/movie-library";
 import type {
   CollectionMovie,
   CollectionShow,
@@ -112,17 +112,21 @@ describe("the library chips partition the library", () => {
           last_watched_at: movie.at,
           movie: ref(movie.trakt),
         }));
-        const watchlistMovies: WatchlistItem[] = input.watchlist.map((item) => ({
-          type: "movie",
-          listed_at: item.at,
-          movie: ref(item.trakt),
-        }));
+        const watchlist = assembleMovieWatchlist(
+          input.watchlist.map(
+            (item): WatchlistItem => ({
+              type: "movie",
+              listed_at: item.at,
+              movie: ref(item.trakt),
+            }),
+          ),
+        );
         const collectionMovies: CollectionMovie[] = input.collection.map((item) => ({
           collected_at: item.at,
           movie: ref(item.trakt),
         }));
         const buckets = movieBuckets(
-          assembleMovieLibrary({ watchedMovies, watchlistMovies, collectionMovies }),
+          assembleMovieLibrary({ watchedMovies, watchlist, collectionMovies }),
         );
 
         const watchedIds = new Set(input.watched.map((movie) => movie.trakt));

@@ -1,6 +1,5 @@
 import { createContext, useContext } from "react";
 import type { InvalidationKey } from "../data/query-invalidation";
-import type { WatchlistItem } from "../data/trakt/schemas";
 import type { CalendarEntry } from "../domain/calendar";
 import type { SearchHit } from "../domain/discover";
 import type { EpisodeDetail } from "../domain/episode-detail";
@@ -53,13 +52,13 @@ export interface CueRuntime {
   loadUpNext(): Promise<UpNextData>;
   loadShowInfo(showId: number): Promise<ShowInfo>;
   loadShowRelated(showId: number): Promise<readonly SearchHit[]>;
-  loadMovieLibrary(watchlist: Promise<readonly WatchlistItem[]>): Promise<MovieLibraryData>;
+  loadMovieLibrary(watchlist: Promise<readonly MovieEntry[]>): Promise<MovieLibraryData>;
   loadMovieHeader(movieId: number): Promise<MovieHeader>;
   loadMovieRelated(movieId: number): Promise<readonly SearchHit[]>;
   loadShowProgress(showId: number): Promise<ShowProgress>;
   loadShowSeasons(showId: number): Promise<readonly SeasonView[]>;
   loadEpisode(showId: number, season: number, number: number): Promise<EpisodeDetail>;
-  loadMovieWatchlist(): Promise<readonly WatchlistItem[]>;
+  loadMovieWatchlist(): Promise<readonly MovieEntry[]>;
   loadCalendar(startDate: string, days: number): Promise<CalendarData>;
   loadHistory(
     section: HistorySection,

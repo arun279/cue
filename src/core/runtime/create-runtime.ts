@@ -15,7 +15,11 @@ import {
   assembleMoviePlays,
 } from "../data/trakt/history";
 import { showIdSet } from "../data/trakt/library";
-import { assembleMovieHeader, assembleMovieLibrary } from "../data/trakt/movie-library";
+import {
+  assembleMovieHeader,
+  assembleMovieLibrary,
+  assembleMovieWatchlist,
+} from "../data/trakt/movie-library";
 import type { TraktPolicy } from "../data/trakt/policy";
 import {
   getCollectionMovies,
@@ -268,14 +272,14 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     },
 
     async loadMovieLibrary(watchlist): Promise<MovieLibraryData> {
-      const [watched, watchlistMovies, collection] = await Promise.all([
+      const [watched, listed, collection] = await Promise.all([
         getWatchedMovies(client),
         watchlist,
         getCollectionMovies(client),
       ]);
       const entries = assembleMovieLibrary({
         watchedMovies: unwrapRead(watched, "watched movies"),
-        watchlistMovies,
+        watchlist: listed,
         collectionMovies: unwrapRead(collection, "movie collection"),
       });
       return { entries };
@@ -321,7 +325,9 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     },
 
     async loadMovieWatchlist() {
-      return unwrapRead(await getWatchlist(client, "movies"), "movie watchlist");
+      return assembleMovieWatchlist(
+        unwrapRead(await getWatchlist(client, "movies"), "movie watchlist"),
+      );
     },
 
     async loadCalendar(startDate, days): Promise<CalendarData> {

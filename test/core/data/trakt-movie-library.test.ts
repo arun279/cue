@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   assembleMovieHeader,
   assembleMovieLibrary,
+  assembleMovieWatchlist,
   type MovieLibraryInput,
 } from "@/core/data/trakt/movie-library";
 import type { MovieDetailData, WatchedMovie, WatchlistItem } from "@/core/data/trakt/schemas";
@@ -49,7 +50,7 @@ describe("assembleMovieLibrary", () => {
     const entries = assembleMovieLibrary({
       watchedMovies: [watchedMovie({ trakt: 1, runtime: 118 }), watchedMovie({ trakt: 2 })],
       collectionMovies: [],
-      watchlistMovies: [],
+      watchlist: [],
     });
     expect(entries.map((entry) => [entry.movieId, entry.runtime])).toEqual([
       [1, 118],
@@ -63,7 +64,7 @@ describe("assembleMovieLibrary", () => {
         watchedMovie({ trakt: 5, title: "Dune", posters: ["media.trakt.tv/d.webp"], tmdb: 438631 }),
       ],
       collectionMovies: [],
-      watchlistMovies: [],
+      watchlist: [],
     };
     const entries = assembleMovieLibrary(input);
     expect(entries).toHaveLength(1);
@@ -86,9 +87,9 @@ describe("assembleMovieLibrary", () => {
     const entries = assembleMovieLibrary({
       watchedMovies: [watchedMovie({ trakt: 5, title: "Both" })],
       collectionMovies: [],
-      watchlistMovies: [
+      watchlist: assembleMovieWatchlist([
         watchlistMovie({ trakt: 5, title: "Both", listedAt: "2026-05-01T00:00:00.000Z" }),
-      ],
+      ]),
     });
     expect(entries).toHaveLength(1);
     expect(entries[0]?.inWatchlist).toBe(true);
@@ -100,9 +101,9 @@ describe("assembleMovieLibrary", () => {
     const entries = assembleMovieLibrary({
       watchedMovies: [],
       collectionMovies: [],
-      watchlistMovies: [
+      watchlist: assembleMovieWatchlist([
         watchlistMovie({ trakt: 9, title: "Queued", listedAt: "2026-06-15T00:00:00.000Z" }),
-      ],
+      ]),
     });
     expect(entries).toHaveLength(1);
     expect(entries[0]).toMatchObject({
@@ -121,7 +122,7 @@ describe("assembleMovieLibrary", () => {
     const entries = assembleMovieLibrary({
       watchedMovies: [],
       collectionMovies: [],
-      watchlistMovies: [watchlistMovie({ trakt: 9, title: "Queued" })],
+      watchlist: assembleMovieWatchlist([watchlistMovie({ trakt: 9, title: "Queued" })]),
     });
     expect(entries[0]?.addedAt).toBeNull();
   });
@@ -129,7 +130,9 @@ describe("assembleMovieLibrary", () => {
   it("keeps a collected movie with no play unwatched, added when it was collected", () => {
     const entries = assembleMovieLibrary({
       watchedMovies: [watchedMovie({ trakt: 1 })],
-      watchlistMovies: [watchlistMovie({ trakt: 2, listedAt: "2026-04-01T00:00:00.000Z" })],
+      watchlist: assembleMovieWatchlist([
+        watchlistMovie({ trakt: 2, listedAt: "2026-04-01T00:00:00.000Z" }),
+      ]),
       collectionMovies: [
         { collected_at: "2026-06-01T00:00:00.000Z", movie: { title: "C", ids: { trakt: 2 } } },
         { collected_at: "2026-05-01T00:00:00.000Z", movie: { title: "D", ids: { trakt: 3 } } },
@@ -159,10 +162,10 @@ describe("assembleMovieLibrary", () => {
     const entries = assembleMovieLibrary({
       watchedMovies: [noYear],
       collectionMovies: [],
-      watchlistMovies: [
+      watchlist: assembleMovieWatchlist([
         { type: "movie" },
         { type: "movie", movie: { title: "Soon", ids: { trakt: 4 } } },
-      ],
+      ]),
     });
     expect(entries.map((entry) => entry.year)).toEqual([null, null]);
     expect(entries[0]?.watchedAt).toBeNull();
