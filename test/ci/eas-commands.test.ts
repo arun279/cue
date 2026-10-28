@@ -44,7 +44,7 @@ const commands = [
 const signedOutRun = async (args: string[]): Promise<string> => {
   try {
     await execFileAsync(eas, args, {
-      cwd: repositoryPath("packages/native"),
+      cwd: repositoryPath(),
       env: {
         PATH: process.env["PATH"],
         HOME: tempDirectory("cue-eas-home-"),

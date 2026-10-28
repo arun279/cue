@@ -4,7 +4,7 @@ import { expect, it } from "vitest";
 import { repositoryPath } from "../support/repository-path";
 
 const postInstall = (
-  JSON.parse(readFileSync(repositoryPath("packages/native/package.json"), "utf8")) as {
+  JSON.parse(readFileSync(repositoryPath("package.json"), "utf8")) as {
     scripts: Record<string, string>;
   }
 ).scripts["eas-build-post-install"];

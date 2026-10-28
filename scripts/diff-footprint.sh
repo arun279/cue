@@ -25,14 +25,12 @@ net_lines() {
 }
 
 read -r product_lines comment_net < <(net_lines \
-  ':(glob)packages/core/src/**' \
-  ':(glob)packages/native/src/**' \
-  ':(glob)packages/native/app/**' \
-  ':(glob)packages/native/modules/**')
+  ':(glob)src/**' \
+  ':(glob)app/**' \
+  ':(glob)modules/**')
 read -r test_net _ < <(net_lines \
   ':(glob)test/**' \
-  ':(glob)packages/*/test/**' \
-  ':(glob)packages/*/__tests__/**' \
+  ':(glob)__tests__/**' \
   ':(glob).maestro/**')
 read -r tooling_net _ < <(net_lines \
   ':(glob).github/**' \
@@ -45,8 +43,8 @@ cat <<EOF
 
 | measurement | base to head |
 | --- | ---: |
-| Product code lines in core/src, native/src, native/app, and native/modules | $(printf '%+d' "$product_net") |
-| Test lines in test, \`packages/*/{test,__tests__}\`, and .maestro | $(printf '%+d' "$test_net") |
+| Product code lines in src, app, and modules | $(printf '%+d' "$product_net") |
+| Test lines in test, \`__tests__\`, and .maestro | $(printf '%+d' "$test_net") |
 | CI and tooling lines in .github and scripts | $(printf '%+d' "$tooling_net") |
 | Product comment lines identified by a comment prefix | $(printf '%+d' "$comment_net") |
 EOF

@@ -4,10 +4,8 @@ import { fileURLToPath } from "node:url";
 import { readAuditIgnores } from "./audit-ignores.mjs";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const [
-  atlasArgument = "packages/native/.expo/atlas.jsonl",
-  workspaceArgument = "pnpm-workspace.yaml",
-] = process.argv.slice(2);
+const [atlasArgument = ".expo/atlas.jsonl", workspaceArgument = "pnpm-workspace.yaml"] =
+  process.argv.slice(2);
 const [, ...bundles] = readFileSync(path.resolve(root, atlasArgument), "utf8").trim().split("\n");
 if (bundles.length === 0) throw new Error("the atlas holds no bundles");
 const shipped = bundles.flatMap((line) => {

@@ -20,15 +20,15 @@ const commits = (
 const repositoryWithGrowth = (): string =>
   commits(
     {
-      "packages/core/src/removed.ts": "const removed = true;\n",
-      "packages/core/test/removed.ts": "removed\n",
+      "src/core/removed.ts": "const removed = true;\n",
+      "test/core/removed.ts": "removed\n",
       "scripts/removed.sh": "echo removed\n",
     },
     {
-      "packages/core/src/removed.ts": "const kept = true;\n// reason\n",
-      "packages/native/app/route.tsx": "export const route = true;\n",
-      "packages/native/modules/module.ts": "export const module = true;\n",
-      "packages/native/__tests__/added.ts": "one\ntwo\n",
+      "src/core/removed.ts": "const kept = true;\n// reason\n",
+      "app/route.tsx": "export const route = true;\n",
+      "modules/module.ts": "export const module = true;\n",
+      "__tests__/added.ts": "one\ntwo\n",
       "test/ci/added.test.ts": "one\n\ntwo\nthree\n",
       ".maestro/flows/added.yaml": "- launchApp\n",
       ".github/workflows/ci.yml": "on: push\n# reason\n",
@@ -47,12 +47,8 @@ describe("diff footprint", () => {
     });
 
     expect(output.split("\n")[0]).toBe("<!-- diff-footprint -->");
-    expect(output).toContain(
-      "| Product code lines in core/src, native/src, native/app, and native/modules | +2 |",
-    );
-    expect(output).toContain(
-      "| Test lines in test, `packages/*/{test,__tests__}`, and .maestro | +6 |",
-    );
+    expect(output).toContain("| Product code lines in src, app, and modules | +2 |");
+    expect(output).toContain("| Test lines in test, `__tests__`, and .maestro | +6 |");
     expect(output).toContain("| CI and tooling lines in .github and scripts | +2 |");
     expect(output).toContain("| Product comment lines identified by a comment prefix | +1 |");
     expect(output).not.toContain("other");

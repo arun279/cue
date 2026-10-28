@@ -1,0 +1,69 @@
+/**
+ * `projects` over `jest-expo/ios` and `jest-expo/android` rather than the
+ * universal preset: the universal one also runs every test under web and node,
+ * and this app has no web target, so those two runs would assert nothing while
+ * doubling the suite. Running both of the two that do ship is the point, because
+ * it is what catches an Android-only divergence in the legacy-preferences key
+ * shape or the haptics bridge.
+ *
+ * `testMatch` names the test files rather than the directory, so a support
+ * module beside them is not itself run as a suite with no tests in it.
+ *
+ * The tests under `__tests__/config` read the app config and the config plugins,
+ * which are the same whichever platform the runner models, so only the iOS
+ * project runs them.
+ *
+ * `nanoid` is added to jest-expo's transform allow-list rather than the list
+ * being restated: expo-router's vendored React Navigation imports
+ * `nanoid/non-secure`, which ships as ESM only, and jest-expo's own list stops
+ * at the Expo and React Navigation scopes.
+ *
+ * `JEST_MAX_WORKERS` caps the workers when set. The pre-push hook sets it, and
+ * CI leaves it unset so the runners keep Jest's default.
+ *
+ * `TZ` is set before any worker starts, so every machine runs the suite eleven
+ * hours behind UTC and a date read in UTC instead of the local zone shows up.
+ */
+process.env.TZ = "Pacific/Pago_Pago";
+
+const { transformIgnorePatterns } = require("jest-expo/jest-preset");
+
+const project = {
+  testMatch: ["<rootDir>/__tests__/**/*.test.{ts,tsx}"],
+  // The gesture root installs a native binding on mount; without its own setup
+  // every screen that renders under one fails before it draws anything.
+  setupFiles: [
+    "<rootDir>/__tests__/support/view-commands.ts",
+    "<rootDir>/__tests__/support/idle-callback.ts",
+    require.resolve("react-native-gesture-handler/jestSetup"),
+  ],
+  setupFilesAfterEnv: [
+    "<rootDir>/__tests__/support/native-modules.ts",
+    "<rootDir>/__tests__/support/reanimated.ts",
+    "<rootDir>/__tests__/support/transient-state.ts",
+    "<rootDir>/__tests__/support/app-state.ts",
+    "<rootDir>/__tests__/support/query-scheduler.ts",
+    "<rootDir>/__tests__/support/warm-renderer.tsx",
+  ],
+  // Worklets is a native library and its `.native` entry points reach a binding
+  // this runner has no host for. Its own resolver picks the web implementation
+  // instead, which is the shape a JS-only test can actually run.
+  resolver: "react-native-worklets/jest/resolver",
+  moduleNameMapper: { "^@/(.*)$": "<rootDir>/src/$1" },
+  transformIgnorePatterns: transformIgnorePatterns.map((pattern) =>
+    pattern.replace("(?!(", "(?!(nanoid|"),
+  ),
+};
+
+module.exports = {
+  ...(process.env.JEST_MAX_WORKERS && { maxWorkers: process.env.JEST_MAX_WORKERS }),
+  projects: [
+    { ...project, preset: "jest-expo/ios", displayName: "ios" },
+    {
+      ...project,
+      preset: "jest-expo/android",
+      displayName: "android",
+      testPathIgnorePatterns: ["/node_modules/", "<rootDir>/__tests__/config/"],
+    },
+  ],
+};

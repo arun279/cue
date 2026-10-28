@@ -1,18 +1,3 @@
-packages:
-  - packages/*
-
-# One version for every dependency more than one package declares. Under the
-# hoisted linker below, two ranges for react can bind a library to a different
-# React instance than the app's renderer.
-# https://pnpm.io/catalogs
-catalog:
-  "@tanstack/react-query": 5.101.2
-  "@types/node": ^22.12.0
-  "@types/react": ^19.2.17
-  react: ^19.2.7
-  typescript: ^6.0.3
-  vitest: ^4.1.9
-
 # Expo supports isolated installs from SDK 54 but warns that some React Native
 # libraries fail to build or resolve under them, and names this as the remedy.
 # https://docs.expo.dev/guides/monorepos/

@@ -28,7 +28,7 @@
         "patterns": [
           {
             "group": ["msw", "msw/*"],
-            "message": "Tests reach Trakt through the fake in packages/core/test/trakt-fake, not their own MSW handlers."
+            "message": "Tests reach Trakt through the fake in test/core/trakt-fake, not their own MSW handlers."
           }
         ]
       }
@@ -36,7 +36,7 @@
   },
   "overrides": [
     {
-      "files": ["packages/core/test/trakt-fake/**"],
+      "files": ["test/core/trakt-fake/**"],
       "rules": { "no-restricted-imports": "off" }
     }
   ]

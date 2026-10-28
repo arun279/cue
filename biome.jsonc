@@ -20,7 +20,7 @@
       "!**/dist",
       "!**/coverage",
       // Recorded and reduced from real Trakt; kept minified.
-      "!packages/core/test/trakt-fake/recordings.json"
+      "!test/core/trakt-fake/recordings.json"
     ]
   },
   "formatter": {
@@ -44,7 +44,7 @@
       // the core does use, and the storage globals Node 22 added. Neither
       // exists on a React Native engine, and neither is an import, so no
       // dependency rule can see them.
-      "includes": ["packages/core/src/**"],
+      "includes": ["src/core/**"],
       "linter": {
         "rules": {
           "style": {
@@ -78,7 +78,7 @@
       // App code leaves to the platform what the platform already draws, and so keeps the
       // platform's own semantics, sizing and dismissal. Each override below is one such rule;
       // an excluded file names why the native candidate does not fit.
-      "includes": ["packages/native/src/**", "packages/native/app/**"],
+      "includes": ["src/**", "app/**"],
       "plugins": ["./biome/self-drawn-modal.grit", "./biome/typed-glyph.grit"],
       "linter": {
         "rules": {
@@ -116,123 +116,123 @@
     },
     {
       "includes": [
-        "packages/native/src/**",
-        "packages/native/app/**",
+        "src/**",
+        "app/**",
         // Toggle, the one Switch.
-        "!packages/native/src/screens/account/Rows.tsx"
+        "!src/screens/account/Rows.tsx"
       ],
       "plugins": ["./biome/switch-outside-toggle.grit"]
     },
     {
       "includes": [
-        "packages/native/src/**",
-        "packages/native/app/**",
+        "src/**",
+        "app/**",
         // Sets resizeMethod="resize".
-        "!packages/native/src/ui/Poster.tsx",
+        "!src/ui/Poster.tsx",
         // Sets resizeMethod="resize".
-        "!packages/native/src/ui/Avatar.tsx",
+        "!src/ui/Avatar.tsx",
         // Draws Android's vector drawables, tinted.
-        "!packages/native/src/ui/PlatformIcon.tsx"
+        "!src/ui/PlatformIcon.tsx"
       ],
       "plugins": ["./biome/image-outside-poster.grit"]
     },
     {
       "includes": [
-        "packages/native/src/**",
-        "packages/native/app/**",
+        "src/**",
+        "app/**",
         // Tints every drawable it draws.
-        "!packages/native/src/ui/PlatformIcon.tsx"
+        "!src/ui/PlatformIcon.tsx"
       ],
       "plugins": ["./biome/untinted-vector.grit"]
     },
     {
       "includes": [
-        "packages/native/src/**",
-        "packages/native/app/**",
+        "src/**",
+        "app/**",
         // Android's toolbar menu host stays 0x0 on a pushed screen (expo/expo#49312); iOS keeps the native menu.
-        "!packages/native/src/ui/RowMenu.tsx",
+        "!src/ui/RowMenu.tsx",
         // A bar button image cannot draw the account's photo or monogram.
-        "!packages/native/src/ui/BarItems.tsx"
+        "!src/ui/BarItems.tsx"
       ],
       "plugins": ["./biome/custom-header-item.grit"]
     },
     {
       "includes": [
-        "packages/native/src/**",
-        "packages/native/app/**",
+        "src/**",
+        "app/**",
         // Neither platform's segmented control is reachable by TalkBack, VoiceOver identifiers and Maestro.
-        "!packages/native/src/ui/SegmentedControl.tsx",
+        "!src/ui/SegmentedControl.tsx",
         // A scrolling rail of filters with counts has no iOS control.
-        "!packages/native/src/screens/library/ChipRail.tsx",
+        "!src/screens/library/ChipRail.tsx",
         // The platform date pickers have no month and year mode.
-        "!packages/native/src/screens/history/HistoryChoice.tsx",
+        "!src/screens/history/HistoryChoice.tsx",
         // Marks something watched, which a switch would read as a setting.
-        "!packages/native/src/ui/CheckControl.tsx"
+        "!src/ui/CheckControl.tsx"
       ],
       "plugins": ["./biome/hand-drawn-selection.grit"]
     },
     {
       "includes": [
-        "packages/native/src/**",
-        "packages/native/app/**",
+        "src/**",
+        "app/**",
         // Android's header search bar collapses to an icon and reports only a submitted query.
-        "!packages/native/src/screens/search/SearchField.tsx"
+        "!src/screens/search/SearchField.tsx"
       ],
       "plugins": ["./biome/text-field-outside-search.grit"]
     },
     {
       "includes": [
-        "packages/native/src/**",
-        "packages/native/app/**",
+        "src/**",
+        "app/**",
         // Android form sheets cannot host a header, so the close is drawn in the sheet.
-        "!packages/native/src/ui/SheetClose.android.tsx",
+        "!src/ui/SheetClose.android.tsx",
         // Picking a month completes the sheet's one task, so the pick closes it.
-        "!packages/native/src/screens/history/MonthJump.tsx"
+        "!src/screens/history/MonthJump.tsx"
       ],
       "plugins": ["./biome/back-outside-navigator.grit"]
     },
     {
       "includes": [
-        "packages/native/src/**",
-        "packages/native/app/**",
+        "src/**",
+        "app/**",
         // Its tab and account groups and its sheets each draw their own header.
-        "!packages/native/src/RootStack.tsx",
+        "!src/RootStack.tsx",
         // Android form sheets cannot host a header, so they title themselves.
-        "!packages/native/src/ui/navigation-theme.tsx"
+        "!src/ui/navigation-theme.tsx"
       ],
       "plugins": ["./biome/header-hidden.grit"]
     },
     {
       "includes": [
-        "packages/native/src/**",
-        "packages/native/app/**",
+        "src/**",
+        "app/**",
         // A sheet opens its own header and has no back button; its leading item is the system close.
-        "!packages/native/src/ui/SheetClose.tsx"
+        "!src/ui/SheetClose.tsx"
       ],
       "plugins": ["./biome/back-replaced.grit"]
     },
     {
       "includes": [
-        "packages/native/src/**",
-        "packages/native/app/**",
+        "src/**",
+        "app/**",
         // The table itself.
-        "!packages/native/src/presentation.ts"
+        "!src/presentation.ts"
       ],
       "plugins": ["./biome/presentation-outside-table.grit"]
     },
     {
       "includes": [
-        "packages/native/src/**",
-        "packages/native/app/**",
+        "src/**",
+        "app/**",
         // Shows Syncing on its button.
-        "!packages/native/src/screens/account/DataSection.tsx",
+        "!src/screens/account/DataSection.tsx",
         // Hands syncing to the RefreshControl.
-        "!packages/native/src/hooks/usePullToRefresh.ts"
+        "!src/hooks/usePullToRefresh.ts"
       ],
       "plugins": ["./biome/silent-sync.grit"]
     },
     {
-      "includes": ["packages/core/src/data/trakt/pooled-endpoints.ts"],
+      "includes": ["src/core/data/trakt/pooled-endpoints.ts"],
       "plugins": ["./biome/unpooled-read.grit"]
     }
   ],
