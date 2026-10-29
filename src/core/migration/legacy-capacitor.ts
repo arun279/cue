@@ -11,6 +11,7 @@ import type { TokenStore } from "../ports/token-store";
 
 const ADOPTED_TOKEN_KEY = "cue.legacy-token-adopted";
 const TUTORIAL_KEY = "cue.tutorial-mark-dismissed";
+const WEB_VIEW_CLEARED_KEY = "cue.legacy-web-view-cleared";
 
 const requestSchema = z.object({
   method: z.literal("POST"),
@@ -62,11 +63,19 @@ export interface LegacyMigrationResult {
 
 // The legacy store is deleted only once its token is adopted, was adopted by an earlier
 // build, or is unusable, so a failed adoption keeps the token for the next launch to retry.
+// The web view is cleared off the boot path, and a launch that fails to clear it retries.
 export async function migrateLegacyData(deps: LegacyMigrationDeps): Promise<LegacyMigrationResult> {
   const adoptedToken = await adoptToken(deps);
   const adoptedOps = await adoptOpLog(deps);
   await deps.legacy.clear();
+  void clearLegacyWebView(deps).catch(() => {});
   return { adoptedToken, adoptedOps };
+}
+
+async function clearLegacyWebView({ bulk, legacy }: LegacyMigrationDeps): Promise<void> {
+  if ((await bulk.read(WEB_VIEW_CLEARED_KEY)) !== null) return;
+  await legacy.clearWebView();
+  await bulk.write(WEB_VIEW_CLEARED_KEY, "1");
 }
 
 async function adoptToken(deps: LegacyMigrationDeps): Promise<boolean> {

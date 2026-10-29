@@ -5,4 +5,5 @@ export const legacyStore: LegacyStore = {
   read: (key) => CueLegacyPreferences.read(key),
   remove: (key) => CueLegacyPreferences.remove(key),
   clear: () => CueLegacyPreferences.clear(),
+  clearWebView: () => CueLegacyPreferences.clearWebView(),
 };
