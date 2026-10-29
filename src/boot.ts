@@ -9,6 +9,7 @@ const INSTALL_MARKER_KEY = "cue.install-id";
 
 export interface NativeBootDeps {
   readonly tokenStore: TokenStore;
+  readonly secure: KeyValueStore;
   readonly bulk: KeyValueStore;
   readonly legacy: LegacyStore;
   readonly preferences: PreferenceStorage;
@@ -34,6 +35,7 @@ export async function bootNativeStores(deps: NativeBootDeps): Promise<NativeBoot
   const migration = await migrateLegacyData({
     legacy: deps.legacy,
     tokenStore: deps.tokenStore,
+    secure: deps.secure,
     bulk: deps.bulk,
     preferences: deps.preferences,
     digest: deps.digest,

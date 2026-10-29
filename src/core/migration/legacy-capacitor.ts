@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { tokenSchema } from "../domain/model/token";
+import { type Token, tokenSchema } from "../domain/model/token";
 import type { QueuedOp } from "../domain/write-queue/types";
 import type { CryptoPort } from "../ports/crypto";
 import { createJsonStore } from "../ports/json-store";
@@ -50,6 +50,7 @@ export interface LegacyMigrationDeps {
   readonly digest: CryptoPort["digest"];
   readonly legacy: LegacyStore;
   readonly tokenStore: TokenStore;
+  readonly secure: KeyValueStore;
   readonly bulk: KeyValueStore;
   readonly preferences: PreferenceStorage;
 }
@@ -59,37 +60,46 @@ export interface LegacyMigrationResult {
   readonly adoptedOps: number;
 }
 
+// The legacy store is deleted only once its token is adopted, was adopted by an earlier
+// build, or is unusable, so a failed adoption keeps the token for the next launch to retry.
 export async function migrateLegacyData(deps: LegacyMigrationDeps): Promise<LegacyMigrationResult> {
-  const rawToken = await deps.legacy.read(TOKEN_KEY);
-  let adoptedToken = false;
-  if (rawToken !== null) {
-    const token = tokenSchema.safeParse(tryParse(rawToken));
-    if (token.success) {
-      const digest = await digestToken(rawToken, deps.digest);
-      if (digest !== (await deps.bulk.read(ADOPTED_TOKEN_KEY))) {
-        await deps.tokenStore.write(token.data);
-        await deps.bulk.write(ADOPTED_TOKEN_KEY, digest);
-        adoptedToken = true;
-        deps.preferences.setItem(TUTORIAL_KEY, "1");
-      }
-    }
-  }
-
-  const rawOpLog = await deps.legacy.read(OP_LOG_KEY);
-  let adoptedOps = 0;
-  if (rawOpLog !== null) {
-    const migrated = parseOpLog(rawOpLog);
-    if (migrated.length > 0) {
-      const opLog = createJsonStore<QueuedOp[]>(deps.bulk, OP_LOG_KEY, (value) =>
-        Array.isArray(value) ? (value as QueuedOp[]) : [],
-      );
-      await opLog.write([...migrated, ...((await opLog.read()) ?? [])]);
-      adoptedOps = migrated.length;
-    }
-    await deps.legacy.remove(OP_LOG_KEY);
-  }
-
+  const adoptedToken = await adoptToken(deps);
+  const adoptedOps = await adoptOpLog(deps);
+  await deps.legacy.clear();
   return { adoptedToken, adoptedOps };
+}
+
+async function adoptToken(deps: LegacyMigrationDeps): Promise<boolean> {
+  const rawToken = await deps.legacy.read(TOKEN_KEY);
+  if (rawToken === null) return false;
+  const token = tokenSchema.safeParse(tryParse(rawToken));
+  if (!token.success) return false;
+  const digest = await digestToken(rawToken, deps.digest);
+  if (digest === (await deps.bulk.read(ADOPTED_TOKEN_KEY))) return false;
+  await deps.tokenStore.write(token.data);
+  const persisted = await createJsonStore<Token>(deps.secure, TOKEN_KEY, (value) =>
+    tokenSchema.parse(value),
+  ).read();
+  if (JSON.stringify(persisted) !== JSON.stringify(token.data)) {
+    throw new Error("The adopted Trakt token did not read back from the secure store.");
+  }
+  await deps.bulk.write(ADOPTED_TOKEN_KEY, digest);
+  deps.preferences.setItem(TUTORIAL_KEY, "1");
+  return true;
+}
+
+async function adoptOpLog(deps: LegacyMigrationDeps): Promise<number> {
+  const rawOpLog = await deps.legacy.read(OP_LOG_KEY);
+  if (rawOpLog === null) return 0;
+  const migrated = parseOpLog(rawOpLog);
+  if (migrated.length > 0) {
+    const opLog = createJsonStore<QueuedOp[]>(deps.bulk, OP_LOG_KEY, (value) =>
+      Array.isArray(value) ? (value as QueuedOp[]) : [],
+    );
+    await opLog.write([...migrated, ...((await opLog.read()) ?? [])]);
+  }
+  await deps.legacy.remove(OP_LOG_KEY);
+  return migrated.length;
 }
 
 async function digestToken(raw: string, digest: CryptoPort["digest"]): Promise<string> {

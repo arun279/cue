@@ -86,9 +86,9 @@
           <strong>iOS:</strong> Cue keeps your Trakt token in the iOS keychain, marked for this
           device only. Device backups include the keychain, but iOS locks those items to the phone
           they came from, so the token cannot be restored onto any other device. Cue's other data
-          is included in an iCloud backup or a backup you have taken to a computer by default, and
-          if you used Cue 1.0, so is the data that version left behind, your Trakt token among it.
-          For iCloud, open <strong>Settings &rarr; [your name] &rarr; iCloud</strong>,
+          is included in an iCloud backup or a backup you have taken to a computer by default. Cue
+          1.0 kept your token in that backed-up storage; once Cue has moved the token to the
+          keychain it deletes 1.0's copy, but a backup taken before then still holds it. For iCloud, open <strong>Settings &rarr; [your name] &rarr; iCloud</strong>,
           tap <strong>Storage</strong> or <strong>Manage Account Storage</strong>, then tap <strong>Backups</strong>,
           tap the device you are using, and switch Cue off: iOS
           stops backing Cue up and removes what iCloud already holds. That switch does not reach a
@@ -117,8 +117,8 @@
           <strong>Cue's on-device data:</strong> open <strong>Profile &rarr; Sign out</strong>
           (Profile is your avatar at the top of the screen). Signing out asks Trakt to revoke this device's access token, deletes Cue's local
           settings, cache, and Trakt token stored on the device, and cancels every reminder the OS
-          was holding for Cue. If you used Cue 1.0, the data that version left behind, your Trakt
-          token among it, stays on the device until you uninstall Cue. The delete is what Cue can
+          was holding for Cue. If you used Cue 1.0, the settings and cache it kept in its web view
+          stay on the device until you uninstall Cue. The delete is what Cue can
           guarantee: Trakt always answers success, so that alone does not confirm the revoke
           worked; revoke Cue from your Trakt account settings at
           <a href="https://app.trakt.tv/settings/apps">app.trakt.tv/settings/apps</a> as well.

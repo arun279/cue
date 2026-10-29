@@ -1,11 +1,12 @@
 import type { KeyValueStore } from "@/core/ports/kv";
+import type { LegacyStore } from "@/core/ports/legacy-store";
 import type { PreferenceStorage } from "@/core/ports/preference-storage";
 
 /**
- * The two storage ports as plain maps, with the map exposed so a test can assert
+ * The storage ports as plain maps, with the map exposed so a test can assert
  * on what is durable rather than on what a spy was called with. Shared, because
- * the migration is tested here as a pure function and again in the native
- * package as part of its boot, and two copies of the same fake are two things
+ * the migration is tested here as a pure function and again as part of the
+ * app's boot, and two copies of the same fake are two things
  * that can drift from the port they stand for.
  */
 
@@ -22,6 +23,21 @@ export function memoryKeyValueStore(seed: Record<string, string> = {}): MemoryKe
     },
     remove: (key) => {
       values.delete(key);
+      return Promise.resolve();
+    },
+  };
+}
+
+export type MemoryLegacyStore = LegacyStore & { readonly values: Map<string, string> };
+
+export function memoryLegacyStore(seed: Record<string, string> = {}): MemoryLegacyStore {
+  const { values, read, remove } = memoryKeyValueStore(seed);
+  return {
+    values,
+    read,
+    remove,
+    clear: () => {
+      values.clear();
       return Promise.resolve();
     },
   };

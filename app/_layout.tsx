@@ -67,7 +67,9 @@ const sessionDeps = {
   clientId: TRAKT_CLIENT_ID,
   apiBaseUrl: TRAKT_BASE_OVERRIDE,
   userAgent: `Cue/${nativeAppVersion}`,
-  clearPersistedCaches,
+  clearPersistedCaches: async () => {
+    await Promise.all([clearPersistedCaches(), legacyStore.clear()]);
+  },
   clearLocalPreferences: () => clearLocalPreferences(prefsStore),
 };
 
@@ -84,6 +86,7 @@ function useNativeSession(): NativeSession | null {
     const tokenStore = createTokenStore(secureStore);
     void bootNativeStores({
       tokenStore,
+      secure: secureStore,
       bulk: bulkStore,
       legacy: legacyStore,
       preferences: preferenceStorage,

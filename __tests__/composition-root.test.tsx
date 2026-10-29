@@ -8,6 +8,7 @@ import { AccessibilityInfo, AppState, Text } from "react-native";
 import * as runtimeBoot from "@/core/app/boot";
 import { queryKeys } from "@/core/data/query-keys";
 import { useActivitiesPoll } from "@/core/hooks/useActivitiesPoll";
+import { sessionTeardown } from "@/core/runtime/session";
 import { bootNativeStores } from "../src/boot";
 import { persistBuster, queryClient, shouldDehydrateQuery } from "../src/platform/query-persister";
 import { useScreenReader } from "../src/platform/screen-reader";
@@ -245,15 +246,28 @@ describe("the native composition root", () => {
     expect(useActivitiesPoll).toHaveBeenCalled();
   });
 
-  it("leaves the legacy token where it is, and takes the legacy op log away", async () => {
+  it("deletes everything the legacy store held once its token is adopted", async () => {
     legacyBacking.set("cue.trakt.token", TOKEN);
     legacyBacking.set("cue.write-queue", "[]");
+    legacyBacking.set("cue.last-activities", "{}");
 
     await render(<RootLayout />);
     await screen.findByTestId("router-stack");
 
-    expect(legacyBacking.get("cue.trakt.token")).toBe(TOKEN);
-    expect(legacyBacking.has("cue.write-queue")).toBe(false);
+    expect(secureBacking.get("cue.trakt.token")).toBe(TOKEN);
+    expect(legacyBacking.size).toBe(0);
+  });
+
+  it("deletes anything left in the legacy store when the session ends", async () => {
+    bulkBacking.values.set("cue.install-id", "an-earlier-install");
+    secureBacking.set("cue.trakt.token", TOKEN);
+    await render(<RootLayout />);
+    await screen.findByTestId("router-stack");
+    legacyBacking.set("cue.trakt.token", TOKEN);
+
+    await act(() => sessionTeardown.run());
+
+    expect(legacyBacking.size).toBe(0);
   });
 
   it("keeps the token out of the bulk store", async () => {

@@ -6,7 +6,7 @@ import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
 /**
- * Reads what the Capacitor build left in shared preferences.
+ * Reads, and finally deletes, what the Capacitor build left in shared preferences.
  *
  * Capacitor Preferences namespaces by a group that defaults to
  * `CapacitorStorage`, and on Android that group is the file name while the key
@@ -29,6 +29,10 @@ class CueLegacyPreferencesModule : Module() {
 
         AsyncFunction("remove") { key: String ->
             preferences().edit().remove(key).apply()
+        }
+
+        AsyncFunction("clear") {
+            preferences().edit().clear().apply()
         }
     }
 

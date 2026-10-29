@@ -2,4 +2,5 @@
 export interface LegacyStore {
   read(key: string): Promise<string | null>;
   remove(key: string): Promise<void>;
+  clear(): Promise<void>;
 }

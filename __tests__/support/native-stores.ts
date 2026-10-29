@@ -73,7 +73,7 @@ export const secureStoreModule = {
 export const legacyBacking = new Map<string, string>();
 
 /** The local module's whole JavaScript surface: the seven silent verbs and the
- * legacy reader over the map above. */
+ * legacy store over the map above. */
 export const cueNativeModule = {
   CueHaptics: {
     success: () => {},
@@ -89,6 +89,10 @@ export const cueNativeModule = {
     read: (key: string): Promise<string | null> => Promise.resolve(legacyBacking.get(key) ?? null),
     remove: (key: string): Promise<void> => {
       legacyBacking.delete(key);
+      return Promise.resolve();
+    },
+    clear: (): Promise<void> => {
+      legacyBacking.clear();
       return Promise.resolve();
     },
   },
