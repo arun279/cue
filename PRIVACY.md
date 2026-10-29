@@ -1,6 +1,6 @@
 # Cue Privacy
 
-_Last reviewed: 28 October 2026._
+_Last reviewed: 29 October 2026._
 
 Cue is a personal TV and movie tracker that talks directly to your own [Trakt](https://trakt.tv) account. This is the whole of what it does with your data.
 
@@ -28,7 +28,7 @@ Cue collects no analytics and sends no telemetry of its own. It makes network re
 
 ## Deleting your data
 
-- **Cue's on-device data:** open **Profile → Sign out** (Profile is your avatar at the top of the screen). Signing out asks Trakt to revoke this device's access token, deletes Cue's local settings, cache, and Trakt token stored on the device, and cancels every reminder the OS was holding for Cue. If you used Cue 1.0, the settings and cache it kept in its web view stay on the device until you uninstall Cue. The delete is what Cue can guarantee: Trakt always answers success, so that alone does not confirm the revoke worked; revoke Cue from your Trakt account settings at <https://app.trakt.tv/settings/apps> as well. Uninstalling the app removes the same local data, except that iOS keeps the keychain, and your Trakt token in it, until Cue is installed and opened again; sign out before uninstalling to remove it. Neither reaches a copy already sitting in a device backup, which is what the backup section above is for.
+- **Cue's on-device data:** open **Profile → Sign out** (Profile is your avatar at the top of the screen). Signing out asks Trakt to revoke this device's access token, deletes Cue's local settings, cache, and Trakt token stored on the device, and cancels every reminder the OS was holding for Cue. If you used Cue 1.0, the settings and cache it kept, your watch history among them, are deleted without you signing out: Cue deletes them once it has moved your Trakt token across, which normally happens the first time the new version opens. The delete is what Cue can guarantee: Trakt always answers success, so that alone does not confirm the revoke worked; revoke Cue from your Trakt account settings at <https://app.trakt.tv/settings/apps> as well. Uninstalling the app removes the same local data, except that iOS keeps the keychain, and your Trakt token in it, until Cue is installed and opened again; sign out before uninstalling to remove it. Neither reaches a copy already sitting in a device backup, which is what the backup section above is for.
 - **Your Trakt account itself:** Cue cannot delete it. Cue has no account of its own and no server-side copy of your data to delete. Only Trakt can delete a Trakt account. Do it at <https://app.trakt.tv/settings/advanced>.
 
 ## Hosting this document
