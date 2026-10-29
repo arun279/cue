@@ -12,7 +12,7 @@ The only stand-in for Trakt in this repository. It holds a seeded account, OAuth
 
 - Reach Trakt through this fake. Only files in this directory may import `msw`, and oxlint enforces it.
 - Get failures from the fault helpers, not from a stub `fetch`.
-- The one exception is `test/data/trakt-tolerant-decoding.test.ts`. Its bodies are off-spec on purpose (missing fields, bodies that are not JSON, pages without their headers), which the fake never sends, so it stubs `fetch`.
+- The one exception is `test/core/data/trakt-tolerant-decoding.test.ts`. Its bodies are off-spec on purpose (missing fields, bodies that are not JSON, pages without their headers), which the fake never sends, so it stubs `fetch`.
 
 ## How the fake is checked
 

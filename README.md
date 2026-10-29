@@ -4,7 +4,7 @@ Cue is a personal, zero-backend TV and movie tracker for iOS and Android. It syn
 
 ## Features
 
-- Up Next with a spotlight, next episodes, upcoming airings, idle shows, and recent history.
+- Up Next with the next episode of every show you are watching, upcoming airings, and a drawer for shows you haven't watched lately.
 - Optimistic mark-as-watched actions with batch undo and a durable offline write queue.
 - Show and movie libraries with filtering, sorting, watchlist actions, and detail views.
 - Calendar, search, history, profile statistics, and local episode reminders.
@@ -20,17 +20,14 @@ Requires Node 22.23.4, the version in `.nvmrc`, and pnpm.
 
 ```sh
 pnpm install
-pnpm dev
+pnpm exec expo run:ios
+pnpm exec expo run:android
 pnpm check
 ```
 
-Set `EXPO_PUBLIC_TRAKT_CLIENT_ID` to the public client id of a Trakt API app. The native projects are generated from `app.config.ts` and its config plugins:
+Set `EXPO_PUBLIC_TRAKT_CLIENT_ID`, for example in a `.env` file, to the public client id of a Trakt API app. The app includes a local native module, so it does not run in Expo Go. `expo run:ios` and `expo run:android` generate the native project from `app.config.ts` and its config plugins, install a debug build on a simulator or emulator, and start Metro. `pnpm dev` starts Metro alone for a debug build that is already installed.
 
-```sh
-pnpm exec expo prebuild
-```
-
-`pnpm check` is the deterministic repository gate. It runs Biome, oxlint, dprint, cspell, TypeScript, dependency-cruiser, knip, jscpd, the shipped-bundle checks, Vitest, and the iOS and Android jest-expo projects. pnpm refuses to install or run scripts under any Node other than the one in `engines.node`. In CI, the footprint job comments each pull request's line changes and bundle sizes without gating.
+`pnpm check` is the deterministic repository gate. It runs Biome, oxlint, dprint, cspell, TypeScript, `expo install --check`, dependency-cruiser, knip, jscpd, the shipped-bundle checks, Vitest, and the iOS and Android jest-expo projects. pnpm refuses to install or run scripts under any Node other than the one in `engines.node`. In CI, the footprint job comments each pull request's line changes and bundle sizes without gating.
 
 Git hooks are installed by `pnpm install`. Pre-commit runs the fast lint, formatting, spelling, and type gates. Pre-push runs `pnpm check`.
 
@@ -44,9 +41,9 @@ pnpm fake:trakt
 
 Its README covers what it models, the rules for tests that use it, how `conformance.test.ts` holds it to recordings of real Trakt, and where each recording came from.
 
-`scenario-budget.test.tsx` replays user scenarios against the fake on generated accounts of a given size, and sizes each byte budget from the fake's own answers to the reads the scenario needs.
+`test/core/harness/scenario-budget.test.tsx` replays user scenarios against the fake on generated accounts of a given size, and sizes each byte budget from the fake's own answers to the reads the scenario needs.
 
-Set `EXPO_PUBLIC_TRAKT_API_BASE=http://127.0.0.1:8787` for a simulator build that should use the fake service. The Expo configuration adds a local transport exception only for that build. Release builds carry no exception. Set `EXPO_PUBLIC_CLOCK_START` to the instant of `FIXTURE_NOW` too: the app's clock then starts there at launch and runs on, so the app and the fake agree on which episodes have aired. CI sets it in `.github/workflows/ci.yml`; change both together. Store builds leave it unset, Metro leaves the clock out of their bundles, and `pnpm check:bundle` and the update workflow fail if it reaches one.
+Set `EXPO_PUBLIC_TRAKT_API_BASE=http://127.0.0.1:8787` for a simulator build that should use the fake service. The Expo configuration adds a local transport exception only for that build. Store builds carry no exception. Set `EXPO_PUBLIC_CLOCK_START` to the instant of `FIXTURE_NOW` too: the app's clock then starts there at launch and runs on, so the app and the fake agree on which episodes have aired. CI sets it in `.github/workflows/ci.yml`; change both together. Store builds leave it unset, Metro leaves the clock out of their bundles, and `pnpm check:bundle` and the update workflow fail if it reaches one.
 
 ## Architecture
 
@@ -61,7 +58,7 @@ Dependencies flow from the app into the core. Dependency-cruiser enforces that b
 
 Core tests in `test/core` use Vitest, as do the tests for the repository scripts in `test/ci`. The app's tests in `__tests__` use jest-expo for both platform presets, and React Native Testing Library covers screen behavior.
 
-End-to-end coverage is a short Maestro smoke suite in `.maestro/smoke`: sign in through the device code, mark the next episode from Up Next, visit every tab, open a show and a movie and mark an episode, search, and sign out. Every pull request push runs it on an Android emulator and an iOS simulator, against a release build of the app pointed at the fake. Each job fingerprints the native project with `@expo/fingerprint` and caches the native build under that hash; when the hash is already cached, `@expo/repack-app` swaps the commit's JavaScript into the cached build instead of compiling it again. The jobs upload the screenshots each flow takes, plus Maestro's debug output when a flow fails. To check that the suite is deterministic, dispatch the CI workflow on a branch repeatedly with `gh workflow run ci.yml --ref <branch>`, once first so that run seeds the build cache.
+End-to-end coverage is a short Maestro smoke suite in `.maestro/smoke`: sign in through the device code, mark the next episode from Up Next, visit every tab, open a show and a movie and mark an episode, search, and sign out. Every pull request push runs it on an Android emulator and an iOS simulator, against a release build of the app pointed at the fake. Each job fingerprints the native project with `@expo/fingerprint` and caches the native build under that hash; when the hash is already cached, `@expo/repack-app` swaps the commit's JavaScript into the cached build instead of compiling it again. If the iOS suite fails, the job warns and runs it once more from a fresh install and a reset fake. The jobs upload the screenshots each flow takes, plus Maestro's debug output when a flow fails. To check that the suite is deterministic, dispatch the CI workflow on a branch repeatedly with `gh workflow run ci.yml --ref <branch>`, once first so that run seeds the build cache.
 
 To run the smoke flows locally, start `pnpm fake:trakt`, install a build made with the environment above on a simulator or emulator (`adb reverse tcp:8787 tcp:8787` on Android), and run `maestro test .maestro/smoke`.
 
@@ -98,7 +95,7 @@ Cue uses the Trakt API but is not created, endorsed, or sponsored by Trakt. The 
 
 ## Privacy
 
-Cue runs no server and collects no analytics or telemetry. It talks to Trakt and the image hosts Trakt references. Your OAuth token, settings, queued marks, and cache stay on your device. See [PRIVACY.md](PRIVACY.md) for backup behavior and deletion instructions.
+Cue runs no server and collects no analytics or telemetry. It talks to Trakt, the image hosts Trakt references, and Expo's update service, which it asks for JavaScript updates on launch. Your OAuth token, settings, queued marks, and cache stay on your device. See [PRIVACY.md](PRIVACY.md) for backup behavior and deletion instructions.
 
 ## License
 
