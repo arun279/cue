@@ -15,6 +15,7 @@ import { useScreenReader } from "../src/platform/screen-reader";
 import {
   bulkBacking,
   legacyBacking,
+  legacyWebViewBacking,
   secureBacking,
   secureStoreModule,
 } from "./support/native-stores";
@@ -110,6 +111,7 @@ describe("the native composition root", () => {
     bulkBacking.values.clear();
     secureBacking.clear();
     legacyBacking.clear();
+    legacyWebViewBacking.clear();
     jest.mocked(useActivitiesPoll).mockClear();
   });
 
@@ -250,12 +252,14 @@ describe("the native composition root", () => {
     legacyBacking.set("cue.trakt.token", TOKEN);
     legacyBacking.set("cue.write-queue", "[]");
     legacyBacking.set("cue.last-activities", "{}");
+    legacyWebViewBacking.set("cue.theme", "dark");
 
     await render(<RootLayout />);
     await screen.findByTestId("router-stack");
 
     expect(secureBacking.get("cue.trakt.token")).toBe(TOKEN);
     expect(legacyBacking.size).toBe(0);
+    await waitFor(() => expect(legacyWebViewBacking.size).toBe(0));
   });
 
   it("deletes anything left in the legacy store when the session ends", async () => {

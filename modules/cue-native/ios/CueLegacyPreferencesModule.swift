@@ -1,4 +1,5 @@
 import ExpoModulesCore
+import WebKit
 
 /// Reads, and finally deletes, what the Capacitor build left in `UserDefaults`.
 ///
@@ -12,6 +13,11 @@ import ExpoModulesCore
 /// React Native's own `Settings` module wraps `NSUserDefaults` and is documented
 /// as iOS-only, which would cover half the job; Android needs a native module
 /// regardless, so both platforms go through this one.
+///
+/// The Capacitor build ran in a `WKWebView` on the default data store, which
+/// still holds its settings and query cache. Nothing in this app uses that
+/// store, so everything in it is deleted except cookies, where Cue 1.0 kept
+/// nothing.
 public class CueLegacyPreferencesModule: Module {
     private static let prefix = "CapacitorStorage."
 
@@ -31,6 +37,13 @@ public class CueLegacyPreferencesModule: Module {
             for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(Self.prefix) {
                 defaults.removeObject(forKey: key)
             }
+        }
+
+        AsyncFunction("clearWebView") { () async in
+            await WKWebsiteDataStore.default().removeData(
+                ofTypes: WKWebsiteDataStore.allWebsiteDataTypes().subtracting([WKWebsiteDataTypeCookies]),
+                modifiedSince: .distantPast
+            )
         }
     }
 }

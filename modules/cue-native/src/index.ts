@@ -12,6 +12,7 @@ declare class CueLegacyPreferencesNativeModule extends NativeModule<Record<never
   read(key: string): Promise<string | null>;
   remove(key: string): Promise<void>;
   clear(): Promise<void>;
+  clearWebView(): Promise<void>;
 }
 
 /**
@@ -25,6 +26,6 @@ export const CueHaptics = requireNativeModule<NativeModule<Record<never, never>>
   "CueHaptics",
 );
 
-/** Legacy preferences, read through each platform's stored key shape. */
+/** What Cue 1.0 left: its preferences, read through each platform's stored key shape, and its web view. */
 export const CueLegacyPreferences =
   requireNativeModule<CueLegacyPreferencesNativeModule>("CueLegacyPreferences");

@@ -72,8 +72,11 @@ export const secureStoreModule = {
 /** What the legacy app left behind, as the local module would read it. */
 export const legacyBacking = new Map<string, string>();
 
+/** What the legacy app kept in its web view's storage. */
+export const legacyWebViewBacking = new Map<string, string>();
+
 /** The local module's whole JavaScript surface: the seven silent verbs and the
- * legacy store over the map above. */
+ * legacy store over the maps above. */
 export const cueNativeModule = {
   CueHaptics: {
     success: () => {},
@@ -93,6 +96,10 @@ export const cueNativeModule = {
     },
     clear: (): Promise<void> => {
       legacyBacking.clear();
+      return Promise.resolve();
+    },
+    clearWebView: (): Promise<void> => {
+      legacyWebViewBacking.clear();
       return Promise.resolve();
     },
   },

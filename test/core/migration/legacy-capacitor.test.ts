@@ -30,6 +30,13 @@ const OP = {
   reconcileKeys: ["progress/watched", "watched/shows"],
 } as const;
 
+const WEB_VIEW = {
+  "cue.theme": "dark",
+  "cue.query-cache": JSON.stringify({ history: [8802191] }),
+};
+
+const settle = () => new Promise(setImmediate);
+
 function deps(
   legacySeed: Record<string, string> = {},
   secure: KeyValueStore = memoryKeyValueStore(),
@@ -41,7 +48,7 @@ function deps(
   const bulk = memoryKeyValueStore();
   return {
     digest: async (bytes) => new Uint8Array(createHash("sha256").update(bytes).digest()),
-    legacy: memoryLegacyStore(legacySeed),
+    legacy: memoryLegacyStore(legacySeed, WEB_VIEW),
     tokenStore: createTokenStore(secure),
     secure,
     bulk,
@@ -57,13 +64,14 @@ function deps(
  * and an op log not adopted is a play the user marked that never reaches Trakt.
  */
 describe("the Capacitor migration", () => {
-  it("does nothing on a fresh install", async () => {
+  it("adopts nothing on a fresh install", async () => {
     const fresh = deps();
     const result = await migrateLegacyData(fresh);
+    await settle();
 
     expect(result).toEqual({ adoptedToken: false, adoptedOps: 0 });
     expect(await fresh.tokenStore.read()).toBeNull();
-    expect(fresh.bulk.values.size).toBe(0);
+    expect([...fresh.bulk.values.keys()]).toEqual(["cue.legacy-web-view-cleared"]);
     expect(fresh.preferences.values.size).toBe(0);
   });
 
@@ -74,10 +82,39 @@ describe("the Capacitor migration", () => {
       "cue.last-activities": JSON.stringify({ all: "2026-08-01T00:00:00.000Z" }),
     });
     const result = await migrateLegacyData(upgrade);
+    await settle();
 
     expect(result).toEqual({ adoptedToken: true, adoptedOps: 1 });
     expect(await createTokenStore(upgrade.secure).read()).toEqual(TOKEN);
     expect(upgrade.legacy.values.size).toBe(0);
+    expect(upgrade.legacy.webView.size).toBe(0);
+  });
+
+  it("clears the web view once, not on every launch", async () => {
+    const upgrade = deps({ "cue.trakt.token": JSON.stringify(TOKEN) });
+    await migrateLegacyData(upgrade);
+    await settle();
+    upgrade.legacy.webView.set("cue.theme", "light");
+
+    await migrateLegacyData(upgrade);
+    await settle();
+
+    expect(upgrade.legacy.webView.get("cue.theme")).toBe("light");
+  });
+
+  it.each([
+    ["never answers", () => new Promise<void>(() => {})],
+    ["fails", () => Promise.reject(new Error("WebKit unavailable"))],
+  ])("finishes without the web view when clearing it %s, and clears it on the next launch", async (_, clearWebView) => {
+    const upgrade = deps({ "cue.trakt.token": JSON.stringify(TOKEN) });
+
+    await migrateLegacyData({ ...upgrade, legacy: { ...upgrade.legacy, clearWebView } });
+    await settle();
+    expect(upgrade.legacy.webView.size).toBeGreaterThan(0);
+
+    await migrateLegacyData(upgrade);
+    await settle();
+    expect(upgrade.legacy.webView.size).toBe(0);
   });
 
   it("deletes what an earlier build adopted and left behind, without signing the user back in", async () => {
@@ -95,7 +132,7 @@ describe("the Capacitor migration", () => {
   it.each([
     ["refuses the write", { write: () => Promise.reject(new Error("locked")) }],
     ["drops the write", { write: () => Promise.resolve() }],
-  ])("keeps the legacy store when the secure store %s", async (_, failure) => {
+  ])("keeps the legacy store and the web view when the secure store %s", async (_, failure) => {
     const legacy = {
       "cue.trakt.token": JSON.stringify(TOKEN),
       "cue.last-activities": JSON.stringify({ all: "2026-08-01T00:00:00.000Z" }),
@@ -103,8 +140,22 @@ describe("the Capacitor migration", () => {
     const broken = deps(legacy, { ...memoryKeyValueStore(), ...failure });
 
     await expect(migrateLegacyData(broken)).rejects.toThrow();
+    await settle();
 
     expect(Object.fromEntries(broken.legacy.values)).toEqual(legacy);
+    expect(Object.fromEntries(broken.legacy.webView)).toEqual(WEB_VIEW);
+  });
+
+  it("keeps the web view while the legacy store refuses to clear", async () => {
+    const upgrade = deps({ "cue.trakt.token": JSON.stringify(TOKEN) });
+    const clear = () => Promise.reject(new Error("defaults unavailable"));
+
+    await expect(
+      migrateLegacyData({ ...upgrade, legacy: { ...upgrade.legacy, clear } }),
+    ).rejects.toThrow();
+    await settle();
+
+    expect(Object.fromEntries(upgrade.legacy.webView)).toEqual(WEB_VIEW);
   });
 
   it("adopts a changed legacy token", async () => {
@@ -181,7 +232,7 @@ describe("the Capacitor migration", () => {
     const result = await migrateLegacyData(corrupt);
 
     expect(result.adoptedOps).toBe(0);
-    expect(corrupt.bulk.values.size).toBe(0);
+    expect(corrupt.bulk.values.has("cue.write-queue")).toBe(false);
     expect(corrupt.legacy.values.has("cue.write-queue")).toBe(false);
   });
 

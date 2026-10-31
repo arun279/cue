@@ -28,7 +28,7 @@
   <body>
     <main>
       <h1>Cue Privacy</h1>
-      <p class="meta">Last reviewed: 28 October 2026</p>
+      <p class="meta">Last reviewed: 31 October 2026</p>
 
       <p>
         Cue is a personal TV and movie tracker that talks directly to your own
@@ -107,7 +107,9 @@
         and to Expo's update service, EAS Update, to check for a newer version of Cue's JavaScript
         each time it starts. That check sends your platform, which build and update of Cue you have,
         its update channel, and a random identifier Expo's update library creates for this
-        installation. It sends nothing from your Trakt account. Expo uses it to pick the right
+        installation. If that library failed to start on the previous launch, the check also sends
+        the text of its error, cut to 1,024 characters. It sends nothing from your Trakt account.
+        Expo uses it to pick the right
         update and shows Cue's developer how many installations have downloaded each update.
       </p>
 
@@ -117,8 +119,10 @@
           <strong>Cue's on-device data:</strong> open <strong>Profile &rarr; Sign out</strong>
           (Profile is your avatar at the top of the screen). Signing out asks Trakt to revoke this device's access token, deletes Cue's local
           settings, cache, and Trakt token stored on the device, and cancels every reminder the OS
-          was holding for Cue. If you used Cue 1.0, the settings and cache it kept in its web view
-          stay on the device until you uninstall Cue. The delete is what Cue can
+          was holding for Cue. If you used Cue 1.0, the settings, cache and reminder text it kept,
+          your watch history among them, are deleted without you signing out: Cue deletes them once it has
+          moved your Trakt token across, which normally happens the first time the new version
+          opens. The delete is what Cue can
           guarantee: Trakt always answers success, so that alone does not confirm the revoke
           worked; revoke Cue from your Trakt account settings at
           <a href="https://app.trakt.tv/settings/apps">app.trakt.tv/settings/apps</a> as well.

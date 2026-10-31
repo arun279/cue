@@ -28,16 +28,28 @@ export function memoryKeyValueStore(seed: Record<string, string> = {}): MemoryKe
   };
 }
 
-export type MemoryLegacyStore = LegacyStore & { readonly values: Map<string, string> };
+export type MemoryLegacyStore = LegacyStore & {
+  readonly values: Map<string, string>;
+  readonly webView: Map<string, string>;
+};
 
-export function memoryLegacyStore(seed: Record<string, string> = {}): MemoryLegacyStore {
+export function memoryLegacyStore(
+  seed: Record<string, string> = {},
+  webViewSeed: Record<string, string> = {},
+): MemoryLegacyStore {
   const { values, read, remove } = memoryKeyValueStore(seed);
+  const webView = new Map(Object.entries(webViewSeed));
   return {
     values,
+    webView,
     read,
     remove,
     clear: () => {
       values.clear();
+      return Promise.resolve();
+    },
+    clearWebView: () => {
+      webView.clear();
       return Promise.resolve();
     },
   };
