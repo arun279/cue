@@ -1,0 +1,59 @@
+appId: app.cuetracker
+name: detail
+---
+- runFlow: lib/open-up-next.yaml
+- tapOn: "Library"
+- extendedWaitUntil:
+    visible:
+      id: "show-card-8801"
+    timeout: 30000
+- tapOn:
+    id: "show-card-8801"
+- extendedWaitUntil:
+    visible:
+      id: "season-trigger-3"
+    timeout: 30000
+- takeScreenshot: show-detail
+- scrollUntilVisible:
+    element:
+      id: "episode-row-8801-3-5-check"
+    centerElement: true
+- waitForAnimationToEnd
+- tapOn:
+    id: "episode-row-8801-3-5-check"
+- extendedWaitUntil:
+    visible:
+      id: "episode-row-8801-3-5-checked"
+    timeout: 15000
+- takeScreenshot: show-detail-episode-marked
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: "Library"
+          index: 0
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+- extendedWaitUntil:
+    visible:
+      id: "library-segment-movies"
+    timeout: 30000
+- tapOn:
+    id: "library-segment-movies"
+- extendedWaitUntil:
+    visible:
+      id: "movie-card-5503"
+    timeout: 30000
+- tapOn:
+    id: "movie-card-5503"
+- extendedWaitUntil:
+    visible:
+      id: "movie-mark"
+    timeout: 30000
+- assertVisible:
+    id: "screen-movie-detail"
+- takeScreenshot: movie-detail

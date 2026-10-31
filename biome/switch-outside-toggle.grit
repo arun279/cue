@@ -1,0 +1,20 @@
+language js
+
+or {
+  JsImport() as $import where {
+    $import <: contains or { `"react-native"`, `"react-native-gesture-handler"` },
+    $import <: contains `Switch`
+  },
+  `$object.Switch`,
+  JsxMemberName(member=$member) where { $member <: `Switch` },
+  `const $names = require($module)` where {
+    $names <: contains `Switch`,
+    $module <: or { `"react-native"`, `"react-native-gesture-handler"` }
+  }
+} as $use where {
+  register_diagnostic(
+    span=$use,
+    message="Use Toggle from screens/account/Rows, which keeps a disabled switch announced as dimmed on iOS.",
+    severity="error"
+  )
+}

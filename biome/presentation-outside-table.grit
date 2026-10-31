@@ -1,0 +1,9 @@
+language js
+
+JsPropertyObjectMember(name=r"presentation", value=JsStringLiteralExpression()) as $use where {
+  register_diagnostic(
+    span=$use,
+    message="Declare a presented route in PRESENTATIONS, which entries from outside the app read to dismiss it first.",
+    severity="error"
+  )
+}

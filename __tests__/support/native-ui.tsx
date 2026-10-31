@@ -1,0 +1,379 @@
+/**
+ * Stand-ins for the platform edges a screen test cannot drive: the router and
+ * its native bar items, the platform menu, the Compose controls, and the
+ * swipeable's own pan gesture.
+ *
+ * Each one keeps the library's documented contract and nothing more, so a test
+ * over them is a test of Cue's wiring rather than of the library. The libraries
+ * themselves are proved on a simulator, where there is a layout and a finger.
+ */
+
+import type { ReactElement, ReactNode, Ref } from "react";
+import type { SearchBarCommands } from "react-native-screens";
+import { TEST_IDS } from "../../src/ui/test-ids";
+
+/** A header menu item the way a reader reaches it: Android opens the More button first, iOS's
+ * stand-in toolbar menu lists its items in place. */
+export async function chooseHeaderAction(title: string, label: string): Promise<void> {
+  const { Platform } = require("react-native") as typeof import("react-native");
+  const { fireEvent, screen } =
+    require("@testing-library/react-native") as typeof import("@testing-library/react-native");
+  if (Platform.OS === "android")
+    await fireEvent.press(await screen.findByRole("button", { name: `More actions for ${title}` }));
+  await fireEvent.press(await screen.findByText(label));
+}
+
+export const router = {
+  push: jest.fn(),
+  back: jest.fn(),
+  replace: jest.fn(),
+  dismissTo: jest.fn(),
+};
+
+/** The drag the last-rendered swipeable reports, so a test can move a row the
+ * way a finger does and watch what the reveal makes of it. */
+export const drag: {
+  translation: { value: number } | null;
+  start: ((direction: string) => void) | null;
+} = { translation: null, start: null };
+
+interface SearchBarOptions {
+  readonly ref?: Ref<Partial<SearchBarCommands>>;
+  readonly placeholder?: string;
+  onChangeText?(event: { nativeEvent: { text: string } }): void;
+}
+
+interface ScreenProps {
+  readonly options?: { readonly headerSearchBarOptions?: SearchBarOptions };
+}
+
+/** The testID both search fields answer to: Android Search's, which the screen
+ * draws itself, and the stand-in below for the header search bar, which takes
+ * no `testID` of its own. That is why the flows reach the header field by its
+ * placeholder and why a screen test needs a stand-in at all. */
+export const SEARCH_FIELD = TEST_IDS.searchField;
+
+interface ToolbarButtonProps {
+  readonly accessibilityLabel?: string;
+  readonly children?: string;
+  onPress?(): void;
+}
+
+interface ToolbarMenuActionProps {
+  readonly children: string;
+  readonly hidden?: boolean;
+  readonly disabled?: boolean;
+  readonly isOn?: boolean;
+  onPress(): void;
+}
+
+/** The header's native bar items as plain buttons, named the way the system
+ * names them: by the accessibility label, or by the title when there is none.
+ * The toolbar records each declaration, because every one the real router sees
+ * becomes a native header update. */
+export function toolbarModule() {
+  const { createElement } = require("react") as typeof import("react");
+  const { Pressable, Text } = require("react-native") as typeof import("react-native");
+  const layout = ({ children }: { readonly children?: ReactNode }) => children;
+  return Object.assign(jest.fn(layout), {
+    Button: ({ accessibilityLabel, children, onPress }: ToolbarButtonProps) =>
+      createElement(
+        Pressable,
+        { accessibilityRole: "button", accessibilityLabel, onPress },
+        children === undefined ? null : createElement(Text, null, children),
+      ),
+    View: layout,
+    Menu: jest.fn(layout),
+    MenuAction: ({ children, hidden, disabled, isOn, onPress }: ToolbarMenuActionProps) =>
+      hidden === true
+        ? null
+        : createElement(
+            Pressable,
+            {
+              accessibilityRole: "button",
+              accessibilityLabel: children,
+              accessibilityState: { disabled, ...(isOn === undefined ? {} : { selected: isOn }) },
+              onPress,
+            },
+            createElement(Text, null, children),
+          ),
+  });
+}
+
+function SearchBarStandIn({ ref, placeholder, onChangeText }: SearchBarOptions): ReactElement {
+  const { createElement, useImperativeHandle, useState } =
+    require("react") as typeof import("react");
+  const { TextInput } = require("react-native") as typeof import("react-native");
+  const [text, setText] = useState("");
+  useImperativeHandle(ref, () => ({
+    setText,
+    clearText: () => setText(""),
+    cancelSearch: () => setText(""),
+  }));
+  return createElement(TextInput, {
+    testID: SEARCH_FIELD,
+    placeholder,
+    value: text,
+    onChangeText: (next: string) => {
+      setText(next);
+      onChangeText?.({ nativeEvent: { text: next } });
+    },
+  });
+}
+
+interface LinkProps {
+  readonly href: string;
+  readonly children?: ReactNode;
+}
+
+/** A link pushes its href when its trigger is pressed. On iOS its menu actions
+ * are one target each, so a test opens the context menu the way a reader picks
+ * an item; Android drops the menu, as expo-router does. */
+function linkModule() {
+  const { Children, cloneElement, createElement, isValidElement } =
+    require("react") as typeof import("react");
+  const { Platform, Pressable, Text, View } =
+    require("react-native") as typeof import("react-native");
+  const Trigger = ({ children }: { readonly children: ReactElement }) => children;
+  const Menu = ({ children }: { readonly children?: ReactNode }) =>
+    Platform.OS === "ios" ? createElement(View, { testID: LINK_MENU }, children) : null;
+  const MenuAction = ({
+    children,
+    hidden,
+    onPress,
+  }: {
+    readonly children: string;
+    readonly hidden?: boolean;
+    onPress(): void;
+  }) =>
+    hidden === true
+      ? null
+      : createElement(
+          Pressable,
+          { accessibilityRole: "menuitem", accessibilityLabel: children, onPress },
+          createElement(Text, null, children),
+        );
+  function Link({ href, children, ...rest }: LinkProps): ReactElement {
+    const push = () => router.push(href);
+    const parts = Children.toArray(children);
+    const trigger = parts.find((part) => isValidElement(part) && part.type === Trigger);
+    if (!isValidElement<{ children: ReactElement<{ onPress?(): void }> }>(trigger))
+      return createElement(Text, { ...rest, onPress: push }, children);
+    return createElement(
+      View,
+      null,
+      cloneElement(trigger.props.children, { onPress: push }),
+      ...parts.filter((part) => part !== trigger),
+    );
+  }
+  return Object.assign(Link, { Trigger, Menu, MenuAction });
+}
+
+/** The marker the stand-in puts on each native menu host it mounts, so a test can count them. */
+export const MENU_HOST = "menu-host";
+
+/** The testID the stand-in gives each tile's context menu, so a test can count them. */
+export const LINK_MENU = "link-menu";
+
+export function expoRouterModule() {
+  const { createElement, useEffect } = require("react") as typeof import("react");
+  const Stack = (): null => null;
+  Stack.Toolbar = toolbarModule();
+  // `headerSearchBarOptions` is a UISearchController on iOS and a toolbar search
+  // view on Android, neither of which this runner has. The stand-in is a plain
+  // field carrying the same placeholder, the same change callback and the
+  // commands its ref answers to, so a test types what a finger types and nothing
+  // else about the screen is stubbed.
+  Stack.Screen = ({ options }: ScreenProps): ReactElement | null => {
+    const bar = options?.headerSearchBarOptions;
+    return bar === undefined ? null : createElement(SearchBarStandIn, bar);
+  };
+  // The two library themes are data the app reads and reshapes, so the mock
+  // carries the shape rather than a stand-in: a theme missing its colors is a
+  // crash at the root rather than a wrong color.
+  const theme = (dark: boolean) => ({
+    dark,
+    colors: {
+      primary: "",
+      background: "",
+      card: "",
+      text: "",
+      border: "",
+      notification: "",
+    },
+    fonts: {},
+  });
+  return {
+    Stack,
+    Link: linkModule(),
+    useRouter: () => router,
+    // A screen a test mounts on its own is the one on screen.
+    useFocusEffect: (effect: () => undefined | (() => void)) => useEffect(effect, [effect]),
+    useNavigationContainerRef: () => ({
+      getCurrentRoute: () => ({ key: "index" }),
+      addListener: () => () => {},
+    }),
+    DarkTheme: theme(true),
+    DefaultTheme: theme(false),
+    ThemeProvider: ({ children }: { readonly children: ReactNode }) => children,
+  };
+}
+
+interface MenuProps {
+  readonly title: string;
+  readonly testID?: string;
+  readonly actions: readonly { id?: string; title: string; state?: string; attributes?: object }[];
+  onPressAction(event: { nativeEvent: { event: string } }): void;
+  readonly children: ReactNode;
+}
+
+/** The trigger, plus one target per action, so a test can select an item the way
+ * a reader does rather than by reaching into the menu's props. */
+export function menuModule() {
+  const { createElement } = require("react") as typeof import("react");
+  const { Pressable, Text, View } = require("react-native") as typeof import("react-native");
+
+  function MenuView(props: MenuProps): ReactElement {
+    return createElement(
+      View,
+      { testID: props.testID, nativeID: MENU_HOST },
+      props.children,
+      ...props.actions.map((action) =>
+        createElement(
+          Pressable,
+          {
+            key: action.id ?? action.title,
+            testID: action.id ?? action.title,
+            accessibilityLabel: action.title,
+            accessibilityState: {
+              disabled: hidden(action),
+              ...(action.state === undefined ? {} : { selected: action.state === "on" }),
+            },
+            onPress: () =>
+              props.onPressAction({ nativeEvent: { event: action.id ?? action.title } }),
+          },
+          createElement(Text, null, action.title),
+        ),
+      ),
+    );
+  }
+
+  return { MenuView };
+}
+
+function hidden(action: { attributes?: object }): boolean {
+  const attributes = action.attributes as { hidden?: boolean; disabled?: boolean } | undefined;
+  return attributes?.hidden === true || attributes?.disabled === true;
+}
+
+/** A Compose icon button as the button a reader reaches: named by its icon's content description. */
+export function composeModule() {
+  const { createElement } = require("react") as typeof import("react");
+  const { Pressable, Text } = require("react-native") as typeof import("react-native");
+  return {
+    Host: ({ children }: { readonly children: ReactNode }) => children,
+    IconButton: ({ children, onClick }: { readonly children: ReactNode; onClick(): void }) =>
+      createElement(Pressable, { accessibilityRole: "button", onPress: onClick }, children),
+    Icon: ({ contentDescription }: { readonly contentDescription: string }) =>
+      createElement(Text, null, contentDescription),
+  };
+}
+
+/** The three platform edges every perf harness stubs the same way: the pull
+ * gesture, the preference backing store, and the window insets. */
+export function pullToRefreshModule() {
+  return { usePullToRefresh: () => ({ pull: jest.fn(), refreshing: false }) };
+}
+
+export function preferenceStorageModule() {
+  return {
+    preferenceStorage: { getItem: () => null, setItem: jest.fn(), clearNamespace: jest.fn() },
+  };
+}
+
+interface SwipeableProps {
+  readonly testID?: string;
+  readonly leftThreshold?: number;
+  readonly rightThreshold?: number;
+  readonly children: ReactNode;
+  onSwipeableWillOpen?(direction: string): void;
+  onSwipeableOpenStartDrag?(direction: string): void;
+  renderLeftActions?(progress: unknown, translation: unknown, methods: unknown): ReactNode;
+  renderRightActions?(progress: unknown, translation: unknown, methods: unknown): ReactNode;
+}
+
+/**
+ * The row, its two reveals, and one target per direction standing in for a
+ * release past the threshold.
+ *
+ * The direction each target reports is the library's own: dragging RIGHT opens
+ * the LEFT panel and reports `right`. That inversion is the thing most likely to
+ * be read the wrong way round, so the stand-in reproduces it exactly.
+ */
+export function swipeableModule() {
+  const { createElement, Fragment } = require("react") as typeof import("react");
+  const { Pressable, View } = require("react-native") as typeof import("react-native");
+  const { useSharedValue } = require("react-native-reanimated") as {
+    useSharedValue: <T>(value: T) => { value: T };
+  };
+
+  function Swipeable(props: SwipeableProps): ReactElement {
+    const translation = useSharedValue(0);
+    const progress = useSharedValue(0);
+    drag.translation = translation;
+    drag.start = (direction) => props.onSwipeableOpenStartDrag?.(direction);
+    const methods = { close: () => {}, openLeft: () => {}, openRight: () => {}, reset: () => {} };
+    const release = (direction: string) => () => {
+      props.onSwipeableOpenStartDrag?.(direction);
+      props.onSwipeableWillOpen?.(direction);
+    };
+
+    return createElement(
+      View,
+      { testID: props.testID },
+      createElement(
+        Fragment,
+        null,
+        props.renderLeftActions?.(progress, translation, methods),
+        props.renderRightActions?.(progress, translation, methods),
+      ),
+      props.children,
+      createElement(Pressable, {
+        testID: `${props.testID}-drag-right`,
+        accessibilityLabel: `drag ${props.testID} right past ${props.leftThreshold}`,
+        onPress: release("right"),
+      }),
+      createElement(Pressable, {
+        testID: `${props.testID}-drag-left`,
+        accessibilityLabel: `drag ${props.testID} left past ${props.rightThreshold}`,
+        onPress: release("left"),
+      }),
+    );
+  }
+
+  return {
+    __esModule: true,
+    default: Swipeable,
+    SwipeDirection: { LEFT: "left", RIGHT: "right" },
+  };
+}
+
+type Scope = ReturnType<typeof import("@testing-library/react-native").within>;
+
+/** A list item's menu item, found the way a reader finds it: iOS lists the long-press menu's
+ * items with the item; Android opens the item's more icon first. Null when the platform leaves
+ * the item out. */
+export async function menuItem(scope: Scope, label: string | RegExp) {
+  const { fireEvent } =
+    require("@testing-library/react-native") as typeof import("@testing-library/react-native");
+  const more = scope.queryByRole("button", { name: /^More actions for / });
+  if (more !== null) await fireEvent.press(more);
+  return scope.queryByLabelText(label);
+}
+
+/** iOS hides an unavailable menu item; Android shows it disabled. */
+export function expectUnavailable(item: { props: Record<string, unknown> } | null): void {
+  const { Platform } = require("react-native") as typeof import("react-native");
+  if (Platform.OS === "ios") expect(item).toBeNull();
+  else expect(item?.props["accessibilityState"]).toMatchObject({ disabled: true });
+}

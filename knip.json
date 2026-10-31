@@ -1,6 +1,15 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "project": ["src/**/*.{ts,tsx}"],
-  "ignoreDependencies": ["tailwindcss"],
-  "ignoreBinaries": ["defaults"]
+  "entry": ["scripts/*.mjs", "plugins/*.js"],
+  "project": [
+    "app/**/*.{ts,tsx}",
+    "src/**/*.{ts,tsx}",
+    "modules/**/*.ts",
+    "plugins/*.js",
+    "scripts/**/*.mjs",
+    "test/**/*.{ts,tsx}",
+    "__tests__/**/*.{ts,tsx}"
+  ],
+  "ignoreDependencies": ["expo-atlas"],
+  "babel": ["babel.config.js"]
 }

@@ -1,0 +1,15 @@
+language js
+
+`$navigator.$method($...)` as $use where {
+  $navigator <: or { `router`, `navigation` },
+  $method <: or { `back`, `goBack`, `dismiss`, `dismissAll`, `pop`, `popToTop` },
+  not $use <: within or {
+    JsxSelfClosingElement(name=r"Stack\.Toolbar\..*"),
+    JsxOpeningElement(name=r"Stack\.Toolbar\..*")
+  },
+  register_diagnostic(
+    span=$use,
+    message="Leave going back and dismissing to the navigator's back button, gesture and system back, or a close in the header's bar.",
+    severity="error"
+  )
+}

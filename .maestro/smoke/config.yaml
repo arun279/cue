@@ -1,0 +1,11 @@
+flows:
+  - "*"
+executionOrder:
+  continueOnFailure: false
+  flowsOrder:
+    - sign-in
+    - up-next
+    - tabs
+    - detail
+    - search
+    - sign-out

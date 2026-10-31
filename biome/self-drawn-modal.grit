@@ -1,0 +1,9 @@
+language js
+
+JsxAttribute(name=r"accessibilityViewIsModal|aria-modal") as $use where {
+  register_diagnostic(
+    span=$use,
+    message="Present a modal or sheet as a route, so the platform draws it and dismisses it with its own gestures.",
+    severity="error"
+  )
+}

@@ -1,0 +1,57 @@
+appId: app.cuetracker
+name: up-next
+---
+- runFlow: lib/open-up-next.yaml
+- assertVisible:
+    id: "queue-row-8803-body"
+    text: "Midnight Cartography, S2 E3.*"
+- tapOn:
+    id: "queue-row-8803-body"
+- extendedWaitUntil:
+    visible:
+      id: "continue-mark"
+      text: "Mark Midnight Cartography S2 E3 watched"
+    timeout: 30000
+- takeScreenshot: show-detail-before-mark
+- tapOn:
+    id: "continue-mark"
+- extendedWaitUntil:
+    visible:
+      id: "continue-mark"
+      text: "Mark Midnight Cartography S2 E4 watched"
+    timeout: 15000
+- takeScreenshot: show-detail-after-mark
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: "Up Next"
+          index: 0
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+- extendedWaitUntil:
+    visible:
+      id: "queue-row-8803-body"
+      text: "Midnight Cartography, S2 E4.*"
+    timeout: 15000
+- takeScreenshot: up-next-after-mark
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - assertVisible:
+          id: "queue-row-8802-body"
+          text: "The Quiet Frontier, S2 E10.*"
+      - swipe:
+          from:
+            id: "queue-row-8802"
+          direction: RIGHT
+      - extendedWaitUntil:
+          visible:
+            id: "snackbar-message"
+            text: "The Quiet Frontier S2 E10 marked"
+          timeout: 15000

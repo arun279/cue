@@ -1,0 +1,16 @@
+language js
+
+or {
+  JsxOpeningElement(name=r"Stack\.Toolbar", attributes=$attributes) where {
+    $attributes <: contains r"placement=\"left\""
+  },
+  JsPropertyObjectMember(name=r"headerLeft|unstable_headerLeftItems"),
+  JsPropertyObjectMember(name=r"headerBackVisible|gestureEnabled|fullScreenGestureEnabled", value=`false`),
+  JsStringLiteralExpression() as $event where { $event <: or { `"hardwareBackPress"`, `"beforeRemove"` } }
+} as $use where {
+  register_diagnostic(
+    span=$use,
+    message="Keep the platform's back button, swipe and system back, which users expect to leave every pushed screen.",
+    severity="error"
+  )
+}

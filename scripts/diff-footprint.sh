@@ -1,73 +1,61 @@
 #!/usr/bin/env bash
-# Usage: diff-footprint.sh <base-ref>
-#
-# Reports the changed-line footprint against a pull request's merge base.
 set -euo pipefail
 
-usage() {
-  echo "Usage: scripts/diff-footprint.sh <base-ref>" >&2
+if [ "$#" -ne 1 ] && [ "$#" -ne 2 ]; then
+  echo "Usage: scripts/diff-footprint.sh <base-ref> [expo-export-dir]" >&2
   exit 1
+fi
+
+base=$(git rev-parse --verify --end-of-options "$1^{commit}")
+
+net_lines() {
+  git diff --no-renames --unified=0 --no-color "$base"...HEAD -- "$@" | awk '
+    function count(line, sign) {
+      sub(/^[[:space:]]+/, "", line)
+      if (line == "") return
+      lines += sign
+      if (line ~ /^(\/\/|\/\*|\*)/) comments += sign
+    }
+    /^diff --git / { in_hunk = 0; next }
+    /^@@/ { in_hunk = 1; next }
+    in_hunk && /^\+/ { count(substr($0, 2), 1); next }
+    in_hunk && /^-/ { count(substr($0, 2), -1) }
+    END { printf "%d %d\n", lines, comments }
+  '
 }
 
-[ "$#" -eq 1 ] || usage
-base_ref=$1
-base_commit=$(git rev-parse --verify --end-of-options "${base_ref}^{commit}" 2>/dev/null) || usage
+read -r product_lines comment_net < <(net_lines \
+  ':(glob)src/**' \
+  ':(glob)app/**' \
+  ':(glob)modules/**')
+read -r test_net _ < <(net_lines \
+  ':(glob)test/**' \
+  ':(glob)__tests__/**' \
+  ':(glob).maestro/**')
+read -r tooling_net _ < <(net_lines \
+  ':(glob).github/**' \
+  ':(glob)scripts/**')
+product_net=$((product_lines - comment_net))
 
-git diff --no-renames --numstat "$base_commit"...HEAD | awk '
-  BEGIN { FS = "\t" }
-  function area(path) {
-    if (path ~ /^src\//) return "product"
-    if (path ~ /^test\//) return "tests"
-    if (path ~ /^e2e\//) return "e2e"
-    return "other"
-  }
-  {
-    added = $1 == "-" ? 0 : $1
-    removed = $2 == "-" ? 0 : $2
-    bucket = area($3)
-    adds[bucket] += added
-    removes[bucket] += removed
-    total_added += added
-    total_removed += removed
-  }
-  function row(label, bucket, added, removed) {
-    added = adds[bucket] + 0
-    removed = removes[bucket] + 0
-    printf "| %s | %d | %d | %+d |\n", label, added, removed, added - removed
-  }
-  END {
-    print "<!-- diff-footprint -->"
-    print "### Diff footprint"
-    print ""
-    print "| area | added | removed | net |"
-    print "| --- | ---: | ---: | ---: |"
-    row("product (src/)", "product")
-    row("tests (test/)", "tests")
-    row("e2e (e2e/)", "e2e")
-    row("other", "other")
-    printf "| total | %d | %d | %+d |\n", total_added, total_removed, total_added - total_removed
-    print ""
-  }
-'
+cat <<EOF
+<!-- diff-footprint -->
+### Pull request footprint
 
-git diff --no-renames --unified=0 --no-color "$base_commit"...HEAD -- src/ | awk '
-  function classify(line, direction) {
-    sub(/^[[:space:]]+/, "", line)
-    if (line == "") kind = "blank"
-    else if (line ~ /^(\/\/|\/\*|\*)/) kind = "comments"
-    else kind = "code"
-    counts[kind, direction]++
-  }
-  /^diff --git / { in_hunk = 0; next }
-  /^@@/ { in_hunk = 1; next }
-  in_hunk && /^\+/ { classify(substr($0, 2), "added"); next }
-  in_hunk && /^-/ { classify(substr($0, 2), "removed") }
-  END {
-    net = counts["code", "added"] - counts["code", "removed"]
-    printf "Product lines: code +%d / -%d (net %+d), comments +%d / -%d, blank +%d / -%d\n", \
-      counts["code", "added"], counts["code", "removed"], net, \
-      counts["comments", "added"], counts["comments", "removed"], \
-      counts["blank", "added"], counts["blank", "removed"]
-    print "Line types are split by line prefix after leading whitespace."
-  }
-'
+| measurement | base to head |
+| --- | ---: |
+| Product code lines in src, app, and modules | $(printf '%+d' "$product_net") |
+| Test lines in test, \`__tests__\`, and .maestro | $(printf '%+d' "$test_net") |
+| CI and tooling lines in .github and scripts | $(printf '%+d' "$tooling_net") |
+| Product comment lines identified by a comment prefix | $(printf '%+d' "$comment_net") |
+EOF
+
+if [ "$#" -eq 2 ]; then
+  dist=$2
+  echo
+  echo "| JavaScript bundle at head | size |"
+  echo "| --- | ---: |"
+  for platform in ios android; do
+    set -- "$dist"/_expo/static/js/"$platform"/entry-*.hbc
+    echo "| Expo $platform bundle | $(($(wc -c < "$1") / 1000)) kB |"
+  done
+fi

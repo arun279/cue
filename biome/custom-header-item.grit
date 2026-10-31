@@ -1,0 +1,27 @@
+language js
+
+or {
+  or {
+    JsxSelfClosingElement(name=r"Stack\.Toolbar\.View"),
+    JsxOpeningElement(name=r"Stack\.Toolbar\.View")
+  },
+  or {
+    JsxSelfClosingElement(name=r"Stack\..*", attributes=$attributes),
+    JsxOpeningElement(name=r"Stack\..*", attributes=$attributes)
+  } where { $attributes <: contains JsxAttribute(name=r"asChild") },
+  JsPropertyObjectMember(
+    name=r"header|headerLeft|headerRight|headerTitle|unstable_headerLeftItems|unstable_headerRightItems",
+    value=or {
+      JsArrowFunctionExpression(),
+      JsFunctionExpression(),
+      JsIdentifierExpression(),
+      JsxTagExpression()
+    }
+  )
+} as $use where {
+  register_diagnostic(
+    span=$use,
+    message="Use the header's own bar items, which keep the platform's sizing, spacing and accessibility.",
+    severity="error"
+  )
+}

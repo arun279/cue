@@ -18,12 +18,9 @@
       "**/*.jsonc",
       "!**/node_modules",
       "!**/dist",
-      "!**/dev-dist",
       "!**/coverage",
-      "!**/playwright-report",
-      "!**/test-results",
-      "!ios",
-      "!android"
+      // Recorded and reduced from real Trakt; kept minified.
+      "!test/core/trakt-fake/recordings.json"
     ]
   },
   "formatter": {
@@ -39,6 +36,207 @@
       "trailingCommas": "all"
     }
   },
+  "overrides": [
+    {
+      // The core compiles with lib ES2023 and no "dom", which rejects window,
+      // document and indexedDB outright. Two families survive that: the Node
+      // globals @types/node has to declare for fetch, Response and the timers
+      // the core does use, and the storage globals Node 22 added. Neither
+      // exists on a React Native engine, and neither is an import, so no
+      // dependency rule can see them.
+      "includes": ["src/core/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedGlobals": {
+              "level": "error",
+              "options": {
+                "deniedGlobals": {
+                  "process": "Not on a React Native engine. Take the value as an injected dependency.",
+                  "Buffer": "Not on a React Native engine. Use Uint8Array or TextEncoder.",
+                  "__dirname": "Not on a React Native engine.",
+                  "__filename": "Not on a React Native engine.",
+                  "require": "The core is ESM only.",
+                  "localStorage": "Not on a React Native engine. Take a storage port instead.",
+                  "sessionStorage": "Not on a React Native engine. Take a storage port instead.",
+                  "navigator": "Not on a React Native engine. Read TanStack Query's onlineManager or focusManager instead.",
+                  "crypto": "Not on every React Native engine. Take the injected crypto port instead.",
+                  "btoa": "Not on every React Native engine. Encode bytes without browser globals.",
+                  "atob": "Not on every React Native engine. Decode bytes without browser globals.",
+                  "URLSearchParams": "Not on every React Native engine. Encode query values without browser globals.",
+                  "TextDecoder": "Not spec-compliant on native. Decode bytes through a portable implementation.",
+                  "TextDecoderStream": "Not spec-compliant on native. Decode bytes through a portable implementation.",
+                  "TextEncoderStream": "Not available on every native engine. Encode bytes with TextEncoder."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      // App code leaves to the platform what the platform already draws, and so keeps the
+      // platform's own semantics, sizing and dismissal. Each override below is one such rule;
+      // an excluded file names why the native candidate does not fit.
+      "includes": ["src/**", "app/**"],
+      "plugins": ["./biome/self-drawn-modal.grit", "./biome/typed-glyph.grit"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "react-native": {
+                    "importNames": ["Modal", "BackHandler"],
+                    "message": "Present a modal as a route, and leave back to the navigator, so the platform draws and dismisses both."
+                  },
+                  "expo-router": {
+                    "importNames": ["usePreventRemove"],
+                    "message": "Leave back to the navigator, which users expect to leave every pushed screen."
+                  },
+                  "@react-navigation/native": {
+                    "importNames": ["usePreventRemove"],
+                    "message": "Leave back to the navigator, which users expect to leave every pushed screen."
+                  },
+                  "react-native-svg": "Draw icons with PlatformIcon, which uses the platform's own symbols."
+                },
+                "patterns": [
+                  {
+                    "group": ["@expo/ui/**"],
+                    "importNamePattern": "(Modal)?BottomSheet",
+                    "message": "Present a sheet as a formSheet route, so the platform draws it and dismisses it with its own gestures."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "src/**",
+        "app/**",
+        // Toggle, the one Switch.
+        "!src/screens/account/Rows.tsx"
+      ],
+      "plugins": ["./biome/switch-outside-toggle.grit"]
+    },
+    {
+      "includes": [
+        "src/**",
+        "app/**",
+        // Sets resizeMethod="resize".
+        "!src/ui/Poster.tsx",
+        // Sets resizeMethod="resize".
+        "!src/ui/Avatar.tsx",
+        // Draws Android's vector drawables, tinted.
+        "!src/ui/PlatformIcon.tsx"
+      ],
+      "plugins": ["./biome/image-outside-poster.grit"]
+    },
+    {
+      "includes": [
+        "src/**",
+        "app/**",
+        // Tints every drawable it draws.
+        "!src/ui/PlatformIcon.tsx"
+      ],
+      "plugins": ["./biome/untinted-vector.grit"]
+    },
+    {
+      "includes": [
+        "src/**",
+        "app/**",
+        // Android's toolbar menu host stays 0x0 on a pushed screen (expo/expo#49312); iOS keeps the native menu.
+        "!src/ui/RowMenu.tsx",
+        // A bar button image cannot draw the account's photo or monogram.
+        "!src/ui/BarItems.tsx"
+      ],
+      "plugins": ["./biome/custom-header-item.grit"]
+    },
+    {
+      "includes": [
+        "src/**",
+        "app/**",
+        // Neither platform's segmented control is reachable by TalkBack, VoiceOver identifiers and Maestro.
+        "!src/ui/SegmentedControl.tsx",
+        // A scrolling rail of filters with counts has no iOS control.
+        "!src/screens/library/ChipRail.tsx",
+        // The platform date pickers have no month and year mode.
+        "!src/screens/history/HistoryChoice.tsx",
+        // Marks something watched, which a switch would read as a setting.
+        "!src/ui/CheckControl.tsx"
+      ],
+      "plugins": ["./biome/hand-drawn-selection.grit"]
+    },
+    {
+      "includes": [
+        "src/**",
+        "app/**",
+        // Android's header search bar collapses to an icon and reports only a submitted query.
+        "!src/screens/search/SearchField.tsx"
+      ],
+      "plugins": ["./biome/text-field-outside-search.grit"]
+    },
+    {
+      "includes": [
+        "src/**",
+        "app/**",
+        // Android form sheets cannot host a header, so the close is drawn in the sheet.
+        "!src/ui/SheetClose.android.tsx",
+        // Picking a month completes the sheet's one task, so the pick closes it.
+        "!src/screens/history/MonthJump.tsx"
+      ],
+      "plugins": ["./biome/back-outside-navigator.grit"]
+    },
+    {
+      "includes": [
+        "src/**",
+        "app/**",
+        // Its tab and account groups and its sheets each draw their own header.
+        "!src/RootStack.tsx",
+        // Android form sheets cannot host a header, so they title themselves.
+        "!src/ui/navigation-theme.tsx"
+      ],
+      "plugins": ["./biome/header-hidden.grit"]
+    },
+    {
+      "includes": [
+        "src/**",
+        "app/**",
+        // A sheet opens its own header and has no back button; its leading item is the system close.
+        "!src/ui/SheetClose.tsx"
+      ],
+      "plugins": ["./biome/back-replaced.grit"]
+    },
+    {
+      "includes": [
+        "src/**",
+        "app/**",
+        // The table itself.
+        "!src/presentation.ts"
+      ],
+      "plugins": ["./biome/presentation-outside-table.grit"]
+    },
+    {
+      "includes": [
+        "src/**",
+        "app/**",
+        // Shows Syncing on its button.
+        "!src/screens/account/DataSection.tsx",
+        // Hands syncing to the RefreshControl.
+        "!src/hooks/usePullToRefresh.ts"
+      ],
+      "plugins": ["./biome/silent-sync.grit"]
+    },
+    {
+      "includes": ["src/core/data/trakt/pooled-endpoints.ts"],
+      "plugins": ["./biome/unpooled-read.grit"]
+    }
+  ],
+  "plugins": ["./biome/effect-query-writes.grit"],
   "linter": {
     "enabled": true,
     "domains": {
@@ -50,6 +248,11 @@
         "noConsole": { "level": "error", "options": { "allow": ["error", "warn"] } }
       },
       "complexity": {
+        // SonarSource's default for its Cognitive Complexity rule, S3776.
+        "noExcessiveCognitiveComplexity": {
+          "level": "error",
+          "options": { "maxAllowedComplexity": 15 }
+        },
         // tsconfig `noPropertyAccessFromIndexSignature` forces bracket access on
         // index-signature types like `import.meta.env` / `process.env`; leaving
         // `useLiteralKeys` on would rewrite `env["X"]` back to `env.X`, which TS rejects.

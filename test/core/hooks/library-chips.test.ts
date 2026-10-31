@@ -1,0 +1,119 @@
+import { describe, expect, it } from "vitest";
+import { chipBuckets, sortShows } from "@/core/domain/library-buckets";
+import type { LibraryEntry } from "@/core/domain/model/library";
+import { DAY, iso, makeShow, NOW, THRESHOLD } from "../domain/_helpers";
+
+function entry(overrides: Partial<LibraryEntry> = {}): LibraryEntry {
+  return {
+    ...makeShow(),
+    tmdbId: null,
+    runtime: null,
+    posters: [],
+    pendingAdvance: false,
+    ...overrides,
+  };
+}
+
+const watching = entry({ showId: 1, title: "Alpha", lastWatchedAt: iso(NOW - DAY) });
+const caughtUp = entry({
+  showId: 2,
+  title: "Bravo",
+  nextEpisode: null,
+  lastWatchedAt: iso(NOW - 2 * DAY),
+});
+const lapsed = entry({ showId: 3, title: "Charlie", lastWatchedAt: iso(NOW - 30 * DAY) });
+const watchlisted = entry({
+  showId: 4,
+  title: "Delta",
+  completed: 0,
+  lastWatchedAt: null,
+  inWatchlist: true,
+});
+const stopped = entry({ showId: 5, title: "Echo", hidden: true });
+const finished = entry({ showId: 6, title: "Foxtrot", status: "ended", aired: 8, completed: 8 });
+const tailBacklog = entry({ showId: 7, title: "Golf", aired: 10, completed: 3, nextEpisode: null });
+
+describe("chipBuckets", () => {
+  it("routes every status to exactly one chip", () => {
+    const chips = chipBuckets(
+      [watching, caughtUp, lapsed, watchlisted, stopped, finished, tailBacklog],
+      NOW,
+      THRESHOLD,
+    );
+    // Golf is past the progress budget: real counts, no next episode named. Its
+    // backlog puts it in Watching, never in Finished.
+    expect(sortShows(chips.watching, "recently-watched").map((e) => e.showId)).toEqual([
+      1, 7, 2, 3,
+    ]);
+    expect(chips["not-started"].map((e) => e.showId)).toEqual([4]);
+    expect(chips.stopped.map((e) => e.showId)).toEqual([5]);
+    expect(chips.finished.map((e) => e.showId)).toEqual([6]);
+  });
+
+  it("keeps one recency order across the merged watching + caught-up statuses", () => {
+    const chips = chipBuckets([lapsed, watching, caughtUp], NOW, THRESHOLD);
+    expect(sortShows(chips.watching, "recently-watched").map((e) => e.showId)).toEqual([1, 2, 3]);
+  });
+
+  it("ranks an unknown last watch as the oldest", () => {
+    const stoppedAt = (showId: number, lastWatchedAt: string | null) =>
+      entry({ showId, hidden: true, lastWatchedAt });
+    const stopped = [
+      stoppedAt(1, iso(NOW - 5 * DAY)),
+      stoppedAt(2, null),
+      stoppedAt(3, iso(NOW - DAY)),
+    ];
+    expect(sortShows(stopped, "recently-watched").map((e) => e.showId)).toEqual([3, 1, 2]);
+  });
+
+  it("sorts alphabetically case-insensitively", () => {
+    const sorted = sortShows(
+      [entry({ showId: 1, title: "beta" }), entry({ showId: 2, title: "Alpha" })],
+      "alphabetical",
+    );
+    expect(sorted.map((e) => e.title)).toEqual(["Alpha", "beta"]);
+  });
+
+  it("sorts by progress ratio descending", () => {
+    const sorted = sortShows(
+      [
+        entry({ showId: 1, aired: 10, completed: 2 }),
+        entry({ showId: 3, aired: 0, completed: 0 }),
+        entry({ showId: 2, aired: 10, completed: 9 }),
+      ],
+      "progress",
+    );
+    expect(sorted.map((e) => e.showId)).toEqual([2, 1, 3]);
+  });
+
+  it("sorts newest addition first, an unknown add date last, ties by title", () => {
+    const sorted = sortShows(
+      [
+        entry({ showId: 1, title: "Old", addedAt: iso(NOW - 9 * DAY) }),
+        entry({ showId: 2, title: "Unknown", addedAt: null }),
+        entry({ showId: 3, title: "New B", addedAt: iso(NOW - DAY) }),
+        entry({ showId: 4, title: "New A", addedAt: iso(NOW - DAY) }),
+      ],
+      "recently-added",
+    );
+    expect(sorted.map((e) => e.showId)).toEqual([4, 3, 1, 2]);
+  });
+
+  it("sorts newest release first", () => {
+    const sorted = sortShows(
+      [
+        entry({ showId: 1, year: 2011 }),
+        entry({ showId: 2, year: null }),
+        entry({ showId: 3, year: 2024 }),
+      ],
+      "release-year",
+    );
+    expect(sorted.map((e) => e.showId)).toEqual([3, 1, 2]);
+  });
+
+  it("returns empty chips for an empty library", () => {
+    const chips = chipBuckets([], NOW, THRESHOLD);
+    expect(chips.watching).toEqual([]);
+    expect(chips.finished).toEqual([]);
+  });
+});

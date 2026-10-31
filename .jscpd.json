@@ -1,5 +1,5 @@
 {
-  "path": ["src", "test"],
+  "path": ["src", "app", "modules", "test", "__tests__"],
   "pattern": "**/*.{ts,tsx}",
   "minLines": 8,
   "threshold": 0
