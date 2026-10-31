@@ -290,6 +290,8 @@ jobs:
         run: |
           maestro --device "$DEVICE_ID" test .maestro/smoke --test-output-dir "$RUNNER_TEMP/maestro/screenshots" --debug-output "$RUNNER_TEMP/maestro/debug" && exit 0
           echo "::warning::The iOS smoke suite failed once; running it again from a reset fake and a fresh install."
+          # Maestro leaves a driver that missed its start-up limit running, and it would share the simulator with the re-run's.
+          pkill -f 'xcodebuild test-without-building' || true
           curl -fsS -X POST http://127.0.0.1:8787/__reset
           xcrun simctl uninstall "$DEVICE_ID" app.cuetracker
           xcrun simctl install "$DEVICE_ID" "$RUNNER_TEMP/Cue.app"
