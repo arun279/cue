@@ -1,0 +1,15 @@
+language js
+
+or {
+  JsPropertyObjectMember(name=r"headerShown", value=`false`),
+  or {
+    JsxSelfClosingElement(name=r"Stack\.Header", attributes=$attributes),
+    JsxOpeningElement(name=r"Stack\.Header", attributes=$attributes)
+  } where { $attributes <: contains JsxAttribute(name=r"hidden") }
+} as $use where {
+  register_diagnostic(
+    span=$use,
+    message="Keep the native header, which carries the screen's title and the platform's back button.",
+    severity="error"
+  )
+}

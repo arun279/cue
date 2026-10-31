@@ -1,0 +1,49 @@
+import ExpoModulesCore
+import WebKit
+
+/// Reads, and finally deletes, what the Capacitor build left in `UserDefaults`.
+///
+/// Capacitor Preferences namespaces by a group that defaults to
+/// `CapacitorStorage`, and on iOS that group plus a dot is prefixed onto every
+/// key, so the stored name is `CapacitorStorage.cue.trakt.token`. Android puts
+/// the group in the file name and leaves the key alone. The two shapes are not
+/// the same, and a migration that assumes one reads nothing on the other
+/// platform, so the prefix is applied here rather than in shared code.
+///
+/// React Native's own `Settings` module wraps `NSUserDefaults` and is documented
+/// as iOS-only, which would cover half the job; Android needs a native module
+/// regardless, so both platforms go through this one.
+///
+/// The Capacitor build ran in a `WKWebView` on the default data store, which
+/// still holds its settings and query cache. Nothing in this app uses that
+/// store, so everything in it is deleted except cookies, where Cue 1.0 kept
+/// nothing.
+public class CueLegacyPreferencesModule: Module {
+    private static let prefix = "CapacitorStorage."
+
+    public func definition() -> ModuleDefinition {
+        Name("CueLegacyPreferences")
+
+        AsyncFunction("read") { (key: String) -> String? in
+            UserDefaults.standard.string(forKey: Self.prefix + key)
+        }
+
+        AsyncFunction("remove") { (key: String) in
+            UserDefaults.standard.removeObject(forKey: Self.prefix + key)
+        }
+
+        AsyncFunction("clear") {
+            let defaults = UserDefaults.standard
+            for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(Self.prefix) {
+                defaults.removeObject(forKey: key)
+            }
+        }
+
+        AsyncFunction("clearWebView") { () async in
+            await WKWebsiteDataStore.default().removeData(
+                ofTypes: WKWebsiteDataStore.allWebsiteDataTypes().subtracting([WKWebsiteDataTypeCookies]),
+                modifiedSince: .distantPast
+            )
+        }
+    }
+}

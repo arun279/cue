@@ -1,0 +1,10 @@
+language js
+
+or { JsStringLiteralExpression(), JsxText(), JsxString(), JsTemplateChunkElement() } as $use where {
+  $use <: r"(?s).*[☑☒✅✓-✘❌❎].*",
+  register_diagnostic(
+    span=$use,
+    message="Draw checks and crosses with PlatformIcon, which uses the platform's own symbols.",
+    severity="error"
+  )
+}

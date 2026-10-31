@@ -1,0 +1,11 @@
+language js
+
+JsImport() as $use where {
+  $use <: contains `"react-native"`,
+  $use <: contains `TextInput`,
+  register_diagnostic(
+    span=$use,
+    message="Search is the one text entry. Take text through the header's search bar, which the platform draws.",
+    severity="error"
+  )
+}

@@ -1,47 +1,27 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
+  // Expo's base first for the React Native program (the `react-native` export
+  // condition, the JSX transform, the lib set), then the repository's own strict
+  // options on top, so the app compiles under the same strictness as the core
+  // and the tests rather than under whatever Expo happens to default to.
+  "extends": ["expo/tsconfig.base", "./tsconfig.base.json"],
   "compilerOptions": {
-    "target": "ES2023",
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "moduleDetection": "force",
-    "jsx": "react-jsx",
-    "types": ["vite/client", "node"],
-    "paths": {
-      "@domain/*": ["./src/domain/*"],
-      "@data/*": ["./src/data/*"],
-      "@ui/*": ["./src/ui/*"],
-      "@app/*": ["./src/app/*"],
-      "@platform/*": ["./src/platform/*"]
-    },
-    // scripts/mock-trakt runs under plain node (no build step), so its .mjs
-    // modules are JavaScript; the harness test imports them and infers types.
-    "allowJs": true,
-    "esModuleInterop": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "verbatimModuleSyntax": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitOverride": true,
-    "noFallthroughCasesInSwitch": true,
-    "noPropertyAccessFromIndexSignature": true,
-    "allowUnreachableCode": false,
-    "allowUnusedLabels": false,
-    "forceConsistentCasingInFileNames": true,
-    "useDefineForClassFields": true,
-    "noEmit": true
+    "types": ["node", "jest"],
+    "paths": { "@/*": ["./src/*"] }
   },
+  // `expo-env.d.ts` and `.expo/types` are both generated and both gitignored, so
+  // `pnpm typecheck` regenerates them before it compiles. Without that the
+  // typed-route unions exist on the machine that last ran the dev server and
+  // nowhere else, and the program CI compiles is weaker than the one the author sees.
   "include": [
+    "entry.ts",
+    "app",
     "src",
-    "test",
-    "e2e",
-    "vite.config.ts",
-    "vitest.config.ts",
-    "playwright.config.ts",
-    "capacitor.config.ts"
+    "modules",
+    "__tests__",
+    "app.config.ts",
+    "expo-env.d.ts",
+    ".expo/types/**/*.ts"
   ],
-  "exclude": ["node_modules", "dist", "coverage", "ios", "android"]
+  "exclude": ["node_modules", "android", "ios"]
 }

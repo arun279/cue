@@ -1,0 +1,256 @@
+import type { EpisodeIds, MovieIds, ShowIds } from "../model/ids";
+import type { MarkedEpisodes } from "../reversal";
+import type { QueuedOp, RequestDescriptor } from "./types";
+
+const HISTORY = "/sync/history";
+const HISTORY_REMOVE = "/sync/history/remove";
+const HIDDEN_LISTS = {
+  hidden: { path: "/users/hidden/progress_watched", target: "hidden/progress_watched" },
+  dropped: { path: "/users/hidden/dropped", target: "hidden/dropped" },
+} as const;
+const WATCHLIST = "/sync/watchlist";
+const WATCHLIST_REMOVE = "/sync/watchlist/remove";
+
+type HistorySection = "episodes" | "movies";
+
+export interface HistoryOpParams {
+  readonly opId: string;
+  readonly ids: EpisodeIds | MovieIds;
+  readonly watchedAt: string;
+  readonly inversePatch?: unknown;
+}
+
+function post(path: string, body: unknown): RequestDescriptor {
+  return { method: "POST", path, body };
+}
+
+export function episodeItemKey(trakt: number): string {
+  return `episode:${trakt}`;
+}
+
+function historyOp(
+  section: HistorySection,
+  toState: "present" | "absent",
+  params: HistoryOpParams,
+): QueuedOp {
+  const item = { ids: params.ids };
+  const add = post(HISTORY, { [section]: [{ ...item, watched_at: params.watchedAt }] });
+  const remove = post(HISTORY_REMOVE, { [section]: [item] });
+  const marking = toState === "present";
+  return {
+    id: params.opId,
+    itemKey: section === "movies" ? `movie:${params.ids.trakt}` : episodeItemKey(params.ids.trakt),
+    request: marking ? add : remove,
+    inverse: marking ? remove : add,
+    inversePatch: params.inversePatch ?? null,
+    watchedAt: params.watchedAt,
+    fromState: marking ? "absent" : "present",
+    toState,
+    reconcileKeys:
+      section === "movies"
+        ? ["watched/movies", "movie-progress"]
+        : ["progress/watched", "watched/shows"],
+  };
+}
+
+export function buildMarkEpisodeOp(params: HistoryOpParams): QueuedOp {
+  return historyOp("episodes", "present", params);
+}
+
+export function buildUnmarkEpisodeOp(params: HistoryOpParams): QueuedOp {
+  return historyOp("episodes", "absent", params);
+}
+
+export function additiveItemKey(itemKey: string, opId: string): string {
+  return `${itemKey}:add:${opId}`;
+}
+
+export function isAdditiveOp(op: QueuedOp): boolean {
+  return op.itemKey.endsWith(`:add:${op.id}`);
+}
+
+export function buildAddEpisodePlayOp(params: HistoryOpParams): QueuedOp {
+  const op = historyOp("episodes", "present", params);
+  return { ...op, itemKey: additiveItemKey(op.itemKey, params.opId) };
+}
+
+export function buildMarkMovieOp(params: HistoryOpParams): QueuedOp {
+  return historyOp("movies", "present", params);
+}
+
+export function buildUnmarkMovieOp(params: HistoryOpParams): QueuedOp {
+  return historyOp("movies", "absent", params);
+}
+
+export interface RemoveHistoryPlayParams {
+  readonly opId: string;
+  // Trakt removes only these plays by id; removing by item deletes every play of it.
+  readonly ids: readonly number[];
+  readonly restore: {
+    readonly section: HistorySection;
+    readonly ids: EpisodeIds | MovieIds;
+    readonly watchedAt: string;
+  };
+  readonly inversePatch?: unknown;
+}
+
+export function buildRemoveHistoryPlayOp(params: RemoveHistoryPlayParams): QueuedOp {
+  const { section, ids, watchedAt } = params.restore;
+  return {
+    id: params.opId,
+    itemKey: `history-play:${params.ids.join(",")}`,
+    request: post(HISTORY_REMOVE, { ids: [...params.ids] }),
+    inverse: post(HISTORY, { [section]: [{ ids, watched_at: watchedAt }] }),
+    inversePatch: params.inversePatch ?? null,
+    watchedAt,
+    fromState: "present",
+    toState: "absent",
+    reconcileKeys:
+      section === "movies"
+        ? ["watched/movies", "movie-progress"]
+        : ["progress/watched", "watched/shows"],
+  };
+}
+
+export interface RemovePlaysParams {
+  readonly opId: string;
+  readonly ids: readonly number[];
+  readonly restore: readonly { readonly trakt: number; readonly watchedAt: string }[];
+}
+
+export function buildRemovePlaysOp(params: RemovePlaysParams): QueuedOp {
+  const ids = [...params.ids];
+  return {
+    id: params.opId,
+    itemKey: `history-plays:${[...ids].sort((a, b) => a - b).join(",")}`,
+    request: post(HISTORY_REMOVE, { ids }),
+    inverse: post(HISTORY, {
+      episodes: params.restore.map((r) => ({ ids: { trakt: r.trakt }, watched_at: r.watchedAt })),
+    }),
+    inversePatch: null,
+    watchedAt: null,
+    fromState: "present",
+    toState: "absent",
+    reconcileKeys: ["progress/watched", "watched/shows"],
+  };
+}
+
+export interface HideOpParams {
+  readonly opId: string;
+  readonly ids: ShowIds;
+  readonly inversePatch?: unknown;
+}
+
+function hideOp(
+  list: keyof typeof HIDDEN_LISTS,
+  toState: "present" | "absent",
+  params: HideOpParams,
+): QueuedOp {
+  const { path, target } = HIDDEN_LISTS[list];
+  const body = { shows: [{ ids: params.ids }] };
+  const add = post(path, body);
+  const remove = post(`${path}/remove`, body);
+  const hiding = toState === "present";
+  return {
+    id: params.opId,
+    itemKey: `show:${params.ids.trakt}:${list}`,
+    request: hiding ? add : remove,
+    inverse: hiding ? remove : add,
+    inversePatch: params.inversePatch ?? null,
+    watchedAt: null,
+    fromState: hiding ? "absent" : "present",
+    toState,
+    reconcileKeys: [target],
+  };
+}
+
+export function buildHideShowOp(params: HideOpParams): QueuedOp {
+  return hideOp("hidden", "present", params);
+}
+
+export interface ResumeOpParams {
+  readonly newId: () => string;
+  readonly showId: number;
+  readonly ids: ShowIds;
+}
+
+export function buildResumeShowOps({ newId, showId, ids }: ResumeOpParams): QueuedOp[] {
+  return (["hidden", "dropped"] as const).map((list) =>
+    hideOp(list, "absent", { opId: newId(), ids, inversePatch: { kind: list, showId } }),
+  );
+}
+
+type WatchlistSection = "shows" | "movies";
+
+export interface WatchlistOpParams {
+  readonly opId: string;
+  readonly section: WatchlistSection;
+  readonly ids: ShowIds | MovieIds;
+  readonly inversePatch?: unknown;
+}
+
+function watchlistOp(toState: "present" | "absent", params: WatchlistOpParams): QueuedOp {
+  const body = { [params.section]: [{ ids: params.ids }] };
+  const add = post(WATCHLIST, body);
+  const remove = post(WATCHLIST_REMOVE, body);
+  const adding = toState === "present";
+  return {
+    id: params.opId,
+    itemKey: `watchlist:${params.section}:${params.ids.trakt}`,
+    request: adding ? add : remove,
+    inverse: adding ? remove : add,
+    inversePatch: params.inversePatch ?? null,
+    watchedAt: null,
+    fromState: adding ? "absent" : "present",
+    toState,
+    reconcileKeys: [`watchlist/${params.section}`],
+  };
+}
+
+export function buildAddWatchlistOp(params: WatchlistOpParams): QueuedOp {
+  return watchlistOp("present", params);
+}
+
+export function buildRemoveWatchlistOp(params: WatchlistOpParams): QueuedOp {
+  return watchlistOp("absent", params);
+}
+
+interface HistoryBody {
+  readonly episodes?: readonly { readonly ids: { readonly trakt: number } }[];
+  readonly shows?: readonly {
+    readonly ids: { readonly trakt: number };
+    readonly seasons: readonly {
+      readonly number: number;
+      readonly episodes: readonly { readonly number: number }[];
+    }[];
+  }[];
+}
+
+export function markedEpisodesOf(op: QueuedOp): MarkedEpisodes | null {
+  if (op.request.path !== HISTORY || op.watchedAt === null) return null;
+  const body = op.request.body as HistoryBody;
+  const traktIds = new Set((body.episodes ?? []).map((item) => item.ids.trakt));
+  const positions = new Set(
+    (body.shows ?? []).flatMap((show) =>
+      show.seasons.flatMap((season) =>
+        season.episodes.map((episode) => `${season.number}:${episode.number}`),
+      ),
+    ),
+  );
+  if (traktIds.size === 0 && positions.size === 0) return null;
+  return { watchedAt: op.watchedAt, traktIds, positions };
+}
+
+/** The shows and episodes a history write names, in what it sends or in what undoes it. */
+export function historyTargetsOf(op: QueuedOp): {
+  readonly shows: readonly number[];
+  readonly episodes: readonly number[];
+} {
+  const bodies = [op.request, op.inverse]
+    .filter(({ path }) => path === HISTORY || path === HISTORY_REMOVE)
+    .map(({ body }) => body as HistoryBody);
+  return {
+    shows: bodies.flatMap((body) => (body.shows ?? []).map((show) => show.ids.trakt)),
+    episodes: bodies.flatMap((body) => (body.episodes ?? []).map((episode) => episode.ids.trakt)),
+  };
+}

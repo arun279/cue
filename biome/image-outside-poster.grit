@@ -1,0 +1,17 @@
+language js
+
+or {
+  JsImport() as $import where { $import <: contains `"react-native"`, $import <: contains `Image` },
+  `$object.Image`,
+  JsxMemberName(member=$member) where { $member <: `Image` },
+  `const $names = require($module)` where {
+    $names <: contains `Image`,
+    $module <: `"react-native"`
+  }
+} as $use where {
+  register_diagnostic(
+    span=$use,
+    message="Draw a remote image with Poster or Avatar, which decode it at the size they draw it on Android.",
+    severity="error"
+  )
+}
