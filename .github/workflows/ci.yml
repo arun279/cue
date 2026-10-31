@@ -116,7 +116,7 @@ jobs:
         name: Fingerprint the native project
         run: echo "hash=$(pnpm exec fingerprint fingerprint:generate --platform android | jq -r .hash)" >> "$GITHUB_OUTPUT"
       - id: native
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/android-build
           key: android-release-x86_64-${{ steps.fingerprint.outputs.hash }}
@@ -235,7 +235,7 @@ jobs:
         name: Fingerprint the native project
         run: echo "hash=$(pnpm exec fingerprint fingerprint:generate --platform ios | jq -r .hash)" >> "$GITHUB_OUTPUT"
       - id: native
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/ios-build
           key: ios-simulator-release-xcode-26.6-${{ steps.fingerprint.outputs.hash }}
