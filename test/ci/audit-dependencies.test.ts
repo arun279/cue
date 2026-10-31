@@ -4,23 +4,16 @@ import { fakeBin } from "../support/fake-bin";
 import { gitHistory } from "../support/git-history";
 import { repositoryPath } from "../support/repository-path";
 
-const bin = fakeBin({
-  pnpm: '#!/bin/sh\nexit "$AUDIT_STATUS"\n',
-  node: '#!/bin/sh\nexit "$IGNORES_STATUS"\n',
-});
+const bin = fakeBin({ pnpm: '#!/bin/sh\nexit "$AUDIT_STATUS"\n' });
 
 type Audit = {
   audit?: number;
-  ignores?: number;
   changed?: string;
   pushed?: boolean;
   later?: boolean;
 };
 
-function audit(
-  event: string,
-  { audit = 1, ignores = 0, changed = "README.md", pushed, later }: Audit,
-) {
+function audit(event: string, { audit = 1, changed = "README.md", pushed, later }: Audit) {
   const { repository, shas } = gitHistory([
     { "pnpm-lock.yaml": "lock: 1\n" },
     { "pnpm-workspace.yaml": "packages: []\n" },
@@ -39,7 +32,6 @@ function audit(
         ...process.env,
         PATH: `${bin}:${process.env["PATH"]}`,
         AUDIT_STATUS: String(audit),
-        IGNORES_STATUS: String(ignores),
       },
     },
   );
@@ -48,7 +40,6 @@ function audit(
 it.each([
   ["pull_request", {}],
   ["push", { pushed: true }],
-  ["pull_request", { audit: 0, ignores: 1 }],
 ])("only warns about a %s that leaves dependencies alone: %j", (event, change) => {
   const result = audit(event, change);
 
@@ -59,7 +50,6 @@ it.each([
 it.each([
   ["pull_request", { changed: "pnpm-lock.yaml" }],
   ["pull_request", { changed: "pnpm-workspace.yaml" }],
-  ["pull_request", { changed: "pnpm-lock.yaml", audit: 0, ignores: 1 }],
   ["push", { changed: "pnpm-lock.yaml", pushed: true }],
   ["push", { changed: "pnpm-lock.yaml", pushed: true, later: true }],
 ])("fails a %s whose audit fails: %j", (event, change) => {

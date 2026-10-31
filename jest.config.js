@@ -51,7 +51,7 @@ const project = {
   resolver: "react-native-worklets/jest/resolver",
   moduleNameMapper: { "^@/(.*)$": "<rootDir>/src/$1" },
   transformIgnorePatterns: transformIgnorePatterns.map((pattern) =>
-    pattern.replace("(?!(", "(?!(nanoid|"),
+    pattern.replace("(?!(", "(?!(nanoid|decode-uri-component|"),
   ),
 };
 
