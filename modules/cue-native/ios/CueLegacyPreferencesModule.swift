@@ -1,6 +1,6 @@
 import ExpoModulesCore
 
-/// Reads what the Capacitor build left in `UserDefaults`.
+/// Reads, and finally deletes, what the Capacitor build left in `UserDefaults`.
 ///
 /// Capacitor Preferences namespaces by a group that defaults to
 /// `CapacitorStorage`, and on iOS that group plus a dot is prefixed onto every
@@ -24,6 +24,13 @@ public class CueLegacyPreferencesModule: Module {
 
         AsyncFunction("remove") { (key: String) in
             UserDefaults.standard.removeObject(forKey: Self.prefix + key)
+        }
+
+        AsyncFunction("clear") {
+            let defaults = UserDefaults.standard
+            for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(Self.prefix) {
+                defaults.removeObject(forKey: key)
+            }
         }
     }
 }

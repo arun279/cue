@@ -11,6 +11,7 @@ import type { Haptics } from "@/core/ports/haptics";
 declare class CueLegacyPreferencesNativeModule extends NativeModule<Record<never, never>> {
   read(key: string): Promise<string | null>;
   remove(key: string): Promise<void>;
+  clear(): Promise<void>;
 }
 
 /**

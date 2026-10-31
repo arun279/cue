@@ -1,10 +1,13 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { type LegacyMigrationDeps, migrateLegacyData } from "@/core/migration/legacy-capacitor";
+import type { KeyValueStore } from "@/core/ports/kv";
 import { createTokenStore } from "@/core/ports/token-store";
 import {
   type MemoryKeyValueStore,
+  type MemoryLegacyStore,
   memoryKeyValueStore,
+  memoryLegacyStore,
   memoryPreferenceStorage,
 } from "../support/stores";
 
@@ -27,16 +30,20 @@ const OP = {
   reconcileKeys: ["progress/watched", "watched/shows"],
 } as const;
 
-function deps(legacySeed: Record<string, string> = {}): LegacyMigrationDeps & {
-  readonly legacy: MemoryKeyValueStore;
+function deps(
+  legacySeed: Record<string, string> = {},
+  secure: KeyValueStore = memoryKeyValueStore(),
+): LegacyMigrationDeps & {
+  readonly legacy: MemoryLegacyStore;
   readonly bulk: MemoryKeyValueStore;
   readonly preferences: ReturnType<typeof memoryPreferenceStorage>;
 } {
   const bulk = memoryKeyValueStore();
   return {
     digest: async (bytes) => new Uint8Array(createHash("sha256").update(bytes).digest()),
-    legacy: memoryKeyValueStore(legacySeed),
-    tokenStore: createTokenStore(memoryKeyValueStore()),
+    legacy: memoryLegacyStore(legacySeed),
+    tokenStore: createTokenStore(secure),
+    secure,
     bulk,
     preferences: memoryPreferenceStorage(),
   };
@@ -60,16 +67,44 @@ describe("the Capacitor migration", () => {
     expect(fresh.preferences.values.size).toBe(0);
   });
 
-  it("adopts the legacy token once and leaves it where it is", async () => {
-    const upgrade = deps({ "cue.trakt.token": JSON.stringify(TOKEN) });
+  it("adopts the legacy token, then deletes everything the Capacitor build left", async () => {
+    const upgrade = deps({
+      "cue.trakt.token": JSON.stringify(TOKEN),
+      "cue.write-queue": JSON.stringify([OP]),
+      "cue.last-activities": JSON.stringify({ all: "2026-08-01T00:00:00.000Z" }),
+    });
     const result = await migrateLegacyData(upgrade);
-    const second = await migrateLegacyData(upgrade);
 
-    expect(result.adoptedToken).toBe(true);
-    expect(second.adoptedToken).toBe(false);
-    expect(await upgrade.tokenStore.read()).toEqual(TOKEN);
-    // Keep the source so its digest can detect a later change. Last writer wins.
-    expect(upgrade.legacy.values.get("cue.trakt.token")).toBe(JSON.stringify(TOKEN));
+    expect(result).toEqual({ adoptedToken: true, adoptedOps: 1 });
+    expect(await createTokenStore(upgrade.secure).read()).toEqual(TOKEN);
+    expect(upgrade.legacy.values.size).toBe(0);
+  });
+
+  it("deletes what an earlier build adopted and left behind, without signing the user back in", async () => {
+    const upgrade = deps({ "cue.trakt.token": JSON.stringify(TOKEN) });
+    await migrateLegacyData({ ...upgrade, legacy: { ...upgrade.legacy, clear: async () => {} } });
+    await upgrade.tokenStore.clear();
+
+    const result = await migrateLegacyData(upgrade);
+
+    expect(result.adoptedToken).toBe(false);
+    expect(await createTokenStore(upgrade.secure).read()).toBeNull();
+    expect(upgrade.legacy.values.size).toBe(0);
+  });
+
+  it.each([
+    ["refuses the write", { write: () => Promise.reject(new Error("locked")) }],
+    ["drops the write", { write: () => Promise.resolve() }],
+  ])("keeps the legacy store when the secure store %s", async (_, failure) => {
+    const legacy = {
+      "cue.trakt.token": JSON.stringify(TOKEN),
+      "cue.last-activities": JSON.stringify({ all: "2026-08-01T00:00:00.000Z" }),
+    };
+    const broken = deps(legacy, { ...memoryKeyValueStore(), ...failure });
+
+    await expect(migrateLegacyData(broken)).rejects.toThrow();
+
+    expect(Object.fromEntries(broken.legacy.values)).toEqual(legacy);
   });
 
   it("adopts a changed legacy token", async () => {
@@ -82,7 +117,7 @@ describe("the Capacitor migration", () => {
 
     expect(result.adoptedToken).toBe(true);
     expect(await upgrade.tokenStore.read()).toEqual({ ...TOKEN, access_token: "changed" });
-    expect(upgrade.legacy.values.get("cue.trakt.token")).toBe(changed);
+    expect(upgrade.legacy.values.size).toBe(0);
   });
 
   it("prefers the legacy token over one this install already holds", async () => {

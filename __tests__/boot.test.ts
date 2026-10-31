@@ -1,9 +1,8 @@
-import type { LegacyStore } from "@/core/ports/legacy-store";
 import { createTokenStore } from "@/core/ports/token-store";
 import { bootNativeStores } from "../src/boot";
 import {
-  type MemoryKeyValueStore,
   memoryKeyValueStore,
+  memoryLegacyStore,
   memoryPreferenceStorage,
 } from "../test/core/support/stores";
 
@@ -24,7 +23,7 @@ function deps(options: {
     secure,
     tokenStore: createTokenStore(secure),
     bulk: memoryKeyValueStore(options.bulk),
-    legacy: memoryKeyValueStore(options.legacy) as LegacyStore & MemoryKeyValueStore,
+    legacy: memoryLegacyStore(options.legacy),
     preferences: memoryPreferenceStorage(),
     newInstallId: () => "an-install",
     digest: async (bytes: Uint8Array<ArrayBuffer>) => bytes,
@@ -111,6 +110,6 @@ describe("the native boot", () => {
 
     expect(result.migration.adoptedToken).toBe(false);
     expect(await createTokenStore(upgrade.secure).read()).toBeNull();
-    expect(upgrade.legacy.values.get("cue.trakt.token")).toBe(JSON.stringify(TOKEN));
+    expect(upgrade.legacy.values.size).toBe(0);
   });
 });
