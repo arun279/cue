@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createCueRuntime, type RuntimeDeps } from "../runtime/create-runtime";
 import type { CueRuntime } from "../runtime/runtime";
 import { useStartFailure } from "../stores/start-failure-store";
@@ -8,13 +8,14 @@ export type RuntimeBootDeps = Omit<RuntimeDeps, "token">;
 export interface RuntimeBootState {
   readonly runtime: CueRuntime | null;
   readonly failure: string | null;
+  readonly booting: boolean;
   readonly retry: () => void;
 }
 
 export function useRuntimeBoot(deps: RuntimeBootDeps): RuntimeBootState {
   const [runtime, setRuntime] = useState<CueRuntime | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
-  const alive = useRef(true);
+  const [booting, setBooting] = useState(true);
   const {
     newId,
     tokenStore,
@@ -27,36 +28,32 @@ export function useRuntimeBoot(deps: RuntimeBootDeps): RuntimeBootState {
     clearLocalPreferences,
   } = deps;
 
-  useEffect(() => {
-    alive.current = true;
-    return () => {
-      alive.current = false;
-    };
-  }, []);
-
   const boot = useCallback(() => {
-    setFailure(null);
+    setBooting(true);
     void (async () => {
       try {
         const token = await tokenStore.read();
         if (token === null) throw new Error("No stored token to boot with");
-        const built = await createCueRuntime({
-          newId,
-          token,
-          tokenStore,
-          kv,
-          redirectUri,
-          clientId,
-          apiBaseUrl,
-          endSession,
-          clearPersistedCaches,
-          clearLocalPreferences,
-        });
-        if (alive.current) setRuntime(built);
+        setRuntime(
+          await createCueRuntime({
+            newId,
+            token,
+            tokenStore,
+            kv,
+            redirectUri,
+            clientId,
+            apiBaseUrl,
+            endSession,
+            clearPersistedCaches,
+            clearLocalPreferences,
+          }),
+        );
       } catch (error) {
         const detail = String(error);
         useStartFailure.setState({ failure: { at: Date.now(), detail } });
-        if (alive.current) setFailure(detail);
+        setFailure(detail);
+      } finally {
+        setBooting(false);
       }
     })();
   }, [
@@ -75,5 +72,5 @@ export function useRuntimeBoot(deps: RuntimeBootDeps): RuntimeBootState {
     boot();
   }, [boot]);
 
-  return { runtime, failure, retry: boot };
+  return { runtime, failure, booting, retry: boot };
 }

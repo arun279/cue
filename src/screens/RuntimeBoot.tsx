@@ -17,19 +17,21 @@ export interface RuntimeBootProps {
 
 export function RuntimeBoot({ deps, children }: RuntimeBootProps): ReactElement | null {
   const endSession = useAuth((s) => s.endSession);
-  const { runtime, failure, retry } = useRuntimeBoot({ ...deps, endSession });
+  const { runtime, failure, booting, retry } = useRuntimeBoot({ ...deps, endSession });
   useSplashRelease(runtime !== null || failure !== null);
 
   if (runtime !== null) return <RuntimeProvider value={runtime}>{children}</RuntimeProvider>;
-  if (failure !== null) return <BootFailure detail={failure} onRetry={retry} />;
+  if (failure !== null) return <BootFailure detail={failure} retrying={booting} onRetry={retry} />;
   return null;
 }
 
 function BootFailure({
   detail,
+  retrying,
   onRetry,
 }: {
   readonly detail: string;
+  readonly retrying: boolean;
   readonly onRetry: () => void;
 }): ReactElement {
   const colors = useColors();
@@ -55,7 +57,7 @@ function BootFailure({
         headline="Couldn't start Cue"
         body="Cue couldn't open what it keeps on this device."
       >
-        <Button label="Retry" onPress={onRetry} />
+        <Button label="Retry" busy={retrying} onPress={onRetry} />
       </EmptyState>
     </View>
   );

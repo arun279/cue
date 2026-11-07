@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { hide } from "expo-splash-screen";
 import { Text } from "react-native";
 import type { KeyValueStore } from "@/core/ports/kv";
@@ -95,7 +95,7 @@ it("fails onto a retry rather than holding the splash when no token is stored", 
   expect(hide).toHaveBeenCalledTimes(1);
 });
 
-it("lets the splash go onto a retry that clears the system bars, and again once the retry settles", async () => {
+it("lets the splash go onto a retry that clears the system bars, and keeps it up while the retry runs", async () => {
   const store = deviceStore({ [TOKEN_KEY]: TOKEN });
   store.read.mockRejectedValueOnce(new Error("Keychain locked"));
   await launch(store.kv);
@@ -111,13 +111,25 @@ it("lets the splash go onto a retry that clears the system bars, and again once 
   const read = Promise.withResolvers<string | null>();
   store.read.mockReturnValueOnce(read.promise);
   await fireEvent.press(retryButton);
-  expect(screen.queryByText(/./)).toBeNull();
-  expect(hide).toHaveBeenCalledTimes(1);
+  expect(screen.getByText("Couldn't start Cue")).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Retry" })).toBeDisabled();
 
   await act(async () => read.resolve(TOKEN));
 
   expect(await screen.findByText("queue")).toBeOnTheScreen();
-  expect(hide).toHaveBeenCalledTimes(2);
+  expect(hide).toHaveBeenCalledTimes(1);
+});
+
+it("lets the retry be tried again when it fails too", async () => {
+  const store = deviceStore({ [TOKEN_KEY]: TOKEN });
+  store.read.mockRejectedValueOnce(new Error("Keychain locked"));
+  await launch(store.kv);
+
+  store.read.mockRejectedValueOnce(new Error("Keychain locked"));
+  await fireEvent.press(await screen.findByRole("button", { name: "Retry" }));
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled());
+  expect(screen.getByText("Couldn't start Cue")).toBeOnTheScreen();
 });
 
 it("shows the failure, logs the error a failed start hit, and keeps it for Diagnostics", async () => {
