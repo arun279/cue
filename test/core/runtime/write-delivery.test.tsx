@@ -20,13 +20,16 @@ import {
 import { useHideShow } from "@/core/hooks/useHideShow";
 import { useMarkSeason } from "@/core/hooks/useMarkSeason";
 import { useMarkWatched } from "@/core/hooks/useMarkWatched";
+import { OP_LOG_KEY } from "@/core/ports/storage-keys";
 import { libraryQuery } from "@/core/queries/library";
+import type { RuntimeDeps } from "@/core/runtime/create-runtime";
 import { createQueryClient } from "@/core/runtime/query-cache";
 import type { CueRuntime } from "@/core/runtime/runtime";
 import { usePlayPolicy } from "@/core/stores/play-policy-store";
 import { useSnackbar } from "@/core/stores/snackbar-store";
 import { buildRuntime } from "../data/_runtime";
 import { withRuntime } from "../support/runtime";
+import { memoryKeyValueStore } from "../support/stores";
 import { startTraktFake } from "../trakt-fake/in-process.ts";
 
 const fake = startTraktFake();
@@ -43,13 +46,14 @@ const EVERY = Number.POSITIVE_INFINITY;
 const NEXT_EPISODE = 880120;
 
 /** A runtime whose writes each get their own id, as the app's do. */
-function distinctIds() {
+function distinctIds(overrides: Partial<RuntimeDeps> = {}) {
   let made = 0;
   return buildRuntime({
     newId: () => {
       made += 1;
       return `op-${made}`;
     },
+    ...overrides,
   });
 }
 
@@ -391,6 +395,29 @@ it("applies a show-screen Undo made offline once Trakt is reachable", async () =
     }),
   );
   await waited(() => show.result.current.undo());
+  await online(cue);
+
+  expect(await cue.loadEpisodePlays(NEXT_EPISODE)).toEqual([]);
+});
+
+it("takes back the latest stored mark when an episode tick is cleared after a relaunch", async () => {
+  vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+  vi.setSystemTime(new Date(AT));
+  const ids = { trakt: NEXT_EPISODE };
+  const first = buildMarkEpisodeOp({ opId: "first", ids, watchedAt: AT });
+  const again = buildMarkEpisodeOp({ opId: "again", ids, watchedAt: "2026-09-10T12:01:00.000Z" });
+  const stored = [first, buildUndoAddOp("undo", first), again];
+  offlineFor(1);
+  const cue = await distinctIds({
+    kv: memoryKeyValueStore({ [OP_LOG_KEY]: JSON.stringify(stored) }),
+  });
+  const queryClient = createQueryClient();
+  await queryClient.fetchQuery(libraryQuery(cue));
+  const show = renderHook(useMarkSeason, { wrapper: withRuntime(cue, queryClient) });
+  offlineFor(1);
+  await waited(() =>
+    show.result.current.toggleEpisode(TARGET, { ...THIRD_SEASON(5, NEXT_EPISODE), watched: true }),
+  );
   await online(cue);
 
   expect(await cue.loadEpisodePlays(NEXT_EPISODE)).toEqual([]);
