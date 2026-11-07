@@ -33,6 +33,7 @@ import {
   SEGMENTS,
   type Segment,
   showChips,
+  shownSegment,
   sortsFor,
   useDebounced,
 } from "../../../src/screens/library/model";
@@ -51,7 +52,8 @@ const WINDOW_SCREENS = 5;
 export default function Library(): ReactElement {
   const showsEnabled = usePrefs((state) => state.showsEnabled);
   const moviesEnabled = usePrefs((state) => state.moviesEnabled);
-  const [segment, setSegment] = useState<Segment>(showsEnabled ? "shows" : "movies");
+  const [picked, setSegment] = useState<Segment>(showsEnabled ? "shows" : "movies");
+  const segment = shownSegment(picked, showsEnabled, moviesEnabled);
   const [chips, setChips] = useState<Record<Segment, ChipKey>>({
     shows: "watching",
     movies: "not-started",

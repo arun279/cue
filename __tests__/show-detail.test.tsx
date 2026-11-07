@@ -1,3 +1,4 @@
+import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react-native";
 import { Children, isValidElement, type ReactNode } from "react";
 import { ActionSheetIOS, Alert, Platform } from "react-native";
@@ -85,6 +86,30 @@ it("keeps the seasons accordion in descending order with Specials last", async (
   expect(screen.queryByTestId(TEST_IDS.episodeChecked(8803, 0, 1))).toBeNull();
   await fireEvent.press(screen.getByTestId(TEST_IDS.seasonTrigger(2)));
   expect(screen.queryByTestId(TEST_IDS.episodeChecked(8803, 2, 1))).toBeNull();
+});
+
+it("keeps the season list it has, with no error over it, when a background refresh fails", async () => {
+  let client: QueryClient | undefined;
+  function Client(): null {
+    client = useQueryClient();
+    return null;
+  }
+  const runtime = {
+    ...detailRuntime,
+    loadShowSeasons: jest.fn(() => Promise.reject(new Error("offline"))),
+  };
+  await render(
+    <DetailHarness runtime={runtime}>
+      <ShowDetail showId={8803} />
+      <Client />
+    </DetailHarness>,
+  );
+
+  await act(() => client?.invalidateQueries());
+
+  expect(runtime.loadShowSeasons).toHaveBeenCalled();
+  expect(screen.getAllByTestId(/^season-row-/)).toHaveLength(3);
+  expect(screen.queryByText("Couldn't load episodes")).toBeNull();
 });
 
 it("counts the specials watched beside the regular episodes", async () => {

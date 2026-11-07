@@ -1,4 +1,11 @@
-import { type ReactElement, type ReactNode, useCallback, useRef, useState } from "react";
+import {
+  type ReactElement,
+  type ReactNode,
+  type RefObject,
+  useCallback,
+  useRef,
+  useState,
+} from "react";
 import { StyleSheet, View } from "react-native";
 import Swipeable, {
   type SwipeableMethods,
@@ -26,13 +33,16 @@ export interface SwipeRowProps {
 export function SwipeRow({ onMark, onStop, testID, children }: SwipeRowProps): ReactElement {
   const haptics = useHaptics();
   const row = useRef<SwipeableMethods>(null);
+  const committed = useRef(false);
   const [dragged, setDragged] = useState(false);
   const start = (): void => {
     haptics.prepare();
+    committed.current = false;
     setDragged(true);
   };
 
   const commit = (direction: SwipeDirection): void => {
+    committed.current = true;
     row.current?.close();
     // The library reports the finger's direction: a right drag opens the LEFT panel and reports RIGHT.
     if (direction === SwipeDirection.RIGHT) onMark?.();
@@ -52,14 +62,19 @@ export function SwipeRow({ onMark, onStop, testID, children }: SwipeRowProps): R
           ? undefined
           : (_progress, translation) =>
               dragged ? (
-                <Reveal side="mark" translation={translation} haptics={haptics} />
+                <Reveal
+                  side="mark"
+                  translation={translation}
+                  haptics={haptics}
+                  committed={committed}
+                />
               ) : (
                 <RevealPlaceholder />
               )
       }
       renderRightActions={(_progress, translation) =>
         dragged ? (
-          <Reveal side="stop" translation={translation} haptics={haptics} />
+          <Reveal side="stop" translation={translation} haptics={haptics} committed={committed} />
         ) : (
           <RevealPlaceholder />
         )
@@ -78,10 +93,12 @@ function Reveal({
   side,
   translation,
   haptics,
+  committed,
 }: {
   readonly side: Side;
   readonly translation: SharedValue<number>;
   readonly haptics: Haptics;
+  readonly committed: RefObject<boolean>;
 }): ReactElement {
   const colors = useColors();
   const [armed, setArmed] = useState(false);
@@ -91,9 +108,9 @@ function Reveal({
     (past: boolean) => {
       setArmed(past);
       if (past) haptics.thresholdActivate();
-      else haptics.thresholdDeactivate();
+      else if (!committed.current) haptics.thresholdDeactivate();
     },
-    [haptics],
+    [haptics, committed],
   );
 
   useAnimatedReaction(

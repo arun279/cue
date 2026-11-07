@@ -1,6 +1,8 @@
+import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { act, fireEvent, screen, userEvent } from "@testing-library/react-native";
 import { Alert, Platform, StyleSheet } from "react-native";
 import { type TraktFailure, TraktReadError } from "@/core/domain/read-failure";
+import { libraryQuery } from "@/core/queries/library";
 import { PendingWritesError } from "@/core/runtime/session";
 import "./support/screen-mocks";
 import Profile from "../src/screens/Profile";
@@ -106,6 +108,38 @@ it("recovers stats with the library, independently of a failed profile request",
   expect(screen.getByText("Connected")).toBeVisible();
   await userEvent.press(screen.getByRole("button", { name: "Try again" }));
   expect(await screen.findByLabelText("7 shows watched")).toBeVisible();
+});
+
+it("shows the retry loading when one read already has data and the other never loaded", async () => {
+  let client: QueryClient | undefined;
+  function Client(): null {
+    client = useQueryClient();
+    return null;
+  }
+  const fixture = accountFixture({
+    loadUpNext: jest
+      .fn()
+      .mockResolvedValueOnce({ entries: LIBRARY })
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockReturnValue(new Promise(() => {})),
+    loadMovieLibrary: jest
+      .fn()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockReturnValue(new Promise(() => {})),
+  });
+  await fixture.paint(
+    <>
+      <Profile />
+      <Client />
+    </>,
+  );
+  expect(await screen.findByText("Couldn't load your library")).toBeVisible();
+  await act(() => client?.refetchQueries({ queryKey: libraryQuery(fixture.runtime).queryKey }));
+
+  await userEvent.press(screen.getByRole("button", { name: "Try again" }));
+
+  expect(screen.getByLabelText("Loading stats")).toBeVisible();
+  expect(screen.queryByText("Couldn't load your library")).toBeNull();
 });
 
 it("offers discovery when the enabled media has no watch history", async () => {

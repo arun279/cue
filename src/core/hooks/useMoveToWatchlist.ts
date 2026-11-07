@@ -5,7 +5,6 @@ import { buildAddWatchlistOp, buildRemoveWatchlistOp } from "../domain/write-que
 import { useRuntime } from "../runtime/runtime";
 import { showSnack, showUndoable } from "../stores/snackbar-store";
 import { ensureLibraryEntry, patchLibraryEntry } from "./library-cache";
-import { isKept } from "./optimistic-write";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 import { useResumeOnMark } from "./useResumeOnMark";
 
@@ -31,7 +30,7 @@ export function useMoveToWatchlist(): (entry: LibraryEntry) => Promise<void> {
     );
     if (outcome === "failed")
       showSnack({ message: "Couldn't update your watchlist. Please try again." });
-    return isKept(outcome);
+    return outcome !== "failed";
   };
   return async (entry) => {
     if (entry.completed !== 0 || entry.inWatchlist) return;

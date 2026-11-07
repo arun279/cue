@@ -354,7 +354,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       return assembleUserProfile(unwrapRead(await getUserSettings(client), "user settings"));
     },
 
-    async submit(op: QueuedOp): Promise<SubmitOutcome> {
+    async submit(op: QueuedOp): Promise<SubmitOutcome | "ended"> {
       queue.enqueue(op);
       await persistLog();
       await queue.flush();

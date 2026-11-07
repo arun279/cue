@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react-native";
+import { fireEvent, render, screen } from "@testing-library/react-native";
 import { StyleSheet, type TextStyle } from "react-native";
 import { MONOGRAM_SIZE, Poster } from "../../src/ui/Poster";
 import { POSTER_WIDTH } from "../../src/ui/tokens";
@@ -38,4 +38,21 @@ it("draws the monogram from the plate rather than from the text scale", async ()
   // Dynamic Type would run off one.
   expect(letters()).toHaveProp("allowFontScaling", false);
   expect(monogram().fontSize).toBe(POSTER_WIDTH.row * MONOGRAM_SIZE);
+});
+
+it("draws a replacement poster after the one before it failed to load", async () => {
+  const image = () => screen.container.queryAll((node) => node.type === "Image").at(0) ?? null;
+  const view = await render(
+    <Poster title="Midnight Cartography" posters={["https://example.com/a.jpg"]} width={96} />,
+  );
+  const broken = image();
+  if (broken === null) throw new Error("no poster image rendered");
+  await fireEvent(broken, "error");
+  expect(image()).toBeNull();
+
+  await view.rerender(
+    <Poster title="Midnight Cartography" posters={["https://example.com/b.jpg"]} width={96} />,
+  );
+
+  expect(image()).toHaveProp("source", { uri: "https://example.com/b.jpg" });
 });

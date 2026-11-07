@@ -118,7 +118,7 @@ export function fakeRuntime({
 }: RuntimeFixture): CueRuntime {
   const answered = new Set<string>();
   const sending = new Set<QueuedOp>();
-  const outcomes = new Map<string, SubmitOutcome>();
+  const outcomes = new Map<string, SubmitOutcome | "ended">();
   const settle = submit ?? (() => Promise.resolve<SubmitOutcome>("done"));
   return partialRuntime({
     newId: () => "test-op-id",

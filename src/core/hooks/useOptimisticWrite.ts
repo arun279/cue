@@ -1,8 +1,8 @@
 import { useCallback } from "react";
 import type { QueuedOp } from "../domain/write-queue/types";
-import { type SubmitOutcome, useRuntime } from "../runtime/runtime";
+import type { SubmitOutcome } from "../runtime/runtime";
 import { applyOptimisticWrite, type OptimisticEffects } from "./optimistic-write";
-import { useTrackedSubmit } from "./useTrackedSubmit";
+import { useSettled, useTrackedSubmit } from "./useTrackedSubmit";
 
 export type SubmitOptimistic = (
   ops: readonly QueuedOp[],
@@ -10,8 +10,8 @@ export type SubmitOptimistic = (
 ) => Promise<SubmitOutcome>;
 
 export function useOptimisticWrite(): SubmitOptimistic {
-  const { settled } = useRuntime();
   const submit = useTrackedSubmit();
+  const settled = useSettled();
   return useCallback(
     (ops, effects) => applyOptimisticWrite({ submit, settled }, ops, effects),
     [submit, settled],

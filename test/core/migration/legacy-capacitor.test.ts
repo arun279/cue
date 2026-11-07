@@ -241,6 +241,31 @@ describe("the Capacitor migration", () => {
     expect(corrupt.legacy.values.has("cue.write-queue")).toBe(false);
   });
 
+  it("adopts each op once when a launch dies before the legacy op log is removed", async () => {
+    const upgrade = deps({ "cue.write-queue": JSON.stringify([OP]) });
+    const killed = { ...upgrade.legacy, remove: () => Promise.reject(new Error("killed")) };
+    await expect(migrateLegacyData({ ...upgrade, legacy: killed })).rejects.toThrow();
+
+    const result = await migrateLegacyData(upgrade);
+
+    expect(JSON.parse(upgrade.bulk.values.get("cue.write-queue") ?? "null")).toEqual([ADOPTED]);
+    expect(result.adoptedOps).toBe(0);
+    expect(upgrade.legacy.values.has("cue.write-queue")).toBe(false);
+  });
+
+  it("queues an op once when an earlier build queued it and stopped before removing the legacy copy", async () => {
+    const interrupted = deps({ "cue.write-queue": JSON.stringify([OP]) });
+    const mine = { ...OP, id: "op-native" };
+    await interrupted.bulk.write("cue.write-queue", JSON.stringify([OP, mine]));
+
+    await migrateLegacyData(interrupted);
+
+    expect(JSON.parse(interrupted.bulk.values.get("cue.write-queue") ?? "null")).toEqual([
+      ADOPTED,
+      mine,
+    ]);
+  });
+
   it("puts migrated ops ahead of anything this install already queued", async () => {
     const both = deps({ "cue.write-queue": JSON.stringify([OP]) });
     const mine = { ...ADOPTED, id: "op-native" };

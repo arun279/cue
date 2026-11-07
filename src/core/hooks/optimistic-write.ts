@@ -1,5 +1,6 @@
+import type { WriteOutcome } from "../domain/write-queue/queue";
 import type { QueuedOp } from "../domain/write-queue/types";
-import type { CueRuntime, SubmitOutcome } from "../runtime/runtime";
+import type { SubmitOutcome } from "../runtime/runtime";
 import { dismissSnack, showSnack } from "../stores/snackbar-store";
 
 export interface OptimisticEffects {
@@ -8,17 +9,19 @@ export interface OptimisticEffects {
   revalidate(): void;
 }
 
-/** Whether a write still stands, so offering to undo it makes sense. */
-export const isKept = (outcome: SubmitOutcome): boolean =>
-  outcome === "done" || outcome === "deferred";
+/** How the UI writes: neither call settles once the write's session has ended. */
+export interface WriteGateway {
+  submit(op: QueuedOp): Promise<SubmitOutcome>;
+  settled(opId: string): Promise<WriteOutcome>;
+}
 
-const WORST_FIRST: readonly SubmitOutcome[] = ["ended", "failed", "deferred", "cancelled", "done"];
+const WORST_FIRST: readonly SubmitOutcome[] = ["failed", "deferred", "cancelled", "done"];
 
 const settle = (a: SubmitOutcome, b: SubmitOutcome): SubmitOutcome =>
   WORST_FIRST.indexOf(a) < WORST_FIRST.indexOf(b) ? a : b;
 
 export async function submitAll(
-  submit: (op: QueuedOp) => Promise<SubmitOutcome>,
+  submit: WriteGateway["submit"],
   ops: readonly QueuedOp[],
 ): Promise<SubmitOutcome> {
   let outcome: SubmitOutcome = "done";
@@ -28,7 +31,7 @@ export async function submitAll(
 
 /** A write kept for later still rolls back and says so if Trakt refuses it, whatever screen is open by then. */
 async function settleLater(
-  settled: CueRuntime["settled"],
+  settled: WriteGateway["settled"],
   ops: readonly QueuedOp[],
   effects: OptimisticEffects,
 ): Promise<void> {
@@ -44,18 +47,18 @@ async function settleLater(
 }
 
 export async function applyOptimisticWrite(
-  runtime: Pick<CueRuntime, "submit" | "settled">,
+  gateway: WriteGateway,
   ops: readonly QueuedOp[],
   effects: OptimisticEffects,
 ): Promise<SubmitOutcome> {
-  const outcome = await submitAll(runtime.submit, ops);
-  if (outcome === "ended" || outcome === "cancelled") return outcome;
+  const outcome = await submitAll(gateway.submit, ops);
+  if (outcome === "cancelled") return outcome;
   if (outcome === "failed") {
     effects.rollback();
     return outcome;
   }
   const kept = await effects.onKept?.();
   if (outcome === "done" && (kept == null || kept === "done")) effects.revalidate();
-  if (outcome === "deferred") void settleLater(runtime.settled, ops, effects);
+  if (outcome === "deferred") void settleLater(gateway.settled, ops, effects);
   return outcome;
 }

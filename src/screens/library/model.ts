@@ -77,6 +77,15 @@ const SORT: Readonly<Record<LibrarySort, SortOption>> = {
   "release-year": { id: "release-year", label: "Release year", testID: TEST_IDS.sortReleaseYear },
 };
 
+export function shownSegment(
+  picked: Segment,
+  showsEnabled: boolean,
+  moviesEnabled: boolean,
+): Segment {
+  if (!showsEnabled) return "movies";
+  return moviesEnabled ? picked : "shows";
+}
+
 export function sortsFor(segment: Segment, chip: ChipKey): readonly [SortOption, ...SortOption[]] {
   if (chip === "not-started")
     return [SORT["recently-added"], SORT.alphabetical, SORT["release-year"]];

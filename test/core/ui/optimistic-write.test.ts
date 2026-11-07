@@ -1,10 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { WriteOutcome } from "@/core/domain/write-queue/queue";
 import type { QueuedOp } from "@/core/domain/write-queue/types";
-import { applyOptimisticWrite } from "@/core/hooks/optimistic-write";
-import type { CueRuntime, SubmitOutcome } from "@/core/runtime/runtime";
+import { applyOptimisticWrite, type WriteGateway } from "@/core/hooks/optimistic-write";
+import type { SubmitOutcome } from "@/core/runtime/runtime";
 import { dismissSnack, useSnackbar } from "@/core/stores/snackbar-store";
-
-type Settled = Awaited<ReturnType<CueRuntime["settled"]>>;
 
 /** A minimal op whose `id` doubles as a label so a fake submit can record order. */
 function op(id: string): QueuedOp {
@@ -19,39 +18,39 @@ function op(id: string): QueuedOp {
   };
 }
 
-/** A runtime whose submits answer `outcomes` in turn, and whose kept writes end when `end` says. */
+/** A gateway whose submits answer `outcomes` in turn, and whose kept writes end when `end` says. */
 function writer(outcomes: readonly SubmitOutcome[]) {
   const seen: string[] = [];
-  const endings = new Map<string, (outcome: Settled) => void>();
-  const settlements = new Map<string, Promise<Settled>>();
-  const runtime: Pick<CueRuntime, "submit" | "settled"> = {
+  const endings = new Map<string, (outcome: WriteOutcome) => void>();
+  const settlements = new Map<string, Promise<WriteOutcome>>();
+  const gateway: WriteGateway = {
     submit: (queued) => {
       seen.push(queued.id);
       return Promise.resolve(outcomes[seen.length - 1] ?? "done");
     },
     settled: (opId) => {
       const settlement =
-        settlements.get(opId) ?? new Promise<Settled>((resolve) => endings.set(opId, resolve));
+        settlements.get(opId) ?? new Promise<WriteOutcome>((resolve) => endings.set(opId, resolve));
       settlements.set(opId, settlement);
       return settlement;
     },
   };
-  const end = async (opId: string, outcome: Settled): Promise<void> => {
-    void runtime.settled(opId);
+  const end = async (opId: string, outcome: WriteOutcome): Promise<void> => {
+    void gateway.settled(opId);
     endings.get(opId)?.(outcome);
     await new Promise((resolve) => setTimeout(resolve, 0));
   };
-  return { runtime, seen, end };
+  return { gateway, seen, end };
 }
 
 /** Drive the seam over one op per queued outcome; report the settled outcome, the
  * effect spies, and the ops actually submitted (in order). */
 async function exercise(outcomes: readonly SubmitOutcome[]) {
-  const { runtime, seen, end } = writer(outcomes);
+  const { gateway, seen, end } = writer(outcomes);
   const rollback = vi.fn();
   const revalidate = vi.fn();
   const ops = outcomes.map((_, n) => op(`op-${n}`));
-  const outcome = await applyOptimisticWrite(runtime, ops, { rollback, revalidate });
+  const outcome = await applyOptimisticWrite(gateway, ops, { rollback, revalidate });
   return { outcome, rollback, revalidate, seen, end };
 }
 
@@ -69,7 +68,7 @@ async function exerciseKept(
     return Promise.resolve(keptOutcome ?? null);
   });
   const revalidate = vi.fn(() => void order.push("revalidate"));
-  const outcome = await applyOptimisticWrite(writer([primary]).runtime, [op("a")], {
+  const outcome = await applyOptimisticWrite(writer([primary]).gateway, [op("a")], {
     rollback,
     onKept,
     revalidate,
@@ -180,14 +179,6 @@ describe("applyOptimisticWrite: the shared write seam", () => {
     expect((await exerciseKept("failed")).order).toEqual(["rollback"]);
   });
 
-  it('does nothing at all when the write\'s session "ended", whatever else the batch did', async () => {
-    expect(await exerciseKept("ended")).toEqual({ order: [], outcome: "ended" });
-    const batch = await exercise(["done", "ended", "failed"]);
-    expect(batch.outcome).toBe("ended");
-    expect(batch.rollback).not.toHaveBeenCalled();
-    expect(batch.revalidate).not.toHaveBeenCalled();
-  });
-
   it('holds off revalidate when the follow-up is still "deferred", even on a landed batch', async () => {
     const { order, outcome } = await exerciseKept("done", "deferred");
     expect(order).toEqual(["onKept"]);
@@ -224,12 +215,9 @@ describe("applyOptimisticWrite: the shared write seam", () => {
     expect(rollback).not.toHaveBeenCalled();
   });
 
-  it.each([
-    "cancelled",
-    "ended",
-  ] as const)('leaves a kept write that ends "%s" later alone', async (later) => {
+  it("leaves a kept write that an opposite write cancels later alone", async () => {
     const { rollback, revalidate, end } = await exercise(["deferred"]);
-    await end("op-0", later);
+    await end("op-0", "cancelled");
     expect(rollback).not.toHaveBeenCalled();
     expect(revalidate).not.toHaveBeenCalled();
     expect(useSnackbar.getState().snack).toBeNull();

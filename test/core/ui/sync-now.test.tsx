@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { QueryClient, useQuery } from "@tanstack/react-query";
+import { focusManager, QueryClient, useQuery } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { queryKeys } from "@/core/data/query-keys";
@@ -85,6 +85,19 @@ describe("useSyncNow", () => {
     expect(pass.clean).toBe(false);
     expect(pass.pollActivities).not.toHaveBeenCalled();
     expect(snack()).toBe(FAILED);
+  });
+
+  it("says nothing when the app leaves the foreground mid-sync, since nothing failed", async () => {
+    const pass = await syncPass({
+      flush: () => {
+        focusManager.setFocused(false);
+        return Promise.resolve(0);
+      },
+    });
+    focusManager.setFocused(undefined);
+    expect(pass).toMatchObject({ clean: false, syncing: false });
+    expect(pass.pollActivities).not.toHaveBeenCalled();
+    expect(snack()).toBeNull();
   });
 
   it("fails once, the same way, when the poll or the flush itself fails", async () => {

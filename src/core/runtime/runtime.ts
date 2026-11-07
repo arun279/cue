@@ -43,10 +43,9 @@ export interface HistoryPageData {
 
 /**
  * "deferred": still to be sent, with how it ends told by `settled`. "cancelled": an opposite write
- * undid it before either was sent. "ended": the session ended before the write settled, so nothing
- * should follow from it.
+ * undid it before either was sent.
  */
-export type SubmitOutcome = "done" | "failed" | "deferred" | "cancelled" | "ended";
+export type SubmitOutcome = "done" | "failed" | "deferred" | "cancelled";
 
 export interface ActivitiesReconcile {
   readonly keys: readonly InvalidationKey[];
@@ -79,9 +78,10 @@ export interface CueRuntime {
   loadBrowse(): Promise<BrowseData>;
   loadGenreNames(): Promise<Readonly<Record<string, string>>>;
   loadUserProfile(): Promise<UserProfile>;
-  submit(op: QueuedOp): Promise<SubmitOutcome>;
+  /** "ended": the session ended before the write settled. */
+  submit(op: QueuedOp): Promise<SubmitOutcome | "ended">;
   /** How a submitted write ends, however long it waits to be sent. */
-  settled(opId: string): Promise<Exclude<SubmitOutcome, "deferred">>;
+  settled(opId: string): Promise<WriteOutcome | "ended">;
   /** How a write ended, or null while it is still to be sent. */
   writeOutcome(opId: string): WriteOutcome | null;
   writeReceipt(opId: string): WriteReceipt | null;

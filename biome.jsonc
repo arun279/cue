@@ -234,6 +234,10 @@
     {
       "includes": ["src/core/data/trakt/pooled-endpoints.ts"],
       "plugins": ["./biome/unpooled-read.grit"]
+    },
+    {
+      "includes": ["src/**", "app/**", "!src/core/hooks/useTrackedSubmit.ts"],
+      "plugins": ["./biome/untracked-submit.grit"]
     }
   ],
   "plugins": ["./biome/effect-query-writes.grit"],

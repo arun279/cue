@@ -7,7 +7,6 @@ import { buildHideShowOp, buildResumeShowOps } from "../domain/write-queue/ops";
 import { useRuntime } from "../runtime/runtime";
 import { showFailure, showUndoable } from "../stores/snackbar-store";
 import { patchLibraryHidden } from "./library-cache";
-import { isKept } from "./optimistic-write";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 
 type HideKind = "hide" | "unhide";
@@ -60,7 +59,7 @@ export function useHideShow(): HideController {
 
   const setHidden = useCallback(
     async (showId: number, ids: ShowIds, title: string, kind: HideKind) => {
-      if (!isKept(await writeHidden(showId, ids, title, kind))) return;
+      if ((await writeHidden(showId, ids, title, kind)) === "failed") return;
       showUndoable(`${title} ${kind === "hide" ? "stopped" : "resumed"}`, () => {
         void writeHidden(showId, ids, title, kind === "hide" ? "unhide" : "hide");
       });
