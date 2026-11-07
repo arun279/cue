@@ -1029,7 +1029,8 @@ describe("a season tree on screen", () => {
   });
 
   // Neither moves the show's last play, which is the newest by date (recorded), so only its count of
-  // plays tells the library the show changed.
+  // plays tells the library the show changed. The play is of the first watched episode: Trakt would
+  // not add a second play of the last one in the minute it already has.
   it.each([
     ["backdated a year", -YEAR_MS],
     ["in the same minute as the show's last play", 0],
@@ -1041,7 +1042,7 @@ describe("a season tree on screen", () => {
     if (before?.lastWatchedAt == null || before.plays === null) throw new Error("no plays");
     const watched = session.controls.tree
       ?.flatMap((season) => season.episodes)
-      .findLast((episode) => episode.watched);
+      .find((episode) => episode.watched);
     if (watched === undefined) throw new Error("the show has no episode watched");
 
     const at = new Date(Date.parse(before.lastWatchedAt) + shift).toISOString();

@@ -4,8 +4,8 @@ import { createTraktFake } from "./fake.ts";
 
 /**
  * What the fake does that no recording can show, as Trakt documents it: token
- * lifetime, the device token statuses, and the rate limits. Everything recorded
- * is checked by conformance.test.ts.
+ * lifetime, the device token statuses, the rate limits, and history adds that
+ * repeat a play. Everything recorded is checked by conformance.test.ts.
  */
 
 const MINUTE = 60_000;
@@ -125,5 +125,34 @@ describe("rate limits (https://developer.trakt.tv/docs/rate-limiting)", () => {
     });
     advance(4 * MINUTE);
     expect((await send("GET", "/sync/last_activities")).status).toBe(200);
+  });
+});
+
+describe("history adds (https://github.com/trakt/trakt-api/discussions/694)", () => {
+  it("adds no second play of an item at a minute it was already played", async () => {
+    const { send, advance } = fakeAt();
+    const play = async (watchedAt: string) => {
+      const body = {
+        episodes: [{ ids: { trakt: 880120 }, watched_at: watchedAt }],
+        movies: [{ ids: { trakt: 5503 }, watched_at: watchedAt }],
+      };
+      const answer = await send("POST", "/sync/history", body);
+      advance(1000);
+      return ((await answer.json()) as { added: unknown }).added;
+    };
+    const plays = async (kind: string, id: number) =>
+      ((await (await send("GET", `/sync/history/${kind}/${id}`)).json()) as unknown[]).length;
+    const at = new Date(FIXTURE_NOW).toISOString();
+    expect(await play(at)).toEqual({ movies: 1, episodes: 1 });
+    expect(await play(new Date(FIXTURE_NOW + 30_000).toISOString())).toEqual({
+      movies: 0,
+      episodes: 0,
+    });
+    expect([await plays("episodes", 880120), await plays("movies", 5503)]).toEqual([1, 1]);
+    expect(await play(new Date(FIXTURE_NOW + MINUTE).toISOString())).toEqual({
+      movies: 1,
+      episodes: 1,
+    });
+    expect([await plays("episodes", 880120), await plays("movies", 5503)]).toEqual([2, 2]);
   });
 });

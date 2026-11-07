@@ -18,7 +18,7 @@ The only stand-in for Trakt in this repository. It holds a seeded account, OAuth
 
 `conformance.test.ts` compares the fake with `recordings.json`. It asks the fake every read the app makes and fails on any path, type, string class, status or header Trakt was never seen sending, and on any 404 from a recorded read. It also runs `scenarios.ts` on a clock spaced like the recorder's request guard, and fails on any difference from a recorded transcript.
 
-What cannot be recorded follows Trakt's documentation and is tested in `fake.test.ts`: token lifetime and the device token statuses (https://docs.trakt.tv/reference/postoauthdevicetoken), and the rate limits (https://developer.trakt.tv/docs/rate-limiting).
+What cannot be recorded follows Trakt's documentation and is tested in `fake.test.ts`: token lifetime and the device token statuses (https://docs.trakt.tv/reference/postoauthdevicetoken), the rate limits (https://developer.trakt.tv/docs/rate-limiting), and a history add that repeats an item's play at the same minute, which Trakt does not add again (https://github.com/trakt/trakt-api/discussions/694).
 
 ## Provenance of recordings.json
 
@@ -41,3 +41,4 @@ These are guesses until a recording settles them.
 
 - Whether an aired special played after a regular episode moves the show's `last_watched_at`. The fake says it does; the recordings show only that an unaired special's play does not, and that an aired special sets it when it is the show's only play.
 - Progress with `specials=false` when the show's only play is a special.
+- What a history add answers for a play Trakt does not add again. The fake counts it as neither added nor updated.

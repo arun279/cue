@@ -119,7 +119,11 @@ const isWatched = (show: Show, ep: Episode): boolean =>
     ? show.specialsWatchedAt.has(ep.traktId)
     : show.episodes.indexOf(ep) < show.completed;
 
-/** A play for a watched episode is one more play, or with Multiple Plays off replaces the first's date. */
+/**
+ * A play for a watched episode is one more play, or with Multiple Plays off replaces the first's date.
+ * A play the episode already has at that minute is not added again
+ * (https://github.com/trakt/trakt-api/discussions/694).
+ */
 function addEpisodePlay(
   account: Account,
   show: Show,
@@ -128,6 +132,11 @@ function addEpisodePlay(
   tally: Tally,
 ): void {
   const watched = isWatched(show, ep);
+  const first =
+    ep.season === 0 ? show.specialsWatchedAt.get(ep.traktId) : show.watchedAt.get(ep.traktId);
+  if (watched && [first, ...(account.rewatchedEpisodes.get(ep.traktId) ?? [])].includes(stamp)) {
+    return;
+  }
   if (watched && account.multiplePlays) {
     account.rewatchedEpisodes.set(ep.traktId, [
       ...(account.rewatchedEpisodes.get(ep.traktId) ?? []),
@@ -236,6 +245,7 @@ function removeMoviePlays(account: Account, movie: Movie, body: WriteBody, tally
 }
 
 function addMoviePlay(account: Account, movie: Movie, stamp: number, tally: Tally): true {
+  if ([movie.watchedAt, account.rewatchedMovies.get(movie.trakt)].includes(stamp)) return true;
   if (movie.watchedAt !== null && account.multiplePlays) {
     account.rewatchedMovies.set(movie.trakt, stamp);
     tally.added.movies += 1;
