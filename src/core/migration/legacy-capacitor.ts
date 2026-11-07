@@ -107,10 +107,13 @@ async function adoptOpLog(deps: LegacyMigrationDeps): Promise<number> {
     const opLog = createJsonStore<QueuedOp[]>(deps.bulk, OP_LOG_KEY, (value) =>
       Array.isArray(value) ? (value as QueuedOp[]) : [],
     );
+    // An earlier build could queue these ops and stop before removing them from the legacy store.
+    const ids = new Set(ops.map((op) => op.id));
+    const own = ((await opLog.read()) ?? []).filter((op) => !ids.has(op.id));
     // The runtime sends whatever it finds queued, so the ops and the record that keeps a later
     // launch from queueing them again land together or not at all.
     await deps.bulk.writeAll({
-      [OP_LOG_KEY]: JSON.stringify([...ops, ...((await opLog.read()) ?? [])]),
+      [OP_LOG_KEY]: JSON.stringify([...ops, ...own]),
       [ADOPTED_OPS_KEY]: digest,
     });
   }

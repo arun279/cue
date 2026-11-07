@@ -248,6 +248,19 @@ describe("the Capacitor migration", () => {
     expect(upgrade.legacy.values.has("cue.write-queue")).toBe(false);
   });
 
+  it("queues an op once when an earlier build queued it and stopped before removing the legacy copy", async () => {
+    const interrupted = deps({ "cue.write-queue": JSON.stringify([OP]) });
+    const mine = { ...OP, id: "op-native" };
+    await interrupted.bulk.write("cue.write-queue", JSON.stringify([OP, mine]));
+
+    await migrateLegacyData(interrupted);
+
+    expect(JSON.parse(interrupted.bulk.values.get("cue.write-queue") ?? "null")).toEqual([
+      OP,
+      mine,
+    ]);
+  });
+
   it("puts migrated ops ahead of anything this install already queued", async () => {
     const both = deps({ "cue.write-queue": JSON.stringify([OP]) });
     const mine = { ...OP, id: "op-native" };
