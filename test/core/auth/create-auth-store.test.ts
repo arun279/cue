@@ -64,6 +64,17 @@ async function connectNext(store: AuthStore): Promise<void> {
   await store.getState().connectWithDeviceCode();
 }
 
+/** Revokes that wait until the test answers them; each entry answers one. */
+function heldRevokes(): (() => void)[] {
+  const revokes: (() => void)[] = [];
+  vi.mocked(revokeToken).mockImplementation(
+    () => new Promise<void>((resolve) => revokes.push(resolve)),
+  );
+  return revokes;
+}
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
 describe("leaving a session", () => {
   afterEach(() => {
     vi.resetAllMocks();
@@ -84,6 +95,40 @@ describe("leaving a session", () => {
     expect(revokeToken).not.toHaveBeenCalled();
     expect(await tokens.read()).toBeNull();
     expect(store.getState().phase).toBe("onboarding");
+  });
+
+  it.each([
+    "first",
+    "second",
+  ] as const)("signs out once, and leaves the next session alone, when the %s sign-out's revoke finishes first", async (which) => {
+    const { tokens, store } = await connectedSession();
+    const revokes = heldRevokes();
+    const signOuts = [store.getState().disconnect(), store.getState().disconnect()];
+    await settle();
+    const [finishing, ...late] = which === "first" ? revokes : [...revokes].reverse();
+    finishing?.();
+    await vi.waitFor(() => expect(store.getState().phase).toBe("onboarding"));
+    await connectNext(store);
+    for (const revoke of late) revoke();
+    await Promise.all(signOuts);
+
+    expect(store.getState().phase).toBe("connected");
+    expect(await tokens.read()).toEqual(NEXT);
+    expect(revokeToken).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the next session alone when a sign-out finishes after its session already ended", async () => {
+    const { tokens, store } = await connectedSession();
+    const revokes = heldRevokes();
+    const signingOut = store.getState().disconnect();
+    await settle();
+    store.getState().endSession();
+    await connectNext(store);
+    for (const revoke of revokes) revoke();
+    await signingOut;
+
+    expect(store.getState().phase).toBe("connected");
+    expect(await tokens.read()).toEqual(NEXT);
   });
 });
 

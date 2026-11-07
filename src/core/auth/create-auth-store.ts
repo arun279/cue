@@ -36,6 +36,9 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
   };
 
   let activeAttempt = 0;
+  // A sign-out or a dead token ends the session it started in, never a later one.
+  let session = 0;
+  let disconnecting: { readonly session: number; readonly done: Promise<void> } | null = null;
 
   const store = createStore<AuthState & AuthActions>((set) => {
     const toOnboarding = (): void => {
@@ -47,10 +50,17 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
       });
     };
 
-    function endSession(): void {
+    function endSessionFrom(started: number): void {
+      if (started !== session) return;
+      session += 1;
       activeAttempt += 1;
       void deps.tokenStore.clear();
       toOnboarding();
+    }
+
+    async function revokeStoredToken(): Promise<void> {
+      const token = await deps.tokenStore.read();
+      if (token !== null) await revokeToken(config, token.access_token).catch(() => undefined);
     }
 
     async function connect(token: Token, attempt: number): Promise<void> {
@@ -149,13 +159,24 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
         }
       },
 
-      async disconnect() {
-        const token = await deps.tokenStore.read();
-        if (token !== null) await revokeToken(config, token.access_token).catch(() => undefined);
-        endSession();
+      disconnect() {
+        if (disconnecting?.session !== session) {
+          const started = session;
+          disconnecting = {
+            session: started,
+            done: revokeStoredToken().then(
+              () => endSessionFrom(started),
+              (error: unknown) => {
+                disconnecting = null;
+                throw error;
+              },
+            ),
+          };
+        }
+        return disconnecting.done;
       },
 
-      endSession,
+      endSession: () => endSessionFrom(session),
 
       cancelConnect() {
         activeAttempt += 1;
