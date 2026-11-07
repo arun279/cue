@@ -1,8 +1,11 @@
 import { parseWriteReceipt } from "../data/trakt/write-receipt";
+import type { Settlement } from "../domain/write-queue/queue";
 import {
   learnPlayPolicy,
   type PlayPolicy,
   receiptApplied,
+  receiptChanged,
+  replacedPlays,
   type WriteReceipt,
 } from "../domain/write-queue/receipt";
 import type { DispatchResult, QueuedOp } from "../domain/write-queue/types";
@@ -12,7 +15,7 @@ import { PLAY_POLICY_KEY } from "../ports/storage-keys";
 import { usePlayPolicy } from "../stores/play-policy-store";
 
 export interface WriteReceipts {
-  settle(op: QueuedOp, result: DispatchResult): boolean;
+  settle(op: QueuedOp, result: DispatchResult, firstSend: boolean): Settlement;
   receiptOf(opId: string): WriteReceipt | null;
 }
 
@@ -24,9 +27,13 @@ export async function createWriteReceipts(kv: KeyValueStore): Promise<WriteRecei
   const receipts = new Map<string, WriteReceipt>();
 
   return {
-    settle(op, result) {
-      const receipt = parseWriteReceipt(result.data);
-      if (receipt === null) return true;
+    settle(op, result, firstSend) {
+      const answer = parseWriteReceipt(result.data);
+      if (answer === null) return "applied";
+      if (op.toState === "present" && !receiptApplied(answer)) return "refused";
+      // Trakt may answer a send that repeats an earlier one as if it added the play again.
+      const receipt = firstSend ? answer : { ...answer, added: 0 };
+      if (!receiptChanged(receipt)) return "applied";
       receipts.set(op.id, receipt);
       const current = usePlayPolicy.getState().policy;
       const policy = learnPlayPolicy(current, op, receipt);
@@ -34,7 +41,7 @@ export async function createWriteReceipts(kv: KeyValueStore): Promise<WriteRecei
         usePlayPolicy.setState({ policy });
         void store.write(policy);
       }
-      return op.toState === "absent" || receiptApplied(receipt);
+      return replacedPlays(receipt) > 0 ? "replaced" : "applied";
     },
 
     receiptOf: (opId) => receipts.get(opId) ?? null,

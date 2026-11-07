@@ -4,15 +4,14 @@ import { queryKeys } from "@/core/data/query-keys";
 import { createAuthorizedFetch } from "@/core/data/trakt/authorized-fetch";
 import { TraktClient } from "@/core/data/trakt/client";
 import { getShowProgress, getUserSettings } from "@/core/data/trakt/endpoints";
-import { markedAt, ownPlays } from "@/core/domain/reversal";
 import { buildBulkMarkOps } from "@/core/domain/write-queue/bulk";
 import {
   buildAddEpisodePlayOp,
   buildAddWatchlistOp,
   buildMarkEpisodeOp,
-  markedEpisodesOf,
+  buildUndoAddOp,
 } from "@/core/domain/write-queue/ops";
-import { planLandedUndo, removeEpisodePlays } from "@/core/hooks/resolve-unmark";
+import { takeBack } from "@/core/hooks/resolve-unmark";
 import { PLAY_POLICY_KEY } from "@/core/ports/storage-keys";
 import { libraryQuery } from "@/core/queries/library";
 import {
@@ -185,7 +184,6 @@ describe("write faults", () => {
       opId: "fault-mark",
       ids: { trakt: 880120 },
       watchedAt: "2026-09-10T12:00:00.000Z",
-      inversePatch: { showId: 8801, preCompleted: 20 },
     });
 
   it("keeps a held write pending until the fault is released", async () => {
@@ -193,23 +191,11 @@ describe("write faults", () => {
     const cue = await buildRuntime();
     const submitted = cue.submit(mark());
     await posted("/sync/history");
-    expect(cue.inFlightOpId()).toBe("fault-mark");
+    expect(cue.writeState("fault-mark")).toBe("sent");
     expect(cue.pendingWrites()).toBe(1);
     release();
     await expect(submitted).resolves.toBe("done");
     expect(cue.pendingWrites()).toBe(0);
-  });
-
-  it("reconciles an applied write whose response was lost without posting twice", async () => {
-    fake.drop({ method: "POST", path: HISTORY }, "after");
-    const cue = await buildRuntime();
-    const start = fake.requests.length;
-    await expect(cue.submit(mark())).resolves.toBe("done");
-    const requests = since(start);
-    expect(requests.filter((entry) => entry.path === "/sync/history")).toHaveLength(1);
-    expect(requests.filter((entry) => entry.path === "/shows/8801/progress/watched")).toHaveLength(
-      1,
-    );
   });
 });
 
@@ -248,16 +234,9 @@ describe("write receipts", () => {
       () => expect(fake.requests.filter((entry) => entry.path === "/sync/history")).toHaveLength(2),
       { timeout: 5000 },
     );
-    expect(cue.inFlightOpId()).toBe("second");
+    expect(cue.writeState("second")).toBe("sent");
     expect(cue.writeReceipt("first")).toMatchObject({ added: 0, updated: 1 });
-    const undo = await planLandedUndo(
-      cue,
-      ["first"],
-      () => cue.loadEpisodePlays(watched.trakt),
-      () => at,
-      (play) => play.episodeTrakt,
-    );
-    expect(undo).toEqual({ kind: "replaced", count: 1 });
+    expect(takeBack(cue, ["first"], true)).toBe("replaced");
     release();
     await expect(done).resolves.toEqual(["done", "done"]);
   });
@@ -294,15 +273,9 @@ describe("write receipts", () => {
     );
     if (mark === undefined) throw new Error("the season mark must produce an op");
     await expect(cue.submit(mark)).resolves.toBe("done");
-    const marked = markedEpisodesOf(mark);
-    const own = ownPlays(
-      await cue.loadShowPlays(8803),
-      markedAt(marked === null ? [] : [marked]),
-      (play) => play.episodeTrakt,
-    );
-    expect(own).toHaveLength(2);
-    const removal = removeEpisodePlays("undo", own);
-    await expect(cue.submit(removal)).resolves.toBe("done");
+    await expect(cue.submit(buildUndoAddOp("undo", mark))).resolves.toBe("done");
+    const removals = fake.requests.filter((entry) => entry.path === "/sync/history/remove");
+    expect(removals.map((entry) => (entry.body as { ids: number[] }).ids.length)).toEqual([2]);
     expect((await cue.loadShowProgress(8803)).completed).toBe(before);
   });
 

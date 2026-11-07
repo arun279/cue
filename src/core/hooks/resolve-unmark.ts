@@ -1,14 +1,10 @@
 import {
   type EpisodePlay,
   type MoviePlay,
-  ownPlays,
-  type PlayRef,
   planEpisodeUnmark,
   type UnmarkPlan,
 } from "../domain/reversal";
-import { buildRemovePlaysOp } from "../domain/write-queue/ops";
 import { replacedPlays } from "../domain/write-queue/receipt";
-import type { QueuedOp } from "../domain/write-queue/types";
 import type { CueRuntime } from "../runtime/runtime";
 import { usePlayPolicy } from "../stores/play-policy-store";
 
@@ -49,38 +45,28 @@ export async function resolveEpisodeUnmark(
   return plan.removeIds.length === 0 ? { kind: "none" } : { kind: "remove", plan };
 }
 
-export type LandedUndo<P> =
-  | { readonly kind: "remove"; readonly plays: readonly P[] }
-  | { readonly kind: "replaced"; readonly count: number }
-  | { readonly kind: "none" };
+/**
+ * Whether the plays at a mark's own minute can only be the mark's: the item had none before it, or
+ * the account keeps every play, so the mark cannot have replaced an earlier one.
+ */
+export const canRemoveOwnPlays = (priorPlay: boolean): boolean =>
+  !priorPlay || usePlayPolicy.getState().policy === "multiple";
 
-export async function planLandedUndo<P extends PlayRef>(
+/**
+ * Whether an Undo can take back marks that may be on Trakt. Not when one replaced an earlier play,
+ * which taking it back would lose. Otherwise only when the plays at the marks' minute can be theirs
+ * alone: the item had none before, the account keeps every play, or Trakt answered each mark's first
+ * send saying it added them.
+ */
+export function takeBack(
   runtime: CueRuntime,
   opIds: readonly string[],
-  loadPlays: () => Promise<readonly P[]>,
-  sentAt: (play: P) => string | null,
-  itemOf: (play: P) => number,
-): Promise<LandedUndo<P> | null> {
+  priorPlay: boolean,
+): "plays" | "replaced" | "unknown" {
   const receipts = opIds.map((id) => runtime.writeReceipt(id));
-  if (receipts.includes(null) && usePlayPolicy.getState().policy !== "multiple") return null;
-  const replaced = receipts.reduce((total, receipt) => total + replacedPlays(receipt), 0);
-  if (replaced > 0) return { kind: "replaced", count: replaced };
-  let plays: readonly P[];
-  try {
-    plays = await loadPlays();
-  } catch {
-    return null;
-  }
-  const own = ownPlays(plays, sentAt, itemOf);
-  return own.length === 0 ? { kind: "none" } : { kind: "remove", plays: own };
-}
-
-export function removeEpisodePlays(opId: string, plays: readonly EpisodePlay[]): QueuedOp {
-  return buildRemovePlaysOp({
-    opId,
-    ids: plays.map((play) => play.historyId),
-    restore: plays.map((play) => ({ trakt: play.episodeTrakt, watchedAt: play.watchedAt })),
-  });
+  if (receipts.some((receipt) => replacedPlays(receipt) > 0)) return "replaced";
+  const added = receipts.every((receipt) => (receipt?.added ?? 0) > 0);
+  return added || canRemoveOwnPlays(priorPlay) ? "plays" : "unknown";
 }
 
 export type MovieUnmarkResolution =
@@ -105,19 +91,25 @@ export async function resolveMovieUnmark(
   return { kind: "remove", historyId: play.historyId, watchedAt: play.watchedAt };
 }
 
-const IN_FLIGHT_POLL_MS = 200;
-const IN_FLIGHT_POLL_TRIES = 50;
+const SENT_POLL_MS = 200;
+const SENT_POLL_TRIES = 50;
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function waitWhileInFlight(
+/**
+ * Waits, for as long as an Undo can, until none of these writes is sent but not yet answered for
+ * good, so Undo knows whether each one landed. Sends the queue first: a write whose answer was lost
+ * goes again.
+ */
+export async function waitUntilSettled(
   runtime: CueRuntime,
   opIds: readonly string[],
 ): Promise<boolean> {
-  for (let attempt = 0; attempt < IN_FLIGHT_POLL_TRIES; attempt += 1) {
-    const inFlight = runtime.inFlightOpId();
-    if (inFlight === null || !opIds.includes(inFlight)) return true;
-    await sleep(IN_FLIGHT_POLL_MS);
+  const sending = (): boolean => opIds.some((id) => runtime.writeState(id) === "sent");
+  if (sending()) void runtime.flushWrites();
+  for (let attempt = 0; attempt < SENT_POLL_TRIES; attempt += 1) {
+    if (!sending()) return true;
+    await sleep(SENT_POLL_MS);
   }
   return false;
 }

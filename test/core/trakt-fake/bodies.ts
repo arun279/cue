@@ -371,12 +371,15 @@ export function calendarBody(view: View, startMs: number, days: number) {
 }
 
 /**
- * A history row's own id. Trakt mints one row per play and the app removes a play
- * by that row id: `item trakt * 10 + play number` is reversible, which is what
- * lets a removal by row id move the same counter a mark moves.
+ * A history row's own id. Trakt mints one row per play and the app removes a play by
+ * that row id; `item trakt * 1000 + play number` keeps each item's rows apart.
  */
-export const playId = (traktId: number, play = 1): number => traktId * 10 + play;
-export const playItem = (id: number): number => Math.floor(id / 10);
+export const playId = (traktId: number, play = 1): number => traktId * 1000 + play;
+
+/** The row ids of an item's `count` plays, in play order. */
+export const playIdsOf = (account: Account, traktId: number, count: number): readonly number[] =>
+  account.playRows.get(traktId)?.ids ??
+  Array.from({ length: count }, (_, play) => playId(traktId, play + 1));
 
 interface Row {
   readonly id: number;
@@ -385,9 +388,16 @@ interface Row {
 }
 
 /** One row per play: the first at `at`, then each later one in the order it was added. */
-function playRows(at: number, replays: readonly number[], traktId: number, order: number) {
+function playRows(
+  account: Account,
+  at: number,
+  replays: readonly number[],
+  traktId: number,
+  order: number,
+) {
+  const ids = playIdsOf(account, traktId, 1 + replays.length);
   return [at, ...replays].map((stamp, play) => ({
-    id: playId(traktId, play + 1),
+    id: ids[play] ?? playId(traktId, play + 1),
     watched_at: iso(stamp),
     order,
   }));
@@ -396,13 +406,15 @@ function playRows(at: number, replays: readonly number[], traktId: number, order
 function episodeRows(view: View, show: Show) {
   const { account } = view;
   const of = (ep: Episode, at: number, order: number) =>
-    playRows(at, account.rewatchedEpisodes.get(ep.traktId) ?? [], ep.traktId, order).map((row) => ({
-      ...row,
-      action: "watch",
-      type: "episode",
-      episode: episodeRef(view, ep),
-      show: showRef(view, show),
-    }));
+    playRows(account, at, account.rewatchedEpisodes.get(ep.traktId) ?? [], ep.traktId, order).map(
+      (row) => ({
+        ...row,
+        action: "watch",
+        type: "episode",
+        episode: episodeRef(view, ep),
+        show: showRef(view, show),
+      }),
+    );
   return [
     ...show.specialEpisodes.flatMap((sp) => {
       const at = show.specialsWatchedAt.get(sp.traktId);
@@ -421,6 +433,7 @@ function movieRows(view: View) {
     movie.watchedAt === null
       ? []
       : playRows(
+          view.account,
           movie.watchedAt,
           replaysOf(view.account.rewatchedMovies.get(movie.trakt)),
           movie.trakt,

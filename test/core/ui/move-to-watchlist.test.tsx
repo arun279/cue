@@ -17,6 +17,7 @@ afterEach(dismissSnack);
 async function setup(outcome: SubmitOutcome, hidden = false) {
   const runtime = await buildRuntime();
   const submit = vi.spyOn(runtime, "submit").mockResolvedValue(outcome);
+  vi.spyOn(runtime, "settled").mockReturnValue(new Promise(() => {}));
   const client = new QueryClient();
   const entry: LibraryEntry = {
     ...makeShow({ completed: 0, hidden }),

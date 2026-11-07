@@ -10,6 +10,7 @@ import type { UserProfile } from "../domain/model/user";
 import type { TraktFailure } from "../domain/read-failure";
 import type { EpisodePlay, MoviePlay } from "../domain/reversal";
 import type { SeasonView, ShowInfo, ShowProgress } from "../domain/show-detail";
+import type { WriteOutcome, WriteState } from "../domain/write-queue/queue";
 import type { WriteReceipt } from "../domain/write-queue/receipt";
 import type { QueuedOp } from "../domain/write-queue/types";
 
@@ -40,7 +41,11 @@ export interface HistoryPageData {
   readonly pageCount: number;
 }
 
-export type SubmitOutcome = "done" | "failed" | "deferred";
+/**
+ * "deferred": still to be sent, with how it ends told by `settled`. "cancelled": an opposite write
+ * undid it before either was sent.
+ */
+export type SubmitOutcome = "done" | "failed" | "deferred" | "cancelled";
 
 export interface ActivitiesReconcile {
   readonly keys: readonly InvalidationKey[];
@@ -76,6 +81,9 @@ export interface CueRuntime {
   loadGenreNames(): Promise<Readonly<Record<string, string>>>;
   loadUserProfile(): Promise<UserProfile>;
   submit(op: QueuedOp): Promise<SubmitOutcome>;
+  /** How a submitted write ends, however long it waits to be sent. */
+  settled(opId: string): Promise<WriteOutcome>;
+  writeState(opId: string): WriteState;
   writeReceipt(opId: string): WriteReceipt | null;
   readsPausedUntil(): number;
   subscribeReadPause(listener: () => void): () => void;
@@ -83,7 +91,6 @@ export interface CueRuntime {
   subscribeReadRetry(listener: () => void): () => void;
   pendingWrites(): number;
   pendingOps(): readonly QueuedOp[];
-  inFlightOpId(): string | null;
   flushWrites(): Promise<number>;
   pollActivities(): Promise<ActivitiesReconcile | null>;
   endLocalSession(): Promise<void>;
@@ -126,6 +133,8 @@ export function forScreens(runtime: CueRuntime): CueRuntime {
     loadGenreNames: quiet(runtime.loadGenreNames),
     loadUserProfile: quiet(runtime.loadUserProfile),
     submit: quiet(runtime.submit),
+    settled: quiet(runtime.settled),
+    writeState: runtime.writeState,
     writeReceipt: runtime.writeReceipt,
     readsPausedUntil: runtime.readsPausedUntil,
     subscribeReadPause: runtime.subscribeReadPause,
@@ -133,7 +142,6 @@ export function forScreens(runtime: CueRuntime): CueRuntime {
     subscribeReadRetry: runtime.subscribeReadRetry,
     pendingWrites: runtime.pendingWrites,
     pendingOps: runtime.pendingOps,
-    inFlightOpId: runtime.inFlightOpId,
     flushWrites: quiet(runtime.flushWrites),
     pollActivities: quiet(runtime.pollActivities),
     endLocalSession: runtime.endLocalSession,

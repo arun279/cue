@@ -86,6 +86,9 @@ const WRITES: Readonly<Record<Write, () => QueuedOp | readonly QueuedOp[]>> = {
   buildAddEpisodePlayOp: () => ops.buildAddEpisodePlayOp(history),
   buildMarkMovieOp: () => ops.buildMarkMovieOp(history),
   buildUnmarkMovieOp: () => ops.buildUnmarkMovieOp(history),
+  buildUndoAddOp: () => ops.buildUndoAddOp("undo", ops.buildMarkEpisodeOp(history)),
+  resolvedUndo: () =>
+    ops.resolvedUndo(ops.buildUndoAddOp("undo", ops.buildMarkEpisodeOp(history)), [1]),
   buildRemoveHistoryPlayOp: () => ops.buildRemoveHistoryPlayOp({ opId: "op", ids: [1], restore }),
   buildRemovePlaysOp: () =>
     ops.buildRemovePlaysOp({
@@ -94,8 +97,7 @@ const WRITES: Readonly<Record<Write, () => QueuedOp | readonly QueuedOp[]>> = {
       restore: [{ trakt: 1, watchedAt: WATCHED_AT }],
     }),
   buildHideShowOp: () => ops.buildHideShowOp(show),
-  buildResumeShowOps: () =>
-    ops.buildResumeShowOps({ newId: () => "op", showId: 1, ids: { trakt: 1 } }),
+  buildResumeShowOps: () => ops.buildResumeShowOps({ newId: () => "op", ids: { trakt: 1 } }),
   buildAddWatchlistOp: () => ops.buildAddWatchlistOp({ ...show, section: "shows" }),
   buildRemoveWatchlistOp: () => ops.buildRemoveWatchlistOp({ ...show, section: "movies" }),
   buildBulkMarkOps: () =>

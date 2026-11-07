@@ -9,9 +9,15 @@ export interface WriteReceipt {
   readonly notFound: number;
 }
 
+/**
+ * Whether Trakt changed anything. One that changed nothing, as when a write is sent again after its
+ * answer was lost, says nothing about what the earlier send did.
+ */
+export const receiptChanged = (receipt: WriteReceipt): boolean =>
+  receipt.added + receipt.updated + receipt.deleted + receipt.existing > 0;
+
 export function receiptApplied(receipt: WriteReceipt): boolean {
-  const changed = receipt.added + receipt.updated + receipt.deleted + receipt.existing;
-  return changed > 0 || receipt.notFound === 0;
+  return receiptChanged(receipt) || receipt.notFound === 0;
 }
 
 export function replacedPlays(receipt: WriteReceipt | null): number {

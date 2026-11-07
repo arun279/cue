@@ -13,7 +13,6 @@ import {
   assembleHistoryEntries,
   assembleMoviePlays,
 } from "../data/trakt/history";
-import { showIdSet } from "../data/trakt/library";
 import {
   assembleMovieHeader,
   assembleMovieLibrary,
@@ -22,10 +21,8 @@ import {
 import type { TraktPolicy } from "../data/trakt/policy";
 import {
   getCollectionMovies,
-  getDropped,
   getEpisode,
   getGenres,
-  getHidden,
   getHistory,
   getHistoryPlay,
   getItemPlays,
@@ -60,8 +57,9 @@ import { sleep } from "../domain/abortable";
 import { parseIncidents, type ReadIncident, recordIncident } from "../domain/diagnostics";
 import type { Token } from "../domain/model/token";
 import type { UserProfile } from "../domain/model/user";
-import { additiveLanded, markLanded } from "../domain/reversal";
+import { markedAt, ownPlays } from "../domain/reversal";
 import type { LastActivities } from "../domain/sync-activities";
+import { historiesOf, markedEpisodesIn } from "../domain/write-queue/ops";
 import { WriteQueue } from "../domain/write-queue/queue";
 import type { QueuedOp } from "../domain/write-queue/types";
 import { createJsonStore } from "../ports/json-store";
@@ -90,17 +88,6 @@ import { createWriteReceipts } from "./write-receipts";
 
 const ACTIVITIES_KEY = "cue.last-activities";
 
-type ReconcileContext =
-  | { readonly kind?: "mark"; readonly showId: number; readonly preCompleted: number }
-  | { readonly kind: "hidden" | "dropped"; readonly showId: number }
-  | { readonly kind: "movie"; readonly movieId: number }
-  | { readonly kind: "additive-episode"; readonly episodeTrakt: number }
-  | {
-      readonly kind: "additive-season";
-      readonly showId: number;
-      readonly probe: { readonly season: number; readonly number: number };
-    };
-
 export interface RuntimeDeps {
   readonly newId: () => string;
   readonly token: Token;
@@ -119,82 +106,30 @@ export interface RuntimeDeps {
   readonly reminders: Pick<Reminders, "cancelAll">;
 }
 
-async function reconcileHidden(
+/** The history rows made by the add `undo` takes back: in each item it names, the newest play at its watched_at. */
+async function ownPlayIds(
   client: TraktClient,
-  op: QueuedOp,
-  context: Extract<ReconcileContext, { readonly kind: "hidden" | "dropped" }>,
-): Promise<boolean> {
-  const hidden = await (context.kind === "hidden" ? getHidden : getDropped)(client);
-  if (!hidden.ok) throw new Error("reconcile read failed");
-  const isHidden = showIdSet(hidden.data).has(context.showId);
-  return op.toState === "present" ? isHidden : !isHidden;
-}
-
-async function reconcileMovie(
-  client: TraktClient,
-  op: QueuedOp,
-  context: Extract<ReconcileContext, { readonly kind: "movie" }>,
-): Promise<boolean> {
-  const watched = await getWatchedMovies(client);
-  if (!watched.ok) throw new Error("reconcile read failed");
-  const isWatched = watched.data.some((row) => row.movie.ids.trakt === context.movieId);
-  return op.toState === "present" ? isWatched : !isWatched;
-}
-
-async function reconcileAdditiveEpisode(
-  client: TraktClient,
-  op: QueuedOp,
-  context: Extract<ReconcileContext, { readonly kind: "additive-episode" }>,
-): Promise<boolean> {
-  if (op.watchedAt === null) return false;
-  const result = await getItemPlays(client, "episodes", context.episodeTrakt);
-  if (!result.ok) throw new Error("reconcile read failed");
-  return additiveLanded(
-    assembleEpisodePlays(result.data),
-    { episodeTrakt: context.episodeTrakt },
-    op.watchedAt,
+  { inverse: add, watchedAt }: QueuedOp,
+): Promise<number[]> {
+  if (watchedAt === null) return [];
+  const marked = markedEpisodesIn(add, watchedAt);
+  const rows = await Promise.all(
+    historiesOf(add).map(async ({ kind, trakt }) => {
+      const history = unwrapRead(await getItemPlays.fresh(client, kind, trakt), "history");
+      return kind === "movies"
+        ? ownPlays(
+            assembleMoviePlays(history),
+            () => watchedAt,
+            () => trakt,
+          )
+        : ownPlays(
+            assembleEpisodePlays(history),
+            markedAt(marked === null ? [] : [marked]),
+            (play) => play.episodeTrakt,
+          );
+    }),
   );
-}
-
-async function reconcileAdditiveSeason(
-  client: TraktClient,
-  op: QueuedOp,
-  context: Extract<ReconcileContext, { readonly kind: "additive-season" }>,
-): Promise<boolean> {
-  if (op.watchedAt === null) return false;
-  const result = await getItemPlays(client, "shows", context.showId);
-  if (!result.ok) throw new Error("reconcile read failed");
-  return additiveLanded(assembleEpisodePlays(result.data), context.probe, op.watchedAt);
-}
-
-async function reconcileMark(
-  client: TraktClient,
-  op: QueuedOp,
-  context: Extract<ReconcileContext, { readonly kind?: "mark" }>,
-): Promise<boolean> {
-  const result = await getShowProgress(client, context.showId);
-  if (!result.ok) throw new Error("reconcile read failed");
-  return markLanded(op.toState, context.preCompleted, result.data.completed);
-}
-
-function createReconcile(client: TraktClient): (op: QueuedOp) => Promise<boolean> {
-  return async (op) => {
-    const context = op.inversePatch as ReconcileContext | null;
-    if (context === null || typeof context !== "object") return false;
-    switch (context.kind) {
-      case "hidden":
-      case "dropped":
-        return reconcileHidden(client, op, context);
-      case "movie":
-        return reconcileMovie(client, op, context);
-      case "additive-episode":
-        return reconcileAdditiveEpisode(client, op, context);
-      case "additive-season":
-        return reconcileAdditiveSeason(client, op, context);
-      default:
-        return reconcileMark(client, op, context);
-    }
-  };
+  return rows.flat().map((play) => play.historyId);
 }
 
 /** Every client store that holds something of one account. */
@@ -288,16 +223,14 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       dispatch: createTraktTransport(client),
       sleep: (ms) => sleep(ms, signal),
       now: Date.now,
-      reconcile: createReconcile(client),
       settle: receipts.settle,
+      ownPlays: (undo) => ownPlayIds(client, undo),
+      save: (ops) => opLogStore.write([...ops]),
     },
     (await opLogStore.read()) ?? [],
   );
 
   const persistLog = (): Promise<void> => opLogStore.write(queue.snapshot());
-
-  await queue.startupReconcile();
-  await persistLog();
   void queue.flush().then(persistLog);
 
   const { readsPausedUntil, subscribeReadPause, readRetryFailure, subscribeReadRetry } =
@@ -454,13 +387,14 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     async submit(op: QueuedOp): Promise<SubmitOutcome> {
       queue.enqueue(op);
       await persistLog();
-      const result = await queue.flush();
+      await queue.flush();
       await persistLog();
-      if (result.completed.some((done) => done.id === op.id)) return "done";
-      if (result.failed.some((failure) => failure.op.id === op.id)) return "failed";
-      return "deferred";
+      const state = queue.stateOf(op.id);
+      return state === "unsent" || state === "sent" ? "deferred" : state;
     },
 
+    settled: (opId) => queue.settled(opId),
+    writeState: (opId) => queue.stateOf(opId),
     writeReceipt: receipts.receiptOf,
     readsPausedUntil,
     subscribeReadPause,
@@ -468,15 +402,11 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     subscribeReadRetry,
 
     pendingWrites(): number {
-      return queue.snapshot().length;
+      return queue.size;
     },
 
     pendingOps(): readonly QueuedOp[] {
       return queue.snapshot();
-    },
-
-    inFlightOpId(): string | null {
-      return queue.inFlightId;
     },
 
     async flushWrites(): Promise<number> {

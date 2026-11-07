@@ -69,7 +69,7 @@ interface FaultMatch {
 
 type Effect =
   | { readonly kind: "status"; readonly status: number; readonly retryAfter?: number }
-  | { readonly kind: "hold"; readonly until: Promise<void> }
+  | { readonly kind: "hold" | "hold-after"; readonly until: Promise<void> }
   | { readonly kind: "drop" }
   | { readonly kind: "drop-after" };
 
@@ -229,8 +229,8 @@ export interface TraktFake {
   deny(): void;
   /** Answer matching requests with `status` and the body Trakt sends with it. */
   fail(match: FaultMatch, status: number, retryAfter?: number): void;
-  /** Hold matching requests until the returned release is called. */
-  hold(match: FaultMatch): () => void;
+  /** Hold matching requests until the returned release is called, before or after the account answers them. */
+  hold(match: FaultMatch, when?: "before" | "after"): () => void;
   /** End matching requests without an answer, before or after the account applies them. */
   drop(match: FaultMatch, when?: "before" | "after"): void;
 }
@@ -390,6 +390,7 @@ export function createTraktFake(options: FakeOptions = {}): TraktFake {
     const refused = (await faulted(fault)) ?? admit(request, authed);
     if (refused !== null) return refused;
     const response = await resolve(contextOf(request, url, params, body));
+    if (fault?.kind === "hold-after") await fault.until;
     return fault?.kind === "drop-after" ? HttpResponse.error() : response;
   }
 
@@ -660,13 +661,13 @@ export function createTraktFake(options: FakeOptions = {}): TraktFake {
     },
     fail: (match, status, retryAfter) =>
       arm(match, { kind: "status", status, ...(retryAfter === undefined ? {} : { retryAfter }) }),
-    hold(match) {
+    hold(match, when = "before") {
       let release = () => {};
       const until = new Promise<void>((resolve) => {
         release = resolve;
       });
       releases.push(release);
-      arm(match, { kind: "hold", until });
+      arm(match, { kind: when === "before" ? "hold" : "hold-after", until });
       return release;
     },
     drop: (match, when = "before") =>

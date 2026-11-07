@@ -37,7 +37,7 @@ it("leaves nothing of the last account in the app's own stores, and cancels its 
   rememberSeasonMark(entry.showId, 1, [1, 2]);
   showUndoable("Marked", () => {});
   useSyncActivity.getState().begin();
-  useSyncActivity.setState({ lastWrite: { id: 1, outcome: "failed" } });
+  useSyncActivity.getState().setChecked(true);
   const reminders = { cancelAll: vi.fn(() => Promise.resolve()) };
 
   await clearAccount({
@@ -54,6 +54,6 @@ it("leaves nothing of the last account in the app's own stores, and cancels its 
   expect(isBehindOwnMark(entry.showId, entry.completed)).toBe(false);
   expect(getSeasonMarkDelta(entry.showId, 1)).toBeUndefined();
   expect(useSnackbar.getState().snack).toBeNull();
-  expect(useSyncActivity.getState()).toMatchObject({ pending: 0, lastWrite: null });
+  expect(useSyncActivity.getState()).toMatchObject({ pending: 0, checked: false });
   expect(reminders.cancelAll).toHaveBeenCalledTimes(1);
 });

@@ -73,6 +73,10 @@ export type ShowListing = Pick<
   | "tmdbId"
 >;
 
+/** Whether every play of the show is one its progress counts, so an episode it shows unwatched has none. */
+export const playsOnlyInProgress = (show: LibraryShow): boolean =>
+  show.plays !== null && show.plays === show.completed;
+
 /** A show saved to the watchlist or the collection that has no play yet. */
 export function notStartedShow(listing: ShowListing): LibraryEntry {
   return {

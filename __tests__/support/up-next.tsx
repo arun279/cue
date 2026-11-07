@@ -118,6 +118,7 @@ export function fakeRuntime({
 }: RuntimeFixture): CueRuntime {
   const answered = new Set<string>();
   const sending = new Set<QueuedOp>();
+  const outcomes = new Map<string, SubmitOutcome>();
   const settle = submit ?? (() => Promise.resolve<SubmitOutcome>("done"));
   return partialRuntime({
     newId: () => "test-op-id",
@@ -146,7 +147,20 @@ export function fakeRuntime({
       sending.add(op);
       const outcome = await settle(op).finally(() => sending.delete(op));
       if (outcome === "done") answered.add(op.id);
+      outcomes.set(op.id, outcome);
       return outcome;
+    },
+    settled: (opId: string) => {
+      const outcome = outcomes.get(opId);
+      return outcome === undefined || outcome === "deferred"
+        ? new Promise(() => {})
+        : Promise.resolve(outcome);
+    },
+    writeState: (opId: string) => {
+      const outcome = outcomes.get(opId);
+      return outcome === "done" || outcome === "failed" || outcome === "cancelled"
+        ? outcome
+        : "unsent";
     },
     pendingWrites: () => 0,
     readsPausedUntil: () => 0,
@@ -154,7 +168,6 @@ export function fakeRuntime({
     readRetryFailure: () => null,
     subscribeReadRetry: () => () => {},
     pendingOps: () => [...sending],
-    inFlightOpId: () => null,
     writeReceipt: (opId: string) => (answered.has(opId) ? ADDED : null),
     flushWrites: () => Promise.resolve(0),
     pollActivities: () => Promise.resolve(null),

@@ -4,8 +4,9 @@ import { createTraktFake } from "./fake.ts";
 
 /**
  * What the fake does that no recording can show, as Trakt documents it: token
- * lifetime, the device token statuses, and the rate limits. Everything recorded
- * is checked by conformance.test.ts.
+ * lifetime, the device token statuses, the rate limits, history adds that
+ * repeat a play, and history rows removed by id. Everything recorded is checked
+ * by conformance.test.ts.
  */
 
 const MINUTE = 60_000;
@@ -125,5 +126,66 @@ describe("rate limits (https://developer.trakt.tv/docs/rate-limiting)", () => {
     });
     advance(4 * MINUTE);
     expect((await send("GET", "/sync/last_activities")).status).toBe(200);
+  });
+});
+
+describe("history adds (https://github.com/trakt/trakt-api/discussions/694)", () => {
+  it("adds no second play of an item at a minute it was already played", async () => {
+    const { send, advance } = fakeAt();
+    const play = async (watchedAt: string) => {
+      const body = {
+        episodes: [{ ids: { trakt: 880120 }, watched_at: watchedAt }],
+        movies: [{ ids: { trakt: 5503 }, watched_at: watchedAt }],
+      };
+      const answer = await send("POST", "/sync/history", body);
+      advance(1000);
+      return ((await answer.json()) as { added: unknown }).added;
+    };
+    const plays = async (kind: string, id: number) =>
+      ((await (await send("GET", `/sync/history/${kind}/${id}`)).json()) as unknown[]).length;
+    const at = new Date(FIXTURE_NOW).toISOString();
+    expect(await play(at)).toEqual({ movies: 1, episodes: 1 });
+    expect(await play(new Date(FIXTURE_NOW + 30_000).toISOString())).toEqual({
+      movies: 0,
+      episodes: 0,
+    });
+    expect([await plays("episodes", 880120), await plays("movies", 5503)]).toEqual([1, 1]);
+    expect(await play(new Date(FIXTURE_NOW + MINUTE).toISOString())).toEqual({
+      movies: 1,
+      episodes: 1,
+    });
+    expect([await plays("episodes", 880120), await plays("movies", 5503)]).toEqual([2, 2]);
+  });
+});
+
+describe("history removals by row id (https://trakt.docs.apiary.io/#reference/sync/remove-from-history)", () => {
+  // The seed's S6E8 of show 8806 has two plays.
+  const REWATCHED = 880608;
+
+  it("removes each row once, keeps the other rows' ids, and leaves history alone for an id it never had", async () => {
+    const { send, advance } = fakeAt();
+    const rows = async () =>
+      (
+        (await (await send("GET", `/sync/history/episodes/${REWATCHED}`)).json()) as {
+          id: number;
+        }[]
+      ).map((row) => row.id);
+    const remove = async (ids: number[]) => {
+      const answer = await send("POST", "/sync/history/remove", { ids });
+      advance(1000);
+      return (await answer.json()) as {
+        deleted: { episodes: number };
+        not_found: { ids: number[] };
+      };
+    };
+    const [first, second] = (await rows()).sort((a, b) => a - b);
+    if (first === undefined || second === undefined) throw new Error("the episode needs two plays");
+
+    const removed = await remove([first]);
+    expect([removed.deleted.episodes, removed.not_found.ids]).toEqual([1, []]);
+    expect(await rows()).toEqual([second]);
+    const again = await remove([first]);
+    expect([again.deleted.episodes, again.not_found.ids]).toEqual([0, [first]]);
+    expect(await rows()).toEqual([second]);
   });
 });

@@ -1,3 +1,4 @@
+import type { QueuedOp } from "../domain/write-queue/types";
 import type { CueRuntime } from "../runtime/runtime";
 
 const locks = new Map<string, unknown>();
@@ -23,11 +24,14 @@ function hasWriteLock(key: string): boolean {
   return locks.has(key);
 }
 
+/** The queued mark an item's state rests on: its latest queued write, when that is a mark. */
+export function pendingMark(runtime: CueRuntime, itemKey: string): QueuedOp | undefined {
+  const latest = runtime.pendingOps().findLast((op) => op.itemKey === itemKey);
+  return latest?.toState === "present" ? latest : undefined;
+}
+
 export function hasPendingMark(runtime: CueRuntime, itemKey: string): boolean {
-  return (
-    hasWriteLock(pendingMarkLock(itemKey)) ||
-    runtime.pendingOps().some((op) => op.itemKey === itemKey && op.toState === "present")
-  );
+  return hasWriteLock(pendingMarkLock(itemKey)) || pendingMark(runtime, itemKey) !== undefined;
 }
 
 export function resetWriteLocks(): void {

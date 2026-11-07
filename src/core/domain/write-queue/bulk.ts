@@ -25,8 +25,6 @@ export interface BulkMarkTarget {
   readonly seasons: readonly SeasonTree[];
   readonly includeSpecials: boolean;
   readonly upTo?: { readonly season: number; readonly number: number };
-  readonly inversePatch?: unknown;
-  readonly inversePatchForChunk?: (probe: { season: number; number: number }) => unknown;
   readonly additive?: boolean;
 }
 
@@ -60,22 +58,11 @@ export function buildBulkMarkOps(
         path: HISTORY_REMOVE,
         body: { shows: [{ ids: target.showIds, seasons }] },
       },
-      inversePatch: chunkInversePatch(target, seasons),
       watchedAt,
       fromState: "absent",
       toState: "present",
-      reconcileKeys: ["progress/watched", "watched/shows"],
     };
   });
-}
-
-function chunkInversePatch(target: BulkMarkTarget, seasons: readonly SeasonBody[]): unknown {
-  const [probe] = seasons.flatMap((season) =>
-    season.episodes.map((episode) => ({ season: season.number, number: episode.number })),
-  );
-  return target.inversePatchForChunk === undefined || probe === undefined
-    ? (target.inversePatch ?? null)
-    : target.inversePatchForChunk(probe);
 }
 
 function planSeasons(target: BulkMarkTarget, now: number): PlannedSeason[] {

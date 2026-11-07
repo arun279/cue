@@ -3,21 +3,22 @@ import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import { queryKeys } from "@/core/data/query-keys";
 import type { MovieEntry, MovieHeader } from "@/core/domain/model/movie";
-import type { MoviePlay } from "@/core/domain/reversal";
 import {
   buildMarkMovieOp,
   buildRemoveHistoryPlayOp,
+  buildUndoAddOp,
   buildUnmarkMovieOp,
 } from "@/core/domain/write-queue/ops";
 import { replacedPlays } from "@/core/domain/write-queue/receipt";
 import type { QueuedOp } from "@/core/domain/write-queue/types";
 import { REPLACED_COPY } from "@/core/hooks/replaced-copy";
-import { planLandedUndo, resolveMovieUnmark } from "@/core/hooks/resolve-unmark";
+import { resolveMovieUnmark } from "@/core/hooks/resolve-unmark";
 import { useOptimisticWrite } from "@/core/hooks/useOptimisticWrite";
 import { useSetWatchlisted } from "@/core/hooks/useSetWatchlisted";
 import { movieLibraryQuery } from "@/core/queries/library";
 import { type MovieLibraryData, useRuntime } from "@/core/runtime/runtime";
 import { showSnack, showUndoable, snackText } from "@/core/stores/snackbar-store";
+import { pendingMark } from "@/core/stores/write-locks";
 
 export function useMovieActions(header: MovieHeader) {
   const runtime = useRuntime();
@@ -82,64 +83,30 @@ export function useMovieActions(header: MovieHeader) {
       ids: [historyId],
       restore: { section: "movies", ids: header.ids, watchedAt },
     });
-  const reverseLanded = async (
-    op: QueuedOp,
-  ): Promise<{ inverse?: QueuedOp; remainingAt: string | null } | null> => {
-    let plays: readonly MoviePlay[] = [];
-    const plan = await planLandedUndo(
-      runtime,
-      [op.id],
-      async () => {
-        plays = await runtime.loadMoviePlays(header.movieId);
-        return plays;
-      },
-      () => op.watchedAt,
-      () => header.movieId,
-    );
-    if (plan === null) {
-      error();
-      return null;
+  const reverseMark = async (op: QueuedOp) => {
+    const state = runtime.writeState(op.id);
+    if (state === "failed" || state === "cancelled") {
+      revalidate();
+      return;
     }
-    if (plan.kind === "replaced") {
+    if (replacedPlays(runtime.writeReceipt(op.id)) > 0) {
       showSnack({
         message: `${snackText(REPLACED_COPY.mark(header.title))} ${REPLACED_COPY.undoNote}`,
       });
       revalidate();
-      return null;
-    }
-    const own = plan.kind === "remove" ? plan.plays[0] : undefined;
-    const others = plays
-      .filter((play) => play.historyId !== own?.historyId)
-      .sort((a, b) => Date.parse(b.watchedAt) - Date.parse(a.watchedAt));
-    return {
-      ...(own === undefined ? {} : { inverse: remove(own.historyId, own.watchedAt) }),
-      remainingAt: others[0]?.watchedAt ?? null,
-    };
-  };
-  const reverseMark = async (op: QueuedOp) => {
-    if (runtime.inFlightOpId() === op.id) {
-      error();
       return;
     }
-    const queued = runtime.pendingOps().some((pending) => pending.id === op.id);
-    const plan = queued
-      ? {
-          inverse: buildUnmarkMovieOp({
+    const inverse =
+      state === "unsent"
+        ? buildUnmarkMovieOp({
             opId: runtime.newId(),
             ids: header.ids,
             watchedAt: op.watchedAt ?? "",
-          }),
-          remainingAt: null,
-        }
-      : await reverseLanded(op);
-    if (plan === null) return;
-    if (plan.inverse === undefined) {
-      revalidate();
-      return;
-    }
+          })
+        : buildUndoAddOp(runtime.newId(), op);
     await write(
-      plan.inverse,
-      { watched: plan.remainingAt !== null, watchedAt: plan.remainingAt },
+      inverse,
+      { watched: false, watchedAt: null },
       { watched: true, watchedAt: op.watchedAt },
     );
   };
@@ -159,9 +126,7 @@ export function useMovieActions(header: MovieHeader) {
       showUndoable(`${header.title} marked watched`, () => void guard(() => reverseMark(op)));
   };
   const unmark = async () => {
-    const pending = runtime
-      .pendingOps()
-      .find((op) => op.itemKey === `movie:${header.movieId}` && op.toState === "present");
+    const pending = pendingMark(runtime, `movie:${header.movieId}`);
     if (pending !== undefined) {
       await reverseMark(pending);
       return;

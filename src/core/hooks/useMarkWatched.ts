@@ -1,9 +1,15 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 import { queryKeys } from "../data/query-keys";
-import { advancePastNext, epCode, type LibraryEntry } from "../domain/model/library";
+import {
+  advancePastNext,
+  epCode,
+  type LibraryEntry,
+  playsOnlyInProgress,
+} from "../domain/model/library";
 import {
   buildMarkEpisodeOp,
+  buildUndoAddOp,
   buildUnmarkEpisodeOp,
   episodeItemKey,
 } from "../domain/write-queue/ops";
@@ -44,14 +50,9 @@ import {
   refreshShowProgress,
 } from "./library-cache";
 import { REPLACED_COPY } from "./replaced-copy";
-import { planLandedUndo, removeEpisodePlays, waitWhileInFlight } from "./resolve-unmark";
+import { canRemoveOwnPlays, takeBack, waitUntilSettled } from "./resolve-unmark";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 import { useResumeOnMark } from "./useResumeOnMark";
-
-interface MarkContext {
-  readonly showId: number;
-  readonly preCompleted: number;
-}
 
 export interface MarkWatched {
   mark(entry: LibraryEntry): Promise<void>;
@@ -170,43 +171,25 @@ export function useMarkWatched(): MarkWatched {
         revalidate: () =>
           revalidate(record.showId, { season: record.season, number: record.number }),
       };
-      if (!(await waitWhileInFlight(runtime, [record.opId]))) {
-        reapplyMark(record);
-        showUndoFailed(haptics, record.title);
-        return null;
+      const priorPlay = !playsOnlyInProgress(record.beforeMark);
+      let state = runtime.writeState(record.opId);
+      if (state === "sent" && !canRemoveOwnPlays(priorPlay)) {
+        await waitUntilSettled(runtime, [record.opId]);
+        state = runtime.writeState(record.opId);
       }
-      if (runtime.pendingOps().some((op) => op.id === record.opId)) {
-        const context: MarkContext = {
-          showId: record.showId,
-          preCompleted: record.preCompleted + 1,
-        };
-        const op = buildUnmarkEpisodeOp({
-          opId: runtime.newId(),
-          ids: record.episodeIds,
-          watchedAt: record.watchedAt,
-          inversePatch: context,
-        });
-        return submit([op], effects);
+      const write = { opId: record.opId, ids: record.episodeIds, watchedAt: record.watchedAt };
+      if (state === "unsent") {
+        return submit([buildUnmarkEpisodeOp({ ...write, opId: runtime.newId() })], effects);
       }
-      const episode = record.episodeIds.trakt;
-      const plan = await planLandedUndo(
-        runtime,
-        [record.opId],
-        () => runtime.loadEpisodePlays(episode),
-        () => record.watchedAt,
-        (play) => play.episodeTrakt,
-      );
-      if (plan === null || plan.kind === "replaced") {
-        reapplyMark(record);
-        if (plan === null) showUndoFailed(haptics, record.title);
-        else showReplaced(record, true);
-        return null;
+      if (state !== "sent" && state !== "done") return null;
+      const verdict = takeBack(runtime, [record.opId], priorPlay);
+      if (verdict === "plays") {
+        return submit([buildUndoAddOp(runtime.newId(), buildMarkEpisodeOp(write))], effects);
       }
-      if (plan.kind === "none") {
-        effects.revalidate();
-        return null;
-      }
-      return submit([removeEpisodePlays(runtime.newId(), plan.plays)], effects);
+      reapplyMark(record);
+      if (verdict === "replaced") showReplaced(record, true);
+      else showUndoFailed(haptics, record.title);
+      return null;
     },
     [runtime, submit, reapplyMark, revalidate, haptics, resume],
   );
@@ -321,17 +304,17 @@ export function useMarkWatched(): MarkWatched {
       presentBatch();
       haptics.success();
 
-      const context: MarkContext = { showId: entry.showId, preCompleted: entry.completed };
-      const op = buildMarkEpisodeOp({ opId, ids: episode.ids, watchedAt, inversePatch: context });
+      const op = buildMarkEpisodeOp({ opId, ids: episode.ids, watchedAt });
 
       let outcome: SubmitOutcome;
       try {
         outcome = await submit([op], {
           rollback: () => restorePreMark(record),
           onKept: () => resume.resumeIfStopped(entry.showId, { trakt: entry.showId }),
-          revalidate: () => {
+          revalidate: (landed) => {
             if (isReversalRequested(opId)) return;
-            revalidate(entry.showId, { season: episode.season, number: episode.number }, record);
+            const at = { season: episode.season, number: episode.number };
+            revalidate(entry.showId, at, landed ? record : undefined);
           },
         });
       } finally {

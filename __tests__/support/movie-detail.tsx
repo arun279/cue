@@ -1,6 +1,7 @@
 import type { SearchHit } from "@/core/domain/discover";
 import type { MovieEntry, MovieHeader } from "@/core/domain/model/movie";
 import { buildMarkMovieOp } from "@/core/domain/write-queue/ops";
+import type { WriteState } from "@/core/domain/write-queue/queue";
 import type { WriteReceipt } from "@/core/domain/write-queue/receipt";
 import type { CueRuntime } from "@/core/runtime/runtime";
 import { fakeRuntime } from "./up-next";
@@ -37,6 +38,8 @@ export function movieRuntime(overrides: Partial<MovieEntry> = {}) {
     ...fakeRuntime({}),
     newId: jest.fn(() => String(++id)),
     submit,
+    settled: (_opId: string): ReturnType<CueRuntime["settled"]> => new Promise(() => {}),
+    writeState: jest.fn((_opId: string): WriteState => "unsent"),
     writeReceipt: (opId: string): WriteReceipt | null =>
       submit.mock.calls.some(([op]) => op.id === opId)
         ? { added: 1, updated: 0, deleted: 0, existing: 0, notFound: 0 }
@@ -57,6 +60,6 @@ export function pendingMovieRuntime(inFlight = false) {
     watchedAt: movieEntry.watchedAt ?? "",
   });
   runtime.pendingOps = () => [pending];
-  runtime.inFlightOpId = () => (inFlight ? pending.id : null);
+  runtime.writeState.mockReturnValue(inFlight ? "sent" : "unsent");
   return { runtime, pending };
 }

@@ -73,10 +73,7 @@ it("commits Mark and Undo feedback without yielding to async work", async () => 
   expect(useSnackbar.getState().snack).toBeNull();
   await undo;
   expect(screen.queryByTestId(TEST_IDS.snackbarUndo)).toBeNull();
-  expect(commits.mock.results.map(({ value }) => value)).toEqual([
-    { undo: false, original: false },
-    { undo: false, original: true },
-  ]);
+  expect(commits.mock.results.map(({ value }) => value)).toEqual([{ undo: false, original: true }]);
   expect(submit).toHaveBeenCalledTimes(2);
   expect(runtime.loadEpisodePlays).not.toHaveBeenCalled();
   await view.unmount();
