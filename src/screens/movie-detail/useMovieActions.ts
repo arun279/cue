@@ -123,6 +123,10 @@ export function useMovieActions(header: MovieHeader) {
       return;
     }
     const queued = runtime.pendingOps().some((pending) => pending.id === op.id);
+    if (!queued && runtime.writeOutcome(op.id) !== "done") {
+      revalidate();
+      return;
+    }
     const plan = queued
       ? {
           inverse: buildUnmarkMovieOp({

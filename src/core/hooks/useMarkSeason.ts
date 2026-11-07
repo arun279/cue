@@ -3,7 +3,7 @@ import { useCallback, useRef } from "react";
 import { queryKeys } from "../data/query-keys";
 import type { EpisodeIds, ShowIds } from "../domain/model/ids";
 import { markedAt, planSeasonUnmark, type UnmarkPlan } from "../domain/reversal";
-import type { EpisodeMatch, SeasonView, ShowProgress } from "../domain/show-detail";
+import type { EpisodeMatch, SeasonView } from "../domain/show-detail";
 import { buildBulkMarkOps, type SeasonTree } from "../domain/write-queue/bulk";
 import {
   buildAddEpisodePlayOp,
@@ -13,6 +13,7 @@ import {
   episodeItemKey,
   markedEpisodesOf,
 } from "../domain/write-queue/ops";
+import type { WriteOutcome } from "../domain/write-queue/queue";
 import { replacedPlays } from "../domain/write-queue/receipt";
 import type { QueuedOp } from "../domain/write-queue/types";
 import { type CueRuntime, type SubmitOutcome, useRuntime } from "../runtime/runtime";
@@ -123,7 +124,6 @@ function invertOp(op: QueuedOp, newId: () => string): QueuedOp {
     inverse: op.request,
     fromState: op.toState,
     toState: op.fromState,
-    inversePatch: null,
   };
 }
 
@@ -169,10 +169,12 @@ async function planUndo(runtime: CueRuntime, pending: UndoState): Promise<UndoPl
     return null;
   const queuedNow = (): Set<string> => new Set(runtime.pendingOps().map((op) => op.id));
   const queued = queuedNow();
-  const landed = marks.filter(({ op }) => !queued.has(op.id));
+  const ended = (op: QueuedOp, outcome: WriteOutcome): boolean =>
+    runtime.writeOutcome(op.id) === outcome;
+  const landed = marks.filter(({ op }) => ended(op, "done"));
   const landedOps = landed.map(({ op }) => op);
   const inverted = pending.ops
-    .filter((op) => !landedOps.includes(op))
+    .filter((op) => !landedOps.includes(op) && !ended(op, "failed") && !ended(op, "cancelled"))
     .map((op) => invertOp(op, runtime.newId));
   if (landed.length === 0) return inverted;
   const episode = pending.markedEpisode?.episode;
@@ -281,14 +283,6 @@ export function useMarkSeason(): MarkSeasonController {
     [submit, queryClient, resume, revalidate],
   );
 
-  const reconcileAnchor = useCallback(
-    (showId: number): { readonly showId: number; readonly preCompleted: number } => {
-      const progress = queryClient.getQueryData<ShowProgress>(queryKeys.showProgress(showId));
-      return { showId, preCompleted: progress?.completed ?? 0 };
-    },
-    [queryClient],
-  );
-
   const submitBulk = useCallback(
     async (
       target: MarkContextTarget,
@@ -332,14 +326,13 @@ export function useMarkSeason(): MarkSeasonController {
           showIds: target.ids,
           seasons: toSeasonTrees(seasons),
           includeSpecials: target.includeSpecials,
-          inversePatch: reconcileAnchor(target.showId),
           ...(upTo === undefined ? {} : { upTo }),
         },
         Date.now(),
         new Date().toISOString(),
         () => runtime.newId(),
       ),
-    [reconcileAnchor, runtime.newId],
+    [runtime.newId],
   );
 
   const seasonMatch = useCallback(
@@ -488,11 +481,6 @@ export function useMarkSeason(): MarkSeasonController {
               },
             ],
             includeSpecials: target.includeSpecials,
-            inversePatchForChunk: (probe) => ({
-              kind: "additive-season",
-              showId: target.showId,
-              probe,
-            }),
             additive: true,
           },
           Date.now(),
@@ -693,14 +681,7 @@ export function useMarkSeason(): MarkSeasonController {
       const lockKey = pendingMarkLock(itemKey);
       claimWriteLock(lockKey, opId);
       try {
-        const ops = [
-          buildMarkEpisodeOp({
-            opId,
-            ids: episode.ids,
-            watchedAt,
-            inversePatch: reconcileAnchor(target.showId),
-          }),
-        ];
+        const ops = [buildMarkEpisodeOp({ opId, ids: episode.ids, watchedAt })];
         setEpisodeWatched(target, episode, true, watchedAt);
         if (undoLabel !== undefined) {
           putUndo({
@@ -729,7 +710,7 @@ export function useMarkSeason(): MarkSeasonController {
         releaseWriteLock(lockKey, opId);
       }
     },
-    [putUndo, reconcileAnchor, revalidate, resume, runtime, setEpisodeWatched, settleWrite, submit],
+    [putUndo, revalidate, resume, runtime, setEpisodeWatched, settleWrite, submit],
   );
 
   const toggleEpisode = useCallback(
@@ -752,7 +733,6 @@ export function useMarkSeason(): MarkSeasonController {
           opId: runtime.newId(),
           ids: episode.ids,
           watchedAt: new Date().toISOString(),
-          inversePatch: { kind: "additive-episode", episodeTrakt: episode.ids.trakt },
         });
         showSnack({ message: "Play added" });
         const outcome = await submit([op], {

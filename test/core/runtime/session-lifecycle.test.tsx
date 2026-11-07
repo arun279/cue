@@ -62,12 +62,7 @@ function within<T>(promise: Promise<T>, ms: number): Promise<T | typeof PENDING>
   ]);
 }
 
-const hideShow = (trakt: number) =>
-  buildHideShowOp({
-    opId: `hide-${trakt}`,
-    ids: { trakt },
-    inversePatch: { kind: "hidden", showId: trakt },
-  });
+const hideShow = (trakt: number) => buildHideShowOp({ opId: `hide-${trakt}`, ids: { trakt } });
 
 /** What stays on a device between launches, and what the app clears along with an account. */
 interface Storage {
@@ -205,9 +200,8 @@ it("ends a session whose refresh token is dead while a write is in flight, rathe
 });
 
 it("clears the account when its session dies during sign-out, and never sends its writes for the next one", async () => {
-  fake.drop({ method: "POST", path: HIDDEN, times: 2 });
-  fake.fail({ method: "GET", path: HIDDEN }, 503);
-  fake.fail({ method: "GET", path: HIDDEN }, 401);
+  fake.drop({ method: "POST", path: HIDDEN });
+  fake.fail({ method: "POST", path: HIDDEN }, 401);
   const device = await install(doomed());
   const first = launch(device);
   const runtime = await first.runtime();
@@ -215,6 +209,7 @@ it("clears the account when its session dies during sign-out, and never sends it
 
   await expect(signOut(device, runtime)).resolves.toBeUndefined();
 
+  await expect(runtime.settled("hide-1")).resolves.toBe("ended");
   expect(device.auth.getState().phase).toBe("onboarding");
   expect(await device.tokens.read()).toBeNull();
   expect(device.bulk.values.has(OP_LOG_KEY)).toBe(false);

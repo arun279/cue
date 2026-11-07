@@ -20,8 +20,6 @@ function pool<Args extends unknown[], T>(
   };
 }
 
-export const getHidden = pool(raw.getHidden);
-export const getDropped = pool(raw.getDropped);
 export const getWatchedMovies = pool(raw.getWatchedMovies);
 export const getItemPlays = pool(raw.getItemPlays);
 export const getShowProgress = pool(raw.getShowProgress);

@@ -6,7 +6,7 @@ export const MIN_WRITE_INTERVAL_MS = 1100;
 const BACKOFF_BASE_MS = MIN_WRITE_INTERVAL_MS;
 const BACKOFF_MAX_MS = 30_000;
 // Trakt's rate-limit window is five minutes, so no honest Retry-After is longer.
-const RETRY_AFTER_MAX_MS = 300_000;
+export const RETRY_AFTER_MAX_MS = 300_000;
 const READ_RETRY_AFTER_MARGIN_MS = 500;
 
 export type Classification =

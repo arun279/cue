@@ -27,7 +27,7 @@ export function useResumeOnMark(): ResumeOnMark {
     async (showId: number, ids: ShowIds): Promise<SubmitOutcome | null> => {
       if (!isLibraryHidden(queryClient, showId)) return null;
       patchLibraryHidden(queryClient, showId, false);
-      return submitAll(submit, buildResumeShowOps({ newId: runtime.newId, showId, ids }));
+      return submitAll(submit, buildResumeShowOps({ newId: runtime.newId, ids }));
     },
     [queryClient, runtime, submit],
   );
@@ -35,13 +35,7 @@ export function useResumeOnMark(): ResumeOnMark {
   const reStop = useCallback(
     (showId: number, ids: ShowIds): Promise<SubmitOutcome> => {
       patchLibraryHidden(queryClient, showId, true);
-      return submit(
-        buildHideShowOp({
-          opId: runtime.newId(),
-          ids,
-          inversePatch: { kind: "hidden", showId },
-        }),
-      );
+      return submit(buildHideShowOp({ opId: runtime.newId(), ids }));
     },
     [queryClient, runtime, submit],
   );

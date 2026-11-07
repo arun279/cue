@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { TraktClient } from "@/core/data/trakt/client";
 import { createTraktTransport } from "@/core/data/trakt/transport";
 import { buildMarkEpisodeOp } from "@/core/domain/write-queue/ops";
@@ -25,7 +25,7 @@ beforeEach(() => {
 const mark = (opId: string, trakt: number) =>
   buildMarkEpisodeOp({ opId, ids: { trakt }, watchedAt: WATCHED_AT });
 
-function queueWith(ops = [mark("op-1", 880120)], reconcile = () => Promise.resolve(false)) {
+function queueWith(ops = [mark("op-1", 880120)]) {
   return new WriteQueue(
     {
       dispatch: createTraktTransport(client),
@@ -34,7 +34,6 @@ function queueWith(ops = [mark("op-1", 880120)], reconcile = () => Promise.resol
         return Promise.resolve();
       },
       now: () => now,
-      reconcile,
       settle: () => true,
     },
     ops,
@@ -45,31 +44,35 @@ const posts = () => fake.requests.filter((request) => request.path === "/sync/hi
 
 describe("Trakt transport wires the write queue to the client", () => {
   it("dispatches a queued mark as a POST /sync/history with the frozen body + auth header", async () => {
-    const result = await queueWith().flush();
-    expect(result.completed.map((op) => op.id)).toEqual(["op-1"]);
+    const queue = queueWith();
+    await queue.flush();
+    expect(queue.outcomeOf("op-1")).toBe("done");
     const [sent] = posts();
     expect(sent?.headers["authorization"]).toBe(`Bearer ${fake.session().access_token}`);
     expect(sent?.body).toEqual({ episodes: [{ ids: { trakt: 880120 }, watched_at: WATCHED_AT }] });
   });
 
   it("paces queued writes under Trakt's one POST a second, so none is rate limited", async () => {
-    const result = await queueWith([mark("op-1", 880120), mark("op-2", 880121)]).flush();
-    expect(result.completed).toHaveLength(2);
+    await queueWith([mark("op-1", 880120), mark("op-2", 880121)]).flush();
     expect(posts().map((request) => request.status)).toEqual([201, 201]);
   });
 
   it("classifies a 429 as retryable via the transport and honors Retry-After", async () => {
     fake.fail(HISTORY, 429, 2);
-    const result = await queueWith().flush();
-    expect(result.completed).toHaveLength(1);
+    const queue = queueWith();
+    await queue.flush();
+    expect(queue.outcomeOf("op-1")).toBe("done");
     expect(posts().map((request) => request.status)).toEqual([429, 201]);
   });
 
-  it("reconciles a network reject instead of blind-retrying", async () => {
+  it("sends the same body again on the next flush when the connection drops", async () => {
     fake.drop(HISTORY);
-    const reconcile = vi.fn(() => Promise.resolve(true));
-    const result = await queueWith(undefined, reconcile).flush();
-    expect(reconcile).toHaveBeenCalledTimes(1);
-    expect(result.completed).toHaveLength(1);
+    const queue = queueWith();
+    await queue.flush();
+    expect(queue.outcomeOf("op-1")).toBeNull();
+    await queue.flush();
+    expect(queue.outcomeOf("op-1")).toBe("done");
+    const [dropped, sent] = posts();
+    expect(sent?.body).toEqual(dropped?.body);
   });
 });

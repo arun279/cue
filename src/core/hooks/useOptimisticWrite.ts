@@ -1,7 +1,6 @@
 import { useCallback } from "react";
 import type { QueuedOp } from "../domain/write-queue/types";
-import type { SubmitOutcome } from "../runtime/runtime";
-import { useSyncActivity } from "../stores/sync-activity-store";
+import { type SubmitOutcome, useRuntime } from "../runtime/runtime";
 import { applyOptimisticWrite, type OptimisticEffects } from "./optimistic-write";
 import { useTrackedSubmit } from "./useTrackedSubmit";
 
@@ -11,22 +10,10 @@ export type SubmitOptimistic = (
 ) => Promise<SubmitOutcome>;
 
 export function useOptimisticWrite(): SubmitOptimistic {
+  const { settled } = useRuntime();
   const submit = useTrackedSubmit();
   return useCallback(
-    async (ops, effects) => {
-      const id = useSyncActivity.getState().startedWrites + 1;
-      useSyncActivity.setState({ startedWrites: id });
-      let outcome: SubmitOutcome = "failed";
-      try {
-        outcome = await applyOptimisticWrite(submit, ops, effects);
-        return outcome;
-      } finally {
-        useSyncActivity.setState((state) => ({
-          completedWrites: state.completedWrites + 1,
-          lastWrite: { id, outcome },
-        }));
-      }
-    },
-    [submit],
+    (ops, effects) => applyOptimisticWrite({ submit, settled }, ops, effects),
+    [submit, settled],
   );
 }

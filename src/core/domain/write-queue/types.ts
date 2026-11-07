@@ -15,9 +15,7 @@ export interface QueuedOp {
   readonly itemKey: string;
   readonly request: RequestDescriptor;
   readonly inverse: RequestDescriptor;
-  readonly inversePatch: unknown;
   readonly watchedAt: string | null;
   readonly fromState: "present" | "absent";
   readonly toState: "present" | "absent";
-  readonly reconcileKeys: readonly string[];
 }

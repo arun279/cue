@@ -37,6 +37,7 @@ function setup(
       submitted.push(op);
       return submit(op);
     },
+    settled: () => new Promise(() => {}),
     loadShowProgress,
   });
   const queryClient = new QueryClient();

@@ -43,15 +43,11 @@ import {
   patchShowSeasons,
   refreshShowProgress,
 } from "./library-cache";
+import type { OptimisticEffects } from "./optimistic-write";
 import { REPLACED_COPY } from "./replaced-copy";
 import { planLandedUndo, removeEpisodePlays, waitWhileInFlight } from "./resolve-unmark";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 import { useResumeOnMark } from "./useResumeOnMark";
-
-interface MarkContext {
-  readonly showId: number;
-  readonly preCompleted: number;
-}
 
 export interface MarkWatched {
   mark(entry: LibraryEntry): Promise<void>;
@@ -160,34 +156,8 @@ export function useMarkWatched(): MarkWatched {
     [queryClient, runtime],
   );
 
-  const runReversal = useCallback(
-    async (record: MarkRecord): Promise<SubmitOutcome | null> => {
-      const effects = {
-        onKept: record.beforeMark.hidden
-          ? () => resume.reStop(record.showId, { trakt: record.showId })
-          : undefined,
-        rollback: () => reapplyMark(record),
-        revalidate: () =>
-          revalidate(record.showId, { season: record.season, number: record.number }),
-      };
-      if (!(await waitWhileInFlight(runtime, [record.opId]))) {
-        reapplyMark(record);
-        showUndoFailed(haptics, record.title);
-        return null;
-      }
-      if (runtime.pendingOps().some((op) => op.id === record.opId)) {
-        const context: MarkContext = {
-          showId: record.showId,
-          preCompleted: record.preCompleted + 1,
-        };
-        const op = buildUnmarkEpisodeOp({
-          opId: runtime.newId(),
-          ids: record.episodeIds,
-          watchedAt: record.watchedAt,
-          inversePatch: context,
-        });
-        return submit([op], effects);
-      }
+  const undoLanded = useCallback(
+    async (record: MarkRecord, effects: OptimisticEffects): Promise<SubmitOutcome | null> => {
       const episode = record.episodeIds.trakt;
       const plan = await planLandedUndo(
         runtime,
@@ -208,7 +178,35 @@ export function useMarkWatched(): MarkWatched {
       }
       return submit([removeEpisodePlays(runtime.newId(), plan.plays)], effects);
     },
-    [runtime, submit, reapplyMark, revalidate, haptics, resume],
+    [runtime, submit, reapplyMark, haptics],
+  );
+
+  const runReversal = useCallback(
+    async (record: MarkRecord): Promise<SubmitOutcome | null> => {
+      const effects = {
+        onKept: record.beforeMark.hidden
+          ? () => resume.reStop(record.showId, { trakt: record.showId })
+          : undefined,
+        rollback: () => reapplyMark(record),
+        revalidate: () =>
+          revalidate(record.showId, { season: record.season, number: record.number }),
+      };
+      if (!(await waitWhileInFlight(runtime, [record.opId]))) {
+        reapplyMark(record);
+        showUndoFailed(haptics, record.title);
+        return null;
+      }
+      if (runtime.pendingOps().some((op) => op.id === record.opId)) {
+        const op = buildUnmarkEpisodeOp({
+          opId: runtime.newId(),
+          ids: record.episodeIds,
+          watchedAt: record.watchedAt,
+        });
+        return submit([op], effects);
+      }
+      return runtime.writeOutcome(record.opId) === "done" ? undoLanded(record, effects) : null;
+    },
+    [runtime, submit, reapplyMark, revalidate, haptics, resume, undoLanded],
   );
 
   const submitReversal = useCallback(
@@ -321,8 +319,7 @@ export function useMarkWatched(): MarkWatched {
       presentBatch();
       haptics.success();
 
-      const context: MarkContext = { showId: entry.showId, preCompleted: entry.completed };
-      const op = buildMarkEpisodeOp({ opId, ids: episode.ids, watchedAt, inversePatch: context });
+      const op = buildMarkEpisodeOp({ opId, ids: episode.ids, watchedAt });
 
       let outcome: SubmitOutcome;
       try {

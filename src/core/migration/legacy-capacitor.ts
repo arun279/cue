@@ -24,11 +24,9 @@ const queuedOpSchema = z.object({
   itemKey: z.string(),
   request: requestSchema,
   inverse: requestSchema,
-  inversePatch: z.unknown(),
   watchedAt: z.string().nullable(),
   fromState: z.enum(["present", "absent"]),
   toState: z.enum(["present", "absent"]),
-  reconcileKeys: z.array(z.string()),
 });
 
 function parseOpLog(raw: string): QueuedOp[] {

@@ -35,7 +35,6 @@ describe("single-item history op builders", () => {
       watchedAt: WATCHED_AT,
       fromState: "absent",
       toState: "present",
-      reconcileKeys: ["progress/watched", "watched/shows"],
     });
   });
 
@@ -83,7 +82,6 @@ describe("single-item history op builders", () => {
     const op = buildMarkMovieOp({ opId: "op-3", ids: { trakt: 7 }, watchedAt: WATCHED_AT });
     expect(op.request.body).toEqual({ movies: [{ ids: { trakt: 7 }, watched_at: WATCHED_AT }] });
     expect(op.itemKey).toBe("movie:7");
-    expect(op.reconcileKeys).toEqual(["watched/movies", "movie-progress"]);
   });
 
   it("unmarks a movie with a movies[] remove body", () => {
@@ -112,7 +110,6 @@ describe("single-item history op builders", () => {
       watchedAt: null,
       fromState: "absent",
       toState: "present",
-      reconcileKeys: ["hidden/progress_watched"],
     });
   });
 
@@ -120,18 +117,16 @@ describe("single-item history op builders", () => {
     const ids = ["op-h2", "op-h3"];
     const ops = buildResumeShowOps({
       newId: () => ids.shift() ?? "",
-      showId: 5,
       ids: { trakt: 5 },
     });
     expect(
-      ops.map(({ id, request, inverse, itemKey, fromState, toState, inversePatch }) => ({
+      ops.map(({ id, request, inverse, itemKey, fromState, toState }) => ({
         id,
         request: request.path,
         inverse: inverse.path,
         itemKey,
         fromState,
         toState,
-        inversePatch,
       })),
     ).toEqual([
       {
@@ -141,7 +136,6 @@ describe("single-item history op builders", () => {
         itemKey: "show:5:hidden",
         fromState: "present",
         toState: "absent",
-        inversePatch: { kind: "hidden", showId: 5 },
       },
       {
         id: "op-h3",
@@ -150,20 +144,8 @@ describe("single-item history op builders", () => {
         itemKey: "show:5:dropped",
         fromState: "present",
         toState: "absent",
-        inversePatch: { kind: "dropped", showId: 5 },
       },
     ]);
-  });
-
-  it("carries the caller's inverse cache patch", () => {
-    const patch = { queryKey: ["progress", 42], prev: { completed: 3 } };
-    const op = buildMarkEpisodeOp({
-      opId: "op-5",
-      ids: { trakt: 42 },
-      watchedAt: WATCHED_AT,
-      inversePatch: patch,
-    });
-    expect(op.inversePatch).toBe(patch);
   });
 
   it("removes ONE play by its history event id: the Diary's exact per-play removal", () => {
@@ -187,7 +169,6 @@ describe("single-item history op builders", () => {
       fromState: "present",
       toState: "absent",
       watchedAt: WATCHED_AT,
-      reconcileKeys: ["progress/watched", "watched/shows"],
     });
   });
 
@@ -202,7 +183,6 @@ describe("single-item history op builders", () => {
       path: "/sync/history",
       body: { movies: [{ ids: { trakt: 7 }, watched_at: WATCHED_AT }] },
     });
-    expect(op.reconcileKeys).toEqual(["watched/movies", "movie-progress"]);
   });
 });
 
@@ -228,8 +208,6 @@ describe("buildRemovePlaysOp (durable per-play-safe unmark)", () => {
     expect(op).toMatchObject({
       fromState: "present",
       toState: "absent",
-      inversePatch: null,
-      reconcileKeys: ["progress/watched", "watched/shows"],
     });
   });
 
@@ -256,7 +234,7 @@ describe("buildRemovePlaysOp (durable per-play-safe unmark)", () => {
 });
 
 describe("watchlist op builders", () => {
-  it("adds a show: add request, remove inverse, watchlist reconcile key", () => {
+  it("adds a show: add request, remove inverse", () => {
     const op = buildAddWatchlistOp({ opId: "w-1", section: "shows", ids: { trakt: 3 } });
     expect(op.request).toEqual({
       method: "POST",
@@ -269,7 +247,6 @@ describe("watchlist op builders", () => {
       watchedAt: null,
       fromState: "absent",
       toState: "present",
-      reconcileKeys: ["watchlist/shows"],
     });
   });
 

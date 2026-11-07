@@ -90,8 +90,9 @@ describe("ownPlays for one landed mark", () => {
     ]);
   });
 
-  it("rejects a play beyond the truncation window", () => {
+  it("rejects a play beyond the truncation window, or stored after the mark was sent", () => {
     expect(removes([play(21, "2026-07-09T11:58:59.000Z")])).toEqual([]);
+    expect(removes([play(21, "2026-07-09T12:00:30.000Z")])).toEqual([]);
   });
 
   it("never selects a historical play: restart-show rewatch history is untouchable", () => {

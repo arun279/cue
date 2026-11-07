@@ -26,7 +26,7 @@ function hasWriteLock(key: string): boolean {
 export function hasPendingMark(runtime: CueRuntime, itemKey: string): boolean {
   return (
     hasWriteLock(pendingMarkLock(itemKey)) ||
-    runtime.pendingOps().some((op) => op.itemKey === itemKey && op.toState === "present")
+    runtime.pendingOps().findLast((op) => op.itemKey === itemKey)?.toState === "present"
   );
 }
 

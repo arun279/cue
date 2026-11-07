@@ -17,7 +17,7 @@ import type { EpisodeDetail } from "@/core/domain/episode-detail";
 import type { LibraryEntry } from "@/core/domain/model/library";
 import type { EpisodePlay } from "@/core/domain/reversal";
 import type { EpisodeView, SeasonView, ShowProgress } from "@/core/domain/show-detail";
-import { markedEpisodesOf } from "@/core/domain/write-queue/ops";
+import { buildUnmarkEpisodeOp, markedEpisodesOf } from "@/core/domain/write-queue/ops";
 import type { WriteReceipt } from "@/core/domain/write-queue/receipt";
 import type { QueuedOp } from "@/core/domain/write-queue/types";
 import { useActivitiesPoll } from "@/core/hooks/useActivitiesPoll";
@@ -131,6 +131,8 @@ interface FakeRuntime {
   readonly loadShowPlays: ReturnType<typeof vi.fn>;
 }
 
+type Settled = Awaited<ReturnType<CueRuntime["settled"]>>;
+
 function fakeRuntime(opts: {
   /** Per-op settle; default resolves "done" and never keeps the op queued. */
   submit?(op: QueuedOp): Promise<"done" | "failed" | "deferred">;
@@ -144,9 +146,25 @@ function fakeRuntime(opts: {
 }): FakeRuntime {
   const receipts = new Map<string, WriteReceipt>();
   const sending = new Set<QueuedOp>();
+  const endings = new Map<string, (outcome: Settled) => void>();
+  const settlements = new Map<string, Promise<Settled>>();
+  const settled = (opId: string): Promise<Settled> => {
+    const known = settlements.get(opId);
+    if (known !== undefined) return known;
+    const settlement = new Promise<Settled>((resolve) => endings.set(opId, resolve));
+    settlements.set(opId, settlement);
+    return settlement;
+  };
+  const outcomes = new Map<string, Settled>();
+  const end = (opId: string, outcome: Settled): void => {
+    void settled(opId);
+    outcomes.set(opId, outcome);
+    endings.get(opId)?.(outcome);
+  };
   const deliver = (op: QueuedOp): void => {
     const receipt = (opts.answer ?? applied)(op);
     if (receipt !== null) receipts.set(op.id, receipt);
+    end(op.id, "done");
   };
   const submitted: QueuedOp[] = [];
   const queued: QueuedOp[] = [];
@@ -170,7 +188,13 @@ function fakeRuntime(opts: {
         sending.delete(op),
       );
       if (outcome === "done") deliver(op);
+      else if (outcome !== "deferred") end(op.id, outcome);
       return outcome;
+    },
+    settled,
+    writeOutcome: (opId: string) => {
+      const outcome = outcomes.get(opId);
+      return outcome === undefined || outcome === "ended" ? null : outcome;
     },
     pendingOps: () => [...new Set([...queued, ...sending])],
     inFlightOpId: opts.inFlightOpId ?? (() => null),
@@ -710,6 +734,20 @@ describe("a pending mark is dropped by every other on-mark path", () => {
     expect(fake.submitted).toHaveLength(0);
   });
 
+  it("lets a toggle ON through once an unmark is queued behind the queued mark", async () => {
+    const { fake, b } = mountWithDurableMark();
+    fake.queued.push(
+      buildUnmarkEpisodeOp({
+        opId: "queued-unmark",
+        ids: { trakt: NEXT_EP_TRAKT },
+        watchedAt: "2026-07-01T00:00:00.000Z",
+      }),
+    );
+
+    await act(async () => b.current.season.toggleEpisode(TARGET, { ...episodeView(2) }));
+    expect(fake.submitted.map((op) => op.toState)).toEqual(["present"]);
+  });
+
   it("never blocks a deliberate additive play", async () => {
     const { fake, b } = mountWithDurableMark();
 
@@ -718,10 +756,6 @@ describe("a pending mark is dropped by every other on-mark path", () => {
     expect(fake.submitted[0]?.itemKey).toBe(
       `episode:${NEXT_EP_TRAKT}:add:${fake.submitted[0]?.id}`,
     );
-    expect(fake.submitted[0]?.inversePatch).toEqual({
-      kind: "additive-episode",
-      episodeTrakt: NEXT_EP_TRAKT,
-    });
   });
 });
 
@@ -940,6 +974,23 @@ const snackText = () => {
     : message && `${message.subject}${message.predicate}`;
 };
 
+/** A fake whose first write stays in flight until `refuse` has Trakt refuse it. */
+function refusingInFlight(): { readonly fake: FakeRuntime; readonly refuse: () => void } {
+  let sending = true;
+  let refuse = () => {};
+  const fake = fakeRuntime({
+    inFlightOpId: () => (sending ? "op-0" : null),
+    submit: () =>
+      new Promise((resolve) => {
+        refuse = () => {
+          sending = false;
+          resolve("failed");
+        };
+      }),
+  });
+  return { fake, refuse: () => refuse() };
+}
+
 describe("queue mark edges", () => {
   it("ignores a mark with no next episode or one already advancing", async () => {
     const fake = fakeRuntime({});
@@ -1040,6 +1091,25 @@ describe("queue mark edges", () => {
     expect(snackText()).toBe(`Couldn't undo ${entry.title}. Please try again.`);
   });
 
+  it("leaves nothing marked when Trakt refuses a mark its Undo waited on", async () => {
+    vi.useFakeTimers();
+    try {
+      const { fake, refuse } = refusingInFlight();
+      const entry = libraryEntry();
+      const qc = seededClient([entry]);
+      const [a] = mountSurfaces(fake.runtime, qc);
+      act(() => void a.current.mark.mark(entry));
+      act(() => void a.current.mark.reverse(SHOW));
+      await act(async () => refuse());
+      await act(() => vi.advanceTimersByTimeAsync(200));
+      expect(entryOf(qc, SHOW)).toStrictEqual(entry);
+      expect(useSnackbar.getState().snack).toBeNull();
+      expect(fake.submitted).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("gives up an Undo that waits too long on a mark still being delivered", async () => {
     vi.useFakeTimers();
     try {
@@ -1135,6 +1205,28 @@ describe("season controls", () => {
     });
   });
 
+  it("leaves an episode unwatched when Trakt refuses a mark its Undo waited on", async () => {
+    vi.useFakeTimers();
+    try {
+      const { fake, refuse } = refusingInFlight();
+      const { qc, a } = mountSeasonSurfaces(fake);
+      act(
+        () =>
+          void a.current.season.toggleEpisode(TARGET, episodeView(2), {
+            undoLabel: "S1 E2 marked",
+          }),
+      );
+      act(() => void a.current.season.undo());
+      await act(async () => refuse());
+      await act(() => vi.advanceTimersByTimeAsync(200));
+      expect(seasonEp(qc, 2)?.watched).toBe(false);
+      expect(snackText()).toBe("Couldn't update that episode. Please try again.");
+      expect(fake.submitted).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("restores the season and forgets the mark when Trakt refuses it", async () => {
     const fake = fakeRuntime({ submit: () => Promise.resolve("failed") });
     const season = seasonView([episodeView(1, true), episodeView(2)]);
@@ -1225,11 +1317,6 @@ describe("season controls", () => {
     await act(async () => a.current.season.rewatchSeason(TARGET, season));
     expect(snackText()).toBe("Season 1 marked again · 2 episodes");
     expect(fake.submitted[0]?.itemKey).toContain(":add:");
-    expect(fake.submitted[0]?.inversePatch).toEqual({
-      kind: "additive-season",
-      showId: SHOW,
-      probe: { season: 1, number: 1 },
-    });
 
     await act(async () =>
       a.current.season.rewatchSeason(specials(false).target, specials(false).season),

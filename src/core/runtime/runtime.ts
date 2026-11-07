@@ -10,6 +10,7 @@ import type { UserProfile } from "../domain/model/user";
 import type { TraktFailure } from "../domain/read-failure";
 import type { EpisodePlay, MoviePlay } from "../domain/reversal";
 import type { SeasonView, ShowInfo, ShowProgress } from "../domain/show-detail";
+import type { WriteOutcome } from "../domain/write-queue/queue";
 import type { WriteReceipt } from "../domain/write-queue/receipt";
 import type { QueuedOp } from "../domain/write-queue/types";
 
@@ -40,8 +41,12 @@ export interface HistoryPageData {
   readonly pageCount: number;
 }
 
-/** "ended": the session ended before the write settled, so nothing should follow from it. */
-export type SubmitOutcome = "done" | "failed" | "deferred" | "ended";
+/**
+ * "deferred": still to be sent, with how it ends told by `settled`. "cancelled": an opposite write
+ * undid it before either was sent. "ended": the session ended before the write settled, so nothing
+ * should follow from it.
+ */
+export type SubmitOutcome = "done" | "failed" | "deferred" | "cancelled" | "ended";
 
 export interface ActivitiesReconcile {
   readonly keys: readonly InvalidationKey[];
@@ -75,6 +80,10 @@ export interface CueRuntime {
   loadGenreNames(): Promise<Readonly<Record<string, string>>>;
   loadUserProfile(): Promise<UserProfile>;
   submit(op: QueuedOp): Promise<SubmitOutcome>;
+  /** How a submitted write ends, however long it waits to be sent. */
+  settled(opId: string): Promise<Exclude<SubmitOutcome, "deferred">>;
+  /** How a write ended, or null while it is still to be sent. */
+  writeOutcome(opId: string): WriteOutcome | null;
   writeReceipt(opId: string): WriteReceipt | null;
   readsPausedUntil(): number;
   subscribeReadPause(listener: () => void): () => void;

@@ -18,15 +18,20 @@ const TOKEN = {
   expires_in: 604_800,
 } as const;
 
-const OP = {
+const ADOPTED = {
   id: "op-1",
   itemKey: "episode:8802191",
   request: { method: "POST", path: "/sync/history", body: { episodes: [] } },
   inverse: { method: "POST", path: "/sync/history/remove", body: { episodes: [] } },
-  inversePatch: { kind: "mark", showId: 8803, preCompleted: 3 },
   watchedAt: "2026-08-01T20:00:00.000Z",
   fromState: "absent",
   toState: "present",
+} as const;
+
+/** An op as the Capacitor build stored it, with two fields this build no longer reads. */
+const OP = {
+  ...ADOPTED,
+  inversePatch: { kind: "mark", showId: 8803, preCompleted: 3 },
   reconcileKeys: ["progress/watched", "watched/shows"],
 } as const;
 
@@ -207,7 +212,7 @@ describe("the Capacitor migration", () => {
     const result = await migrateLegacyData(pending);
 
     expect(result.adoptedOps).toBe(1);
-    expect(JSON.parse(pending.bulk.values.get("cue.write-queue") ?? "null")).toEqual([OP]);
+    expect(JSON.parse(pending.bulk.values.get("cue.write-queue") ?? "null")).toEqual([ADOPTED]);
     expect(pending.legacy.values.has("cue.write-queue")).toBe(false);
   });
 
@@ -219,8 +224,8 @@ describe("the Capacitor migration", () => {
 
     expect(result.adoptedOps).toBe(2);
     expect(JSON.parse(mixed.bulk.values.get("cue.write-queue") ?? "null")).toEqual([
-      OP,
-      { ...OP, id: "op-3" },
+      ADOPTED,
+      { ...ADOPTED, id: "op-3" },
     ]);
   });
 
@@ -238,12 +243,12 @@ describe("the Capacitor migration", () => {
 
   it("puts migrated ops ahead of anything this install already queued", async () => {
     const both = deps({ "cue.write-queue": JSON.stringify([OP]) });
-    const mine = { ...OP, id: "op-native" };
+    const mine = { ...ADOPTED, id: "op-native" };
     await both.bulk.write("cue.write-queue", JSON.stringify([mine]));
 
     await migrateLegacyData(both);
 
-    expect(JSON.parse(both.bulk.values.get("cue.write-queue") ?? "null")).toEqual([OP, mine]);
+    expect(JSON.parse(both.bulk.values.get("cue.write-queue") ?? "null")).toEqual([ADOPTED, mine]);
   });
 
   it.each([
@@ -255,7 +260,7 @@ describe("the Capacitor migration", () => {
 
     await migrateLegacyData(both);
 
-    expect(JSON.parse(both.bulk.values.get("cue.write-queue") ?? "null")).toEqual([OP]);
+    expect(JSON.parse(both.bulk.values.get("cue.write-queue") ?? "null")).toEqual([ADOPTED]);
   });
 
   it("is a no-op on the second launch", async () => {

@@ -11,19 +11,21 @@ import { dispatchResult, fakeClock } from "./_helpers";
 const WATCHED_AT = "2026-07-05T12:00:00.000Z";
 const mark = (id: string, trakt: number): QueuedOp =>
   buildMarkEpisodeOp({ opId: id, ids: { trakt }, watchedAt: WATCHED_AT });
+const unmark = (id: string, trakt: number): QueuedOp =>
+  buildUnmarkEpisodeOp({ opId: id, ids: { trakt }, watchedAt: WATCHED_AT });
+const addPlay = (id: string, trakt: number): QueuedOp =>
+  buildAddEpisodePlayOp({ opId: id, ids: { trakt }, watchedAt: WATCHED_AT });
 
 interface Harness {
   deps: WriteQueueDeps;
   dispatch: ReturnType<typeof vi.fn>;
-  reconcile: ReturnType<typeof vi.fn>;
+  clock: ReturnType<typeof fakeClock>;
   times: number[];
   slept: number[];
+  sent: () => string[];
 }
 
-function harness(opts: {
-  dispatch: (req: unknown) => Promise<DispatchResult>;
-  reconcile?: (op: QueuedOp) => Promise<boolean>;
-}): Harness {
+function harness(answer: (req: unknown) => Promise<DispatchResult>): Harness {
   const clock = fakeClock(0);
   const times: number[] = [];
   const slept: number[] = [];
@@ -33,24 +35,35 @@ function harness(opts: {
   });
   const dispatch = vi.fn(async (req: unknown) => {
     times.push(clock.now());
-    return opts.dispatch(req);
+    return answer(req);
   });
-  const reconcile = vi.fn(opts.reconcile ?? (() => Promise.resolve(false)));
   return {
-    deps: { dispatch, sleep, now: clock.now, reconcile, settle: () => true },
+    deps: { dispatch, sleep, now: clock.now, settle: () => true },
     dispatch,
-    reconcile,
+    clock,
     times,
     slept,
+    sent: () => dispatch.mock.calls.map(([req]) => JSON.stringify(req)),
   };
+}
+
+const ok = () => Promise.resolve(dispatchResult(200));
+const outcomes = (q: WriteQueue, ...ids: string[]) => ids.map((id) => q.outcomeOf(id));
+
+function gate(): { answer: Promise<DispatchResult>; release: (r: DispatchResult) => void } {
+  let release: (r: DispatchResult) => void = () => {};
+  const answer = new Promise<DispatchResult>((resolve) => {
+    release = resolve;
+  });
+  return { answer, release };
 }
 
 describe("WriteQueue dispatch + pacing", () => {
   it("keeps every dispatch outside the prior request's one-second window", async () => {
-    const h = harness({ dispatch: () => Promise.resolve(dispatchResult(200)) });
+    const h = harness(ok);
     const q = new WriteQueue(h.deps, [mark("a", 1), mark("b", 2), mark("c", 3)]);
-    const res = await q.flush();
-    expect(res.completed).toHaveLength(3);
+    await q.flush();
+    expect(outcomes(q, "a", "b", "c")).toEqual(["done", "done", "done"]);
     expect(h.times).toEqual([0, 1100, 2200]);
     expect(h.slept).toEqual([1100, 1100]);
   });
@@ -59,193 +72,69 @@ describe("WriteQueue dispatch + pacing", () => {
 describe("WriteQueue failure classification", () => {
   it("pauses for Retry-After on 429 then re-dispatches the identical op", async () => {
     let calls = 0;
-    const h = harness({
-      dispatch: () => {
-        calls += 1;
-        return Promise.resolve(
-          calls === 1 ? dispatchResult(429, { "retry-after": "3" }) : dispatchResult(200),
-        );
-      },
+    const h = harness(() => {
+      calls += 1;
+      return Promise.resolve(
+        calls === 1 ? dispatchResult(429, { "retry-after": "3" }) : dispatchResult(200),
+      );
     });
     const q = new WriteQueue(h.deps, [mark("a", 1)]);
-    const res = await q.flush();
-    expect(res.completed).toHaveLength(1);
+    await q.flush();
+    expect(q.outcomeOf("a")).toBe("done");
     expect(h.dispatch).toHaveBeenCalledTimes(2);
     expect(h.dispatch.mock.calls[0]?.[0]).toEqual(h.dispatch.mock.calls[1]?.[0]);
     expect(h.slept).toContain(3000);
   });
 
-  it("rolls back a definite 4xx failure with the inverse patch", async () => {
-    const op = buildMarkEpisodeOp({
-      opId: "a",
-      ids: { trakt: 1 },
-      watchedAt: WATCHED_AT,
-      inversePatch: { restore: true },
-    });
-    const h = harness({ dispatch: () => Promise.resolve(dispatchResult(404)) });
-    const q = new WriteQueue(h.deps, [op]);
-    const res = await q.flush();
-    expect(res.completed).toHaveLength(0);
-    expect(res.failed).toEqual([{ op, inversePatch: { restore: true } }]);
-  });
-
-  it("keeps a persistent 5xx durable after the retry budget (defer, never rolled back)", async () => {
-    const h = harness({ dispatch: () => Promise.resolve(dispatchResult(500)) });
-    const q = new WriteQueue(h.deps, [mark("a", 1)]);
-    const res = await q.flush();
-    expect(res.completed).toHaveLength(0);
-    expect(res.failed).toHaveLength(0);
-    expect(q.size).toBe(1); // safe-retryable → stays pending for the next flush
-    expect(h.dispatch).toHaveBeenCalledTimes(5);
-    expect(h.slept).toEqual([1100, 2200, 4400, 8800]); // no wasted sleep after the final attempt
-  });
-});
-
-describe("WriteQueue NetworkError = reconcile-before-retry", () => {
-  it("retires the op without re-POSTing when Trakt already reflects it", async () => {
-    const h = harness({
-      dispatch: () => Promise.reject(new Error("network")),
-      reconcile: () => Promise.resolve(true),
-    });
-    const q = new WriteQueue(h.deps, [mark("a", 1)]);
-    const res = await q.flush();
-    expect(res.completed).toHaveLength(1);
-    expect(h.dispatch).toHaveBeenCalledTimes(1);
-    expect(h.reconcile).toHaveBeenCalledTimes(1);
-  });
-
-  it("re-dispatches only after a reconcile read (never a blind re-POST)", async () => {
+  it("fails a write Trakt refuses, and sends the next", async () => {
     let calls = 0;
-    const h = harness({
-      dispatch: () => {
-        calls += 1;
-        return calls === 1
-          ? Promise.reject(new Error("network"))
-          : Promise.resolve(dispatchResult(200));
-      },
-      reconcile: () => Promise.resolve(false),
+    const h = harness(() => {
+      calls += 1;
+      return Promise.resolve(dispatchResult(calls === 1 ? 404 : 200));
     });
-    const q = new WriteQueue(h.deps, [mark("a", 1)]);
-    const res = await q.flush();
-    expect(res.completed).toHaveLength(1);
-    expect(h.reconcile).toHaveBeenCalledTimes(1);
-    expect(h.dispatch).toHaveBeenCalledTimes(2);
-  });
-
-  it("defers (keeps durable) when reconcile itself cannot reach the server", async () => {
-    const h = harness({
-      dispatch: () => Promise.reject(new Error("network")),
-      reconcile: () => Promise.reject(new Error("offline")),
-    });
-    const q = new WriteQueue(h.deps, [mark("a", 1)]);
-    const res = await q.flush();
-    expect(res.completed).toHaveLength(0);
-    expect(res.failed).toHaveLength(0);
-    expect(q.size).toBe(1);
-  });
-});
-
-describe("WriteQueue concurrency safety", () => {
-  it("enqueues a compensating op instead of canceling the in-flight write", async () => {
-    let release: (r: DispatchResult) => void = () => {};
-    const gate = new Promise<DispatchResult>((res) => {
-      release = res;
-    });
-    let call = 0;
-    const h = harness({
-      dispatch: () => {
-        call += 1;
-        return call === 1 ? gate : Promise.resolve(dispatchResult(200));
-      },
-    });
-    const q = new WriteQueue(h.deps, [mark("a", 1)]);
-    const flushed = q.flush();
-    await Promise.resolve();
-    q.enqueue(buildUnmarkEpisodeOp({ opId: "b", ids: { trakt: 1 }, watchedAt: WATCHED_AT }));
-    expect(q.size).toBe(2); // in-flight mark preserved; opposite toggle queued behind it
-    release(dispatchResult(200));
-    const res = await flushed;
-    expect(res.completed.map((o) => o.id)).toEqual(["a", "b"]);
-    expect(h.dispatch).toHaveBeenCalledTimes(2);
-  });
-
-  it("is single-flight: concurrent flush calls share one drain, never double-dispatching", async () => {
-    const h = harness({ dispatch: () => Promise.resolve(dispatchResult(200)) });
     const q = new WriteQueue(h.deps, [mark("a", 1), mark("b", 2)]);
-    const [r1, r2] = await Promise.all([q.flush(), q.flush()]);
-    expect(r1).toBe(r2);
-    expect(h.dispatch).toHaveBeenCalledTimes(2);
+    await q.flush();
+    expect(outcomes(q, "a", "b")).toEqual(["failed", "done"]);
   });
 
-  it("exposes the delivering op's id while (and only while) it is in flight", async () => {
-    let release: (r: DispatchResult) => void = () => {};
-    const gate = new Promise<DispatchResult>((res) => {
-      release = res;
-    });
-    const h = harness({ dispatch: () => gate });
-    const q = new WriteQueue(h.deps, [mark("a", 1)]);
-    expect(q.inFlightId).toBeNull();
-    const flushed = q.flush();
-    await Promise.resolve();
-    expect(q.inFlightId).toBe("a");
-    release(dispatchResult(200));
-    await flushed;
-    expect(q.inFlightId).toBeNull();
+  it("keeps a write through one flush of server errors, without a sleep after the last try", async () => {
+    const h = harness(() => Promise.resolve(dispatchResult(500)));
+    const q = new WriteQueue(h.deps, [mark("a", 1), mark("b", 2)]);
+    await q.flush();
+    expect(outcomes(q, "a", "b")).toEqual([null, null]);
+    expect(h.dispatch).toHaveBeenCalledTimes(5);
+    expect(h.slept).toEqual([1100, 2200, 4400, 8800]);
   });
-});
 
-describe("WriteQueue coalescing + durability", () => {
-  it("coalesces a rapid toggle on one item to nothing", () => {
-    const h = harness({ dispatch: () => Promise.resolve(dispatchResult(200)) });
-    const q = new WriteQueue(h.deps);
-    q.enqueue(mark("a", 1));
-    q.enqueue(buildUnmarkEpisodeOp({ opId: "b", ids: { trakt: 1 }, watchedAt: WATCHED_AT }));
+  it("gives up a write refused for five minutes and moves on to the next", async () => {
+    const h = harness((req) =>
+      Promise.resolve(dispatchResult(JSON.stringify(req).includes('"trakt":1') ? 503 : 200)),
+    );
+    const q = new WriteQueue(h.deps, [mark("a", 1), mark("b", 2)]);
+    await q.flush();
+    await h.clock.sleep(240_000);
+    await q.flush();
+    expect(outcomes(q, "a", "b")).toEqual([null, null]);
+    await h.clock.sleep(60_000);
+    await q.flush();
+    expect(outcomes(q, "a", "b")).toEqual(["failed", "done"]);
+    await expect(q.settled("a")).resolves.toBe("failed");
     expect(q.size).toBe(0);
   });
 
-  it("dispatches BOTH a queued mark and a queued additive play of the same episode", async () => {
-    const h = harness({ dispatch: () => Promise.resolve(dispatchResult(200)) });
-    const q = new WriteQueue(h.deps);
-    q.enqueue(mark("a", 1));
-    q.enqueue(buildAddEpisodePlayOp({ opId: "b", ids: { trakt: 1 }, watchedAt: WATCHED_AT }));
-    expect(q.size).toBe(2); // additive intent is never redundant: nothing swallowed
-    const res = await q.flush();
-    expect(res.completed.map((o) => o.id)).toEqual(["a", "b"]);
-    expect(h.dispatch).toHaveBeenCalledTimes(2);
-  });
-
-  it("survives persist → reload and retires ops that already landed pre-crash", async () => {
-    const seed = new WriteQueue(
-      harness({ dispatch: () => Promise.resolve(dispatchResult(200)) }).deps,
-    );
-    seed.enqueue(mark("a", 1));
-    seed.enqueue(mark("b", 2));
-    const snapshot = seed.snapshot();
-    const restored = JSON.parse(JSON.stringify(snapshot)) as QueuedOp[];
-    expect(restored).toEqual(snapshot);
-
-    const h = harness({
-      dispatch: () => Promise.resolve(dispatchResult(200)),
-      reconcile: (op) => Promise.resolve(op.itemKey === "episode:1"),
-    });
-    const q = new WriteQueue(h.deps, restored);
-    await q.startupReconcile();
-    expect(q.size).toBe(1);
-    const res = await q.flush();
-    expect(res.completed.map((o) => o.itemKey)).toEqual(["episode:2"]);
-    expect(h.dispatch).toHaveBeenCalledTimes(1);
-  });
-
-  it("keeps every op durable (never throws) when a startup reconcile read fails", async () => {
-    const h = harness({
-      dispatch: () => Promise.resolve(dispatchResult(200)),
-      reconcile: () => Promise.reject(new Error("offline")),
+  it("keeps a write whose answer was lost first in line, and sends it again on the next flush", async () => {
+    let calls = 0;
+    const h = harness(() => {
+      calls += 1;
+      return calls === 1 ? Promise.reject(new Error("network")) : ok();
     });
     const q = new WriteQueue(h.deps, [mark("a", 1), mark("b", 2)]);
-    await expect(q.startupReconcile()).resolves.toBeUndefined();
-    expect(q.size).toBe(2); // undetermined landing → nothing retired, boot proceeds
-    const res = await q.flush();
-    expect(res.completed.map((o) => o.itemKey)).toEqual(["episode:1", "episode:2"]);
+    await q.flush();
+    expect(h.dispatch).toHaveBeenCalledTimes(1);
+    expect(q.snapshot().map((op) => op.id)).toEqual(["a", "b"]);
+    await q.flush();
+    expect(outcomes(q, "a", "b")).toEqual(["done", "done"]);
+    expect(h.sent()[0]).toBe(h.sent()[1]);
   });
 });
 
@@ -254,7 +143,7 @@ describe("WriteQueue settles each answer", () => {
 
   it("settles a write before the next one is sent", async () => {
     const order: string[] = [];
-    const h = harness({ dispatch: () => Promise.resolve(answered({ added: { episodes: 1 } })) });
+    const h = harness(ok);
     h.dispatch.mockImplementation(async (req: unknown) => {
       order.push(`send ${JSON.stringify(req).includes('"trakt":1') ? "a" : "b"}`);
       return answered({ added: { episodes: 1 } });
@@ -272,31 +161,135 @@ describe("WriteQueue settles each answer", () => {
     ]);
   });
 
-  it("asks reconcile when a 2xx shows the write was not applied, and fails it if not", async () => {
-    const h = harness({
-      dispatch: () => Promise.resolve(answered({ not_found: { episodes: [{}] } })),
-    });
+  it("fails a write whose answer shows Trakt did not apply it", async () => {
+    const h = harness(() => Promise.resolve(answered({ not_found: { episodes: [{}] } })));
     const q = new WriteQueue({ ...h.deps, settle: () => false }, [mark("a", 1)]);
-    const res = await q.flush();
-    expect(h.reconcile).toHaveBeenCalledTimes(1);
-    expect(res.failed.map((f) => f.op.id)).toEqual(["a"]);
+    await q.flush();
+    expect(q.outcomeOf("a")).toBe("failed");
+    expect(h.dispatch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("WriteQueue concurrency safety", () => {
+  it("queues an opposite write behind the one in flight instead of cancelling it", async () => {
+    const held = gate();
+    let call = 0;
+    const h = harness(() => {
+      call += 1;
+      return call === 1 ? held.answer : ok();
+    });
+    const q = new WriteQueue(h.deps, [mark("a", 1)]);
+    const flushed = q.flush();
+    await Promise.resolve();
+    q.enqueue(unmark("b", 1));
+    expect(q.size).toBe(2);
+    held.release(dispatchResult(200));
+    await flushed;
+    expect(outcomes(q, "a", "b")).toEqual(["done", "done"]);
+    expect(h.dispatch).toHaveBeenCalledTimes(2);
   });
 
-  it("fails an unapplied write when reconcile cannot read the account", async () => {
-    const h = harness({
-      dispatch: () => Promise.resolve(answered({})),
-      reconcile: () => Promise.reject(new Error("offline")),
+  it("never cancels a write that was sent, even once its flush has ended", async () => {
+    let calls = 0;
+    const h = harness(() => {
+      calls += 1;
+      return calls === 1 ? Promise.reject(new Error("network")) : ok();
     });
-    const q = new WriteQueue({ ...h.deps, settle: () => false }, [mark("a", 1)]);
-    expect((await q.flush()).failed.map((f) => f.op.id)).toEqual(["a"]);
+    const q = new WriteQueue(h.deps);
+    q.enqueue(mark("a", 1));
+    await q.flush();
+    q.enqueue(unmark("b", 1));
+    await q.flush();
+    expect(outcomes(q, "a", "b")).toEqual(["done", "done"]);
+    expect(h.dispatch).toHaveBeenCalledTimes(3);
   });
 
-  it("completes an unapplied write that reconcile finds already in place", async () => {
-    const h = harness({
-      dispatch: () => Promise.resolve(answered({})),
-      reconcile: () => Promise.resolve(true),
-    });
-    const q = new WriteQueue({ ...h.deps, settle: () => false }, [mark("a", 1)]);
-    expect((await q.flush()).completed.map((op) => op.id)).toEqual(["a"]);
+  it("is single-flight: concurrent flush calls share one drain, never double-dispatching", async () => {
+    const h = harness(ok);
+    const q = new WriteQueue(h.deps, [mark("a", 1), mark("b", 2)]);
+    const first = q.flush();
+    expect(q.flush()).toBe(first);
+    await first;
+    expect(h.dispatch).toHaveBeenCalledTimes(2);
+  });
+
+  it("exposes the delivering op's id while (and only while) it is in flight", async () => {
+    const held = gate();
+    const h = harness(() => held.answer);
+    const q = new WriteQueue(h.deps, [mark("a", 1)]);
+    expect(q.inFlightId).toBeNull();
+    const flushed = q.flush();
+    await Promise.resolve();
+    expect(q.inFlightId).toBe("a");
+    held.release(dispatchResult(200));
+    await flushed;
+    expect(q.inFlightId).toBeNull();
+  });
+});
+
+describe("WriteQueue coalescing", () => {
+  it("cancels an unsent write and its opposite, and leaves other items alone", async () => {
+    const h = harness(ok);
+    const q = new WriteQueue(h.deps);
+    q.enqueue(mark("a", 1));
+    q.enqueue(mark("b", 2));
+    q.enqueue(unmark("c", 1));
+    expect(q.snapshot().map((op) => op.id)).toEqual(["b"]);
+    await expect(Promise.all([q.settled("a"), q.settled("c")])).resolves.toEqual([
+      "cancelled",
+      "cancelled",
+    ]);
+  });
+
+  it("ends a repeat of an unsent write as that write ends, sending it once", async () => {
+    const h = harness(ok);
+    const q = new WriteQueue(h.deps);
+    q.enqueue(mark("a", 1));
+    q.enqueue(mark("b", 1));
+    expect(q.size).toBe(1);
+    expect(q.outcomeOf("b")).toBeNull();
+    await q.flush();
+    expect(outcomes(q, "a", "b")).toEqual(["done", "done"]);
+    expect(h.dispatch).toHaveBeenCalledTimes(1);
+  });
+
+  it("weighs a new write against the latest one for its item", async () => {
+    const h = harness(() => Promise.reject(new Error("network")));
+    const q = new WriteQueue(h.deps);
+    q.enqueue(mark("a", 1));
+    await q.flush();
+    q.enqueue(unmark("b", 1));
+    q.enqueue(mark("c", 1));
+    expect(q.snapshot().map((op) => op.id)).toEqual(["a"]);
+    expect(outcomes(q, "b", "c")).toEqual(["cancelled", "cancelled"]);
+  });
+
+  it("never merges an additive play with a mark, an unmark, or another play", async () => {
+    const h = harness(ok);
+    const q = new WriteQueue(h.deps);
+    q.enqueue(mark("a", 1));
+    q.enqueue(addPlay("b", 1));
+    q.enqueue(unmark("c", 2));
+    q.enqueue(addPlay("d", 2));
+    q.enqueue(addPlay("e", 2));
+    expect(q.size).toBe(5);
+    await q.flush();
+    expect(outcomes(q, "a", "b", "c", "d", "e")).toEqual(["done", "done", "done", "done", "done"]);
+  });
+});
+
+describe("WriteQueue durability", () => {
+  it("sends every stored write again in order, since each may have reached Trakt before the app stopped", async () => {
+    const seed = new WriteQueue(harness(ok).deps);
+    seed.enqueue(mark("a", 1));
+    seed.enqueue(mark("b", 2));
+    const stored = JSON.parse(JSON.stringify(seed.snapshot())) as QueuedOp[];
+
+    const h = harness(ok);
+    const q = new WriteQueue(h.deps, stored);
+    q.enqueue(unmark("c", 1));
+    expect(q.size).toBe(3);
+    await q.flush();
+    expect(outcomes(q, "a", "b", "c")).toEqual(["done", "done", "done"]);
   });
 });

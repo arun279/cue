@@ -5,8 +5,8 @@ import type { QueuedOp, RequestDescriptor } from "./types";
 const HISTORY = "/sync/history";
 const HISTORY_REMOVE = "/sync/history/remove";
 const HIDDEN_LISTS = {
-  hidden: { path: "/users/hidden/progress_watched", target: "hidden/progress_watched" },
-  dropped: { path: "/users/hidden/dropped", target: "hidden/dropped" },
+  hidden: "/users/hidden/progress_watched",
+  dropped: "/users/hidden/dropped",
 } as const;
 const WATCHLIST = "/sync/watchlist";
 const WATCHLIST_REMOVE = "/sync/watchlist/remove";
@@ -17,7 +17,6 @@ export interface HistoryOpParams {
   readonly opId: string;
   readonly ids: EpisodeIds | MovieIds;
   readonly watchedAt: string;
-  readonly inversePatch?: unknown;
 }
 
 function post(path: string, body: unknown): RequestDescriptor {
@@ -42,14 +41,9 @@ function historyOp(
     itemKey: section === "movies" ? `movie:${params.ids.trakt}` : episodeItemKey(params.ids.trakt),
     request: marking ? add : remove,
     inverse: marking ? remove : add,
-    inversePatch: params.inversePatch ?? null,
     watchedAt: params.watchedAt,
     fromState: marking ? "absent" : "present",
     toState,
-    reconcileKeys:
-      section === "movies"
-        ? ["watched/movies", "movie-progress"]
-        : ["progress/watched", "watched/shows"],
   };
 }
 
@@ -91,7 +85,6 @@ export interface RemoveHistoryPlayParams {
     readonly ids: EpisodeIds | MovieIds;
     readonly watchedAt: string;
   };
-  readonly inversePatch?: unknown;
 }
 
 export function buildRemoveHistoryPlayOp(params: RemoveHistoryPlayParams): QueuedOp {
@@ -101,14 +94,9 @@ export function buildRemoveHistoryPlayOp(params: RemoveHistoryPlayParams): Queue
     itemKey: `history-play:${params.ids.join(",")}`,
     request: post(HISTORY_REMOVE, { ids: [...params.ids] }),
     inverse: post(HISTORY, { [section]: [{ ids, watched_at: watchedAt }] }),
-    inversePatch: params.inversePatch ?? null,
     watchedAt,
     fromState: "present",
     toState: "absent",
-    reconcileKeys:
-      section === "movies"
-        ? ["watched/movies", "movie-progress"]
-        : ["progress/watched", "watched/shows"],
   };
 }
 
@@ -127,18 +115,15 @@ export function buildRemovePlaysOp(params: RemovePlaysParams): QueuedOp {
     inverse: post(HISTORY, {
       episodes: params.restore.map((r) => ({ ids: { trakt: r.trakt }, watched_at: r.watchedAt })),
     }),
-    inversePatch: null,
     watchedAt: null,
     fromState: "present",
     toState: "absent",
-    reconcileKeys: ["progress/watched", "watched/shows"],
   };
 }
 
 export interface HideOpParams {
   readonly opId: string;
   readonly ids: ShowIds;
-  readonly inversePatch?: unknown;
 }
 
 function hideOp(
@@ -146,7 +131,7 @@ function hideOp(
   toState: "present" | "absent",
   params: HideOpParams,
 ): QueuedOp {
-  const { path, target } = HIDDEN_LISTS[list];
+  const path = HIDDEN_LISTS[list];
   const body = { shows: [{ ids: params.ids }] };
   const add = post(path, body);
   const remove = post(`${path}/remove`, body);
@@ -156,11 +141,9 @@ function hideOp(
     itemKey: `show:${params.ids.trakt}:${list}`,
     request: hiding ? add : remove,
     inverse: hiding ? remove : add,
-    inversePatch: params.inversePatch ?? null,
     watchedAt: null,
     fromState: hiding ? "absent" : "present",
     toState,
-    reconcileKeys: [target],
   };
 }
 
@@ -170,13 +153,12 @@ export function buildHideShowOp(params: HideOpParams): QueuedOp {
 
 export interface ResumeOpParams {
   readonly newId: () => string;
-  readonly showId: number;
   readonly ids: ShowIds;
 }
 
-export function buildResumeShowOps({ newId, showId, ids }: ResumeOpParams): QueuedOp[] {
+export function buildResumeShowOps({ newId, ids }: ResumeOpParams): QueuedOp[] {
   return (["hidden", "dropped"] as const).map((list) =>
-    hideOp(list, "absent", { opId: newId(), ids, inversePatch: { kind: list, showId } }),
+    hideOp(list, "absent", { opId: newId(), ids }),
   );
 }
 
@@ -186,7 +168,6 @@ export interface WatchlistOpParams {
   readonly opId: string;
   readonly section: WatchlistSection;
   readonly ids: ShowIds | MovieIds;
-  readonly inversePatch?: unknown;
 }
 
 function watchlistOp(toState: "present" | "absent", params: WatchlistOpParams): QueuedOp {
@@ -199,11 +180,9 @@ function watchlistOp(toState: "present" | "absent", params: WatchlistOpParams): 
     itemKey: `watchlist:${params.section}:${params.ids.trakt}`,
     request: adding ? add : remove,
     inverse: adding ? remove : add,
-    inversePatch: params.inversePatch ?? null,
     watchedAt: null,
     fromState: adding ? "absent" : "present",
     toState,
-    reconcileKeys: [`watchlist/${params.section}`],
   };
 }
 

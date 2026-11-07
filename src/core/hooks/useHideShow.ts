@@ -41,14 +41,8 @@ export function useHideShow(): HideController {
       const hidden = kind === "hide";
       patchHidden(showId, hidden);
       const ops = hidden
-        ? [
-            buildHideShowOp({
-              opId: runtime.newId(),
-              ids,
-              inversePatch: { kind: "hidden", showId },
-            }),
-          ]
-        : buildResumeShowOps({ newId: runtime.newId, showId, ids });
+        ? [buildHideShowOp({ opId: runtime.newId(), ids })]
+        : buildResumeShowOps({ newId: runtime.newId, ids });
       const outcome = await submit(ops, {
         rollback: () => patchHidden(showId, !hidden),
         revalidate: () => revalidate(showId),

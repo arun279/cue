@@ -79,6 +79,7 @@ function membershipRuntime(outcome: SubmitOutcome, submitted: QueuedOp[] = []): 
       submitted.push(op);
       return Promise.resolve(outcome);
     },
+    settled: () => new Promise(() => {}),
   });
 }
 

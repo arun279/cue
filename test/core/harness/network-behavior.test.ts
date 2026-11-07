@@ -185,7 +185,6 @@ describe("write faults", () => {
       opId: "fault-mark",
       ids: { trakt: 880120 },
       watchedAt: "2026-09-10T12:00:00.000Z",
-      inversePatch: { showId: 8801, preCompleted: 20 },
     });
 
   it("keeps a held write pending until the fault is released", async () => {
@@ -198,18 +197,6 @@ describe("write faults", () => {
     release();
     await expect(submitted).resolves.toBe("done");
     expect(cue.pendingWrites()).toBe(0);
-  });
-
-  it("reconciles an applied write whose response was lost without posting twice", async () => {
-    fake.drop({ method: "POST", path: HISTORY }, "after");
-    const cue = await buildRuntime();
-    const start = fake.requests.length;
-    await expect(cue.submit(mark())).resolves.toBe("done");
-    const requests = since(start);
-    expect(requests.filter((entry) => entry.path === "/sync/history")).toHaveLength(1);
-    expect(requests.filter((entry) => entry.path === "/shows/8801/progress/watched")).toHaveLength(
-      1,
-    );
   });
 });
 

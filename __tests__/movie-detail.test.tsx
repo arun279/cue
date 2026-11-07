@@ -49,6 +49,7 @@ it("marks an unwatched movie and undoes only that newly landed play", async () =
   await fireEvent.press(screen.getByTestId(TEST_IDS.movieMark));
   expect(await screen.findByText("The Lantern Keeper marked watched")).toBeOnTheScreen();
   const watchedAt = runtime.submit.mock.calls[0]?.[0].watchedAt ?? "";
+  runtime.writeOutcome.mockReturnValueOnce("done");
   runtime.loadMoviePlays.mockResolvedValue([
     { historyId: 92, watchedAt },
     { historyId: 91, watchedAt: "2020-01-01T12:00:00Z" },
@@ -223,6 +224,7 @@ it("undoes a landed first watch to the unwatched face", async () => {
   const runtime = await mount(movieRuntime({ watched: false, watchedAt: null }));
   await fireEvent.press(await screen.findByTestId(TEST_IDS.movieMark));
   await screen.findByText("The Lantern Keeper marked watched");
+  runtime.writeOutcome.mockReturnValueOnce("done");
   runtime.loadMoviePlays.mockResolvedValue([
     { historyId: 92, watchedAt: runtime.submit.mock.calls[0]?.[0].watchedAt ?? "" },
   ]);
@@ -270,11 +272,25 @@ it("offers no Undo when Trakt replaced the movie's play, and says what happened"
   expect(screen.queryByTestId(TEST_IDS.snackbarUndo)).toBeNull();
 });
 
+it("undoes nothing when the mark Trakt kept for later was refused", async () => {
+  const runtime = movieRuntime({ watched: false, watchedAt: null });
+  await mount(runtime);
+  await fireEvent.press(await screen.findByTestId(TEST_IDS.movieMark));
+  await screen.findByText("The Lantern Keeper marked watched");
+  runtime.writeOutcome.mockReturnValueOnce("failed");
+  await fireEvent.press(screen.getByTestId(TEST_IDS.snackbarUndo));
+  await waitFor(() => expect(runtime.writeOutcome).toHaveBeenCalled());
+  expect(runtime.submit).toHaveBeenCalledTimes(1);
+  expect(runtime.loadMoviePlays).not.toHaveBeenCalled();
+  expect(screen.queryByText("Couldn't update this movie. Please try again.")).toBeNull();
+});
+
 it("removes nothing when an Undo finds that the mark replaced the movie's play", async () => {
   const runtime = movieRuntime({ watched: false, watchedAt: null });
   await mount(runtime);
   await fireEvent.press(await screen.findByTestId(TEST_IDS.movieMark));
   await screen.findByText("The Lantern Keeper marked watched");
+  runtime.writeOutcome.mockReturnValueOnce("done");
   runtime.writeReceipt = () => replaced;
   await fireEvent.press(screen.getByTestId(TEST_IDS.snackbarUndo));
   expect(
