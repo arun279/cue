@@ -13,7 +13,7 @@ import { PLAY_POLICY_KEY } from "../ports/storage-keys";
 import { usePlayPolicy } from "../stores/play-policy-store";
 
 export interface WriteReceipts {
-  settle(op: QueuedOp, result: DispatchResult): boolean;
+  settle(op: QueuedOp, result: DispatchResult, firstSend: boolean): boolean;
   receiptOf(opId: string): WriteReceipt | null;
 }
 
@@ -25,10 +25,12 @@ export async function createWriteReceipts(kv: KeyValueStore): Promise<WriteRecei
   const receipts = new Map<string, WriteReceipt>();
 
   return {
-    settle(op, result) {
-      const receipt = parseWriteReceipt(result.data);
-      if (receipt === null) return true;
-      const applied = op.toState === "absent" || receiptApplied(receipt);
+    settle(op, result, firstSend) {
+      const answer = parseWriteReceipt(result.data);
+      if (answer === null) return true;
+      const applied = op.toState === "absent" || receiptApplied(answer);
+      // Trakt may answer a send that repeats an earlier one as if it added the play again.
+      const receipt = firstSend ? answer : { ...answer, added: 0 };
       if (!receiptChanged(receipt)) return applied;
       receipts.set(op.id, receipt);
       const current = usePlayPolicy.getState().policy;

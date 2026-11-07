@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useRef } from "react";
 import { queryKeys } from "../data/query-keys";
 import type { EpisodeIds, ShowIds } from "../domain/model/ids";
-import { markedAt, planSeasonUnmark, type UnmarkPlan } from "../domain/reversal";
+import { planSeasonUnmark, type UnmarkPlan } from "../domain/reversal";
 import type { EpisodeMatch, SeasonView } from "../domain/show-detail";
 import { buildBulkMarkOps, type SeasonTree } from "../domain/write-queue/bulk";
 import {
@@ -28,6 +28,7 @@ import {
   claimWriteLock,
   episodeWriteLock,
   hasPendingMark,
+  pendingMark,
   pendingMarkLock,
   releaseWriteLock,
   seasonWriteLock,
@@ -42,9 +43,8 @@ import { REPLACED_COPY } from "./replaced-copy";
 import {
   canRemoveOwnPlays,
   type EpisodeUnmarkResolution,
-  planLandedUndo,
-  removeEpisodePlays,
   resolveEpisodeUnmark,
+  takeBack,
   waitUntilSettled,
 } from "./resolve-unmark";
 import { useOptimisticWrite } from "./useOptimisticWrite";
@@ -177,49 +177,26 @@ function folded(absorb: UndoState | null, undo: UndoState): UndoState {
 type UndoPlan = readonly QueuedOp[] | { readonly replaced: number } | null;
 
 async function planUndo(runtime: CueRuntime, pending: UndoState): Promise<UndoPlan> {
-  const marks = pending.ops.flatMap((op) => {
-    const marked = markedEpisodesOf(op);
-    return marked === null ? [] : [{ op, marked }];
-  });
-  const markIds = marks.map(({ op }) => op.id);
-  if (!canRemoveOwnPlays(pending.priorPlay) && !(await waitUntilSettled(runtime, markIds))) {
-    return null;
+  const marks = pending.ops.filter((op) => markedEpisodesOf(op) !== null);
+  if (!canRemoveOwnPlays(pending.priorPlay)) {
+    await waitUntilSettled(
+      runtime,
+      marks.map((op) => op.id),
+    );
   }
   const state = (op: QueuedOp): WriteState => runtime.writeState(op.id);
-  const unsent = marks.filter(({ op }) => state(op) === "unsent");
-  const landed = marks.filter(({ op }) => state(op) === "done");
-  const sent = marks.flatMap(({ op }) => (state(op) === "sent" ? [op] : []));
-  const landedOps = landed.map(({ op }) => op);
-  const undone = [
-    ...pending.ops
-      .filter(
-        (op) =>
-          !landedOps.includes(op) &&
-          !sent.includes(op) &&
-          state(op) !== "failed" &&
-          state(op) !== "cancelled",
-      )
-      .map((op) => invertOp(op, runtime.newId)),
-    ...sent.map((op) => buildUndoAddOp(runtime.newId(), op)),
-  ];
-  if (landed.length === 0) return undone;
-  const episode = pending.markedEpisode?.episode;
-  const plan = await planLandedUndo(
+  const onTrakt = marks.filter((op) => state(op) === "sent" || state(op) === "done");
+  const verdict = takeBack(
     runtime,
-    landedOps.map((op) => op.id),
+    onTrakt.map((op) => op.id),
     pending.priorPlay,
-    () =>
-      episode === undefined
-        ? runtime.loadShowPlays(pending.showId)
-        : runtime.loadEpisodePlays(episode.ids.trakt),
-    markedAt(landed.map(({ marked }) => marked)),
-    (play) => play.episodeTrakt,
   );
-  if (unsent.some(({ op }) => state(op) !== "unsent")) return planUndo(runtime, pending);
-  if (plan === null) return null;
-  if (plan.kind === "replaced") return { replaced: plan.count };
-  if (plan.kind === "none") return undone;
-  return [...undone, removeEpisodePlays(runtime.newId(), plan.plays)];
+  if (verdict === "replaced") return { replaced: receiptTotals(runtime, onTrakt).replaced };
+  if (verdict === "unknown") return null;
+  return pending.ops.flatMap((op) => {
+    if (onTrakt.includes(op)) return [buildUndoAddOp(runtime.newId(), op)];
+    return state(op) === "failed" || state(op) === "cancelled" ? [] : [invertOp(op, runtime.newId)];
+  });
 }
 
 export function useMarkSeason(): MarkSeasonController {
@@ -686,9 +663,7 @@ export function useMarkSeason(): MarkSeasonController {
 
   const unmarkEpisode = useCallback(
     async (target: MarkContextTarget, episode: MarkableEpisode, knownPlays?: number) => {
-      const queuedMark = runtime
-        .pendingOps()
-        .find((op) => op.itemKey === episodeItemKey(episode.ids.trakt) && op.toState === "present");
+      const queuedMark = pendingMark(runtime, episodeItemKey(episode.ids.trakt));
       if (queuedMark === undefined) {
         await submitLiveEpisodeUnmark(target, episode, (knownPlays ?? 0) >= 2);
         return;

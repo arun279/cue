@@ -61,7 +61,8 @@ import { markedAt, ownPlays } from "../domain/reversal";
 import type { LastActivities } from "../domain/sync-activities";
 import { historiesOf, markedEpisodesIn } from "../domain/write-queue/ops";
 import { WriteQueue } from "../domain/write-queue/queue";
-import type { QueuedOp, RequestDescriptor } from "../domain/write-queue/types";
+import { replacedPlays, type WriteReceipt } from "../domain/write-queue/receipt";
+import type { QueuedOp } from "../domain/write-queue/types";
 import { createJsonStore } from "../ports/json-store";
 import type { KeyValueStore } from "../ports/kv";
 import type { Reminders } from "../ports/reminders";
@@ -105,16 +106,20 @@ export interface RuntimeDeps {
   readonly reminders: Pick<Reminders, "cancelAll">;
 }
 
-/** The history rows a history add made: in each item it names, the newest play at its watched_at. */
+/**
+ * The history rows made by the add `undo` takes back: in each item it names, the newest play at its
+ * watched_at. Null when Trakt said the add replaced an earlier play.
+ */
 async function ownPlayIds(
   client: TraktClient,
-  add: RequestDescriptor,
-  watchedAt: string,
-): Promise<number[]> {
+  { inverse: add, watchedAt }: QueuedOp,
+  receipt: WriteReceipt | null,
+): Promise<number[] | null> {
+  if (replacedPlays(receipt) > 0 || watchedAt === null) return null;
   const marked = markedEpisodesIn(add, watchedAt);
   const rows = await Promise.all(
     historiesOf(add).map(async ({ kind, trakt }) => {
-      const history = unwrapRead(await getItemPlays(client, kind, trakt), "history");
+      const history = unwrapRead(await getItemPlays.fresh(client, kind, trakt), "history");
       return kind === "movies"
         ? ownPlays(
             assembleMoviePlays(history),
@@ -222,7 +227,8 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       sleep: (ms) => sleep(ms, signal),
       now: Date.now,
       settle: receipts.settle,
-      ownPlays: (add, watchedAt) => ownPlayIds(client, add, watchedAt),
+      ownPlays: (undo, undoes) => ownPlayIds(client, undo, receipts.receiptOf(undoes)),
+      save: (ops) => opLogStore.write([...ops]),
     },
     (await opLogStore.read()) ?? [],
   );

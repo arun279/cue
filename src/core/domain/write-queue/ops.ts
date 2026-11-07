@@ -194,7 +194,7 @@ export function buildRemoveWatchlistOp(params: WatchlistOpParams): QueuedOp {
   return watchlistOp("absent", params);
 }
 
-export function removePlaysRequest(ids: readonly number[]): RequestDescriptor {
+function removePlaysRequest(ids: readonly number[]): RequestDescriptor {
   return post(HISTORY_REMOVE, { ids: [...ids] });
 }
 
@@ -202,15 +202,22 @@ export function removePlaysRequest(ids: readonly number[]): RequestDescriptor {
 export function buildUndoAddOp(opId: string, add: QueuedOp): QueuedOp {
   return {
     id: opId,
-    itemKey: `undo:${add.id}`,
+    itemKey: add.itemKey,
     request: removePlaysRequest([]),
     inverse: add.request,
     watchedAt: add.watchedAt,
     fromState: "present",
     toState: "absent",
-    undoes: add.request,
+    undoes: add.id,
   };
 }
+
+/** The take-back once its plays are found: it removes these and no others, however often it is sent. */
+export const resolvedUndo = (undo: QueuedOp, ids: readonly number[]): QueuedOp => ({
+  ...undo,
+  request: removePlaysRequest(ids),
+  undoes: undefined,
+});
 
 interface HistoryBody {
   readonly episodes?: readonly { readonly ids: { readonly trakt: number } }[];

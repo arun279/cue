@@ -1,5 +1,5 @@
 import { classifyStatus, computePacingDelay, RETRY_AFTER_MAX_MS } from "./classify";
-import { removePlaysRequest } from "./ops";
+import { resolvedUndo } from "./ops";
 import type { DispatchResult, QueuedOp, RequestDescriptor } from "./types";
 
 const MAX_ATTEMPTS_PER_FLUSH = 5;
@@ -16,13 +16,19 @@ export interface WriteQueueDeps {
   readonly dispatch: (req: RequestDescriptor) => Promise<DispatchResult>;
   readonly sleep: (ms: number) => Promise<void>;
   readonly now: () => number;
-  readonly settle: (op: QueuedOp, result: DispatchResult) => boolean;
-  /** The history rows `add` made, read from Trakt: its items' plays at `watchedAt`. */
-  readonly ownPlays: (add: RequestDescriptor, watchedAt: string) => Promise<readonly number[]>;
+  /** Reads Trakt's answer to `op`. `firstSend` is false once an earlier send of it may have reached Trakt. */
+  readonly settle: (op: QueuedOp, result: DispatchResult, firstSend: boolean) => boolean;
+  /**
+   * The history rows made by the add that `undo` takes back, read after that add was answered; null
+   * when the add replaced an earlier play, which taking it back would lose.
+   */
+  readonly ownPlays: (undo: QueuedOp, undoes: string) => Promise<readonly number[] | null>;
+  readonly save: (ops: readonly QueuedOp[]) => Promise<void>;
 }
 
 interface Delivery {
-  readonly op: QueuedOp;
+  /** Fixed, apart from a take-back once its plays are found. */
+  op: QueuedOp;
   /** It may be on Trakt already, so no later write can cancel it. */
   sent: boolean;
   refusedSince: number | null;
@@ -35,7 +41,8 @@ interface Delivery {
  * Sends writes to Trakt one at a time, in the order they were made. Every write Cue makes can be
  * sent again safely (a history add carries its own watched_at, which Trakt does not add twice:
  * trakt/trakt-api discussion #694), so a write whose answer is lost stays first in line and is sent
- * again.
+ * again. A take-back finds the plays it removes once, and keeps them before it is first sent, so no
+ * later send removes a play made since.
  */
 export class WriteQueue {
   private pending: Delivery[];
@@ -74,11 +81,12 @@ export class WriteQueue {
 
   /**
    * Queues `op` behind every earlier write. Against the last unsent write for the same item, a repeat
-   * ends as that write does, and an opposite write cancels both.
+   * ends as that write does, and an opposite write cancels both. A take-back is never cancelled: the
+   * add it takes back may already be on Trakt.
    */
   enqueue(op: QueuedOp): void {
     const twin = this.pending.findLast((queued) => queued.op.itemKey === op.itemKey);
-    if (twin === undefined || twin.sent) {
+    if (twin === undefined || twin.sent || twin.op.undoes !== undefined) {
       this.pending.push(this.track(op, false));
     } else if (twin.op.toState === op.toState) {
       this.deliveries.set(op.id, twin);
@@ -115,43 +123,48 @@ export class WriteQueue {
 
   private async drain(): Promise<void> {
     for (let next = this.pending[0]; next !== undefined; next = this.pending[0]) {
+      const firstSend = !next.sent;
       next.sent = true;
-      const outcome = await this.deliver(next);
+      const outcome = await this.deliver(next, firstSend);
       if (outcome === null) return;
       this.pending.shift();
       this.finish(next, outcome);
     }
   }
 
-  /** What a write sends, worked out when it goes; null when nothing is left to send. */
-  private async requestOf({ request, undoes, watchedAt }: QueuedOp) {
-    if (undoes === undefined || watchedAt === null) return request;
-    const ids = await this.deps.ownPlays(undoes, watchedAt);
-    return ids.length === 0 ? null : removePlaysRequest(ids);
-  }
-
   /** The write's outcome, or null to keep it first in line for a later flush. */
-  private async deliver(next: Delivery): Promise<WriteOutcome | null> {
-    let request: RequestDescriptor | null;
+  private async deliver(next: Delivery, firstSend: boolean): Promise<WriteOutcome | null> {
+    const { undoes } = next.op;
+    if (undoes === undefined) return this.send(next, firstSend);
+    let plays: readonly number[] | null;
     try {
-      request = await this.requestOf(next.op);
+      plays = await this.deps.ownPlays(next.op, undoes);
     } catch {
       return null;
     }
-    if (request === null) return "done";
+    if (plays === null) return "failed";
+    if (plays.length === 0) return "done";
+    next.op = resolvedUndo(next.op, plays);
+    await this.deps.save(this.snapshot());
+    return this.send(next, firstSend);
+  }
+
+  private async send(next: Delivery, firstSend: boolean): Promise<WriteOutcome | null> {
+    let first = firstSend;
     for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_FLUSH; attempt += 1) {
       await this.pace();
       let result: DispatchResult;
       try {
-        result = await this.deps.dispatch(request);
+        result = await this.deps.dispatch(next.op.request);
       } catch {
         return null;
       }
       const now = this.deps.now();
       const classification = classifyStatus(result, attempt, now);
       if (classification.kind === "ok")
-        return this.deps.settle(next.op, result) ? "done" : "failed";
+        return this.deps.settle(next.op, result, first) ? "done" : "failed";
       if (classification.kind === "failed") return "failed";
+      first = false;
       this.resumeAt = now + classification.delayMs;
       next.refusedSince ??= now;
       if (now - next.refusedSince >= GIVE_UP_AFTER_MS) return "failed";

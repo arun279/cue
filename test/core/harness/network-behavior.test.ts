@@ -4,15 +4,14 @@ import { queryKeys } from "@/core/data/query-keys";
 import { createAuthorizedFetch } from "@/core/data/trakt/authorized-fetch";
 import { TraktClient } from "@/core/data/trakt/client";
 import { getShowProgress, getUserSettings } from "@/core/data/trakt/endpoints";
-import { markedAt, ownPlays } from "@/core/domain/reversal";
 import { buildBulkMarkOps } from "@/core/domain/write-queue/bulk";
 import {
   buildAddEpisodePlayOp,
   buildAddWatchlistOp,
   buildMarkEpisodeOp,
-  markedEpisodesOf,
+  buildUndoAddOp,
 } from "@/core/domain/write-queue/ops";
-import { planLandedUndo, removeEpisodePlays } from "@/core/hooks/resolve-unmark";
+import { takeBack } from "@/core/hooks/resolve-unmark";
 import { PLAY_POLICY_KEY } from "@/core/ports/storage-keys";
 import { libraryQuery } from "@/core/queries/library";
 import {
@@ -237,15 +236,7 @@ describe("write receipts", () => {
     );
     expect(cue.writeState("second")).toBe("sent");
     expect(cue.writeReceipt("first")).toMatchObject({ added: 0, updated: 1 });
-    const undo = await planLandedUndo(
-      cue,
-      ["first"],
-      true,
-      () => cue.loadEpisodePlays(watched.trakt),
-      () => at,
-      (play) => play.episodeTrakt,
-    );
-    expect(undo).toEqual({ kind: "replaced", count: 1 });
+    expect(takeBack(cue, ["first"], true)).toBe("replaced");
     release();
     await expect(done).resolves.toEqual(["done", "done"]);
   });
@@ -282,15 +273,9 @@ describe("write receipts", () => {
     );
     if (mark === undefined) throw new Error("the season mark must produce an op");
     await expect(cue.submit(mark)).resolves.toBe("done");
-    const marked = markedEpisodesOf(mark);
-    const own = ownPlays(
-      await cue.loadShowPlays(8803),
-      markedAt(marked === null ? [] : [marked]),
-      (play) => play.episodeTrakt,
-    );
-    expect(own).toHaveLength(2);
-    const removal = removeEpisodePlays("undo", own);
-    await expect(cue.submit(removal)).resolves.toBe("done");
+    await expect(cue.submit(buildUndoAddOp("undo", mark))).resolves.toBe("done");
+    const removals = fake.requests.filter((entry) => entry.path === "/sync/history/remove");
+    expect(removals.map((entry) => (entry.body as { ids: number[] }).ids.length)).toEqual([2]);
     expect((await cue.loadShowProgress(8803)).completed).toBe(before);
   });
 

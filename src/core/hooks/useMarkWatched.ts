@@ -49,14 +49,8 @@ import {
   patchShowSeasons,
   refreshShowProgress,
 } from "./library-cache";
-import type { OptimisticEffects } from "./optimistic-write";
 import { REPLACED_COPY } from "./replaced-copy";
-import {
-  canRemoveOwnPlays,
-  planLandedUndo,
-  removeEpisodePlays,
-  waitUntilSettled,
-} from "./resolve-unmark";
+import { canRemoveOwnPlays, takeBack, waitUntilSettled } from "./resolve-unmark";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 import { useResumeOnMark } from "./useResumeOnMark";
 
@@ -167,36 +161,6 @@ export function useMarkWatched(): MarkWatched {
     [queryClient, runtime],
   );
 
-  const undoLanded = useCallback(
-    async (
-      record: MarkRecord,
-      priorPlay: boolean,
-      effects: OptimisticEffects,
-    ): Promise<SubmitOutcome | null> => {
-      const episode = record.episodeIds.trakt;
-      const plan = await planLandedUndo(
-        runtime,
-        [record.opId],
-        priorPlay,
-        () => runtime.loadEpisodePlays(episode),
-        () => record.watchedAt,
-        (play) => play.episodeTrakt,
-      );
-      if (plan === null || plan.kind === "replaced") {
-        reapplyMark(record);
-        if (plan === null) showUndoFailed(haptics, record.title);
-        else showReplaced(record, true);
-        return null;
-      }
-      if (plan.kind === "none") {
-        effects.revalidate(true);
-        return null;
-      }
-      return submit([removeEpisodePlays(runtime.newId(), plan.plays)], effects);
-    },
-    [runtime, submit, reapplyMark, haptics],
-  );
-
   const runReversal = useCallback(
     async (record: MarkRecord): Promise<SubmitOutcome | null> => {
       const effects = {
@@ -210,23 +174,24 @@ export function useMarkWatched(): MarkWatched {
       const priorPlay = !playsOnlyInProgress(record.beforeMark);
       let state = runtime.writeState(record.opId);
       if (state === "sent" && !canRemoveOwnPlays(priorPlay)) {
-        if (!(await waitUntilSettled(runtime, [record.opId]))) {
-          reapplyMark(record);
-          showUndoFailed(haptics, record.title);
-          return null;
-        }
+        await waitUntilSettled(runtime, [record.opId]);
         state = runtime.writeState(record.opId);
       }
       const write = { opId: record.opId, ids: record.episodeIds, watchedAt: record.watchedAt };
       if (state === "unsent") {
         return submit([buildUnmarkEpisodeOp({ ...write, opId: runtime.newId() })], effects);
       }
-      if (state === "sent") {
+      if (state !== "sent" && state !== "done") return null;
+      const verdict = takeBack(runtime, [record.opId], priorPlay);
+      if (verdict === "plays") {
         return submit([buildUndoAddOp(runtime.newId(), buildMarkEpisodeOp(write))], effects);
       }
-      return state === "done" ? undoLanded(record, priorPlay, effects) : null;
+      reapplyMark(record);
+      if (verdict === "replaced") showReplaced(record, true);
+      else showUndoFailed(haptics, record.title);
+      return null;
     },
-    [runtime, submit, reapplyMark, revalidate, haptics, resume, undoLanded],
+    [runtime, submit, reapplyMark, revalidate, haptics, resume],
   );
 
   const submitReversal = useCallback(

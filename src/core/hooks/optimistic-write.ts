@@ -21,13 +21,12 @@ const WORST_FIRST: readonly SubmitOutcome[] = ["failed", "deferred", "cancelled"
 const settle = (a: SubmitOutcome, b: SubmitOutcome): SubmitOutcome =>
   WORST_FIRST.indexOf(a) < WORST_FIRST.indexOf(b) ? a : b;
 
+/** Queues every write before any is sent, so each is weighed against the queue as it stood. */
 export async function submitAll(
   submit: WriteGateway["submit"],
   ops: readonly QueuedOp[],
 ): Promise<SubmitOutcome> {
-  let outcome: SubmitOutcome = "done";
-  for (const op of ops) outcome = settle(outcome, await submit(op));
-  return outcome;
+  return (await Promise.all(ops.map((op) => submit(op)))).reduce(settle, "done");
 }
 
 /** A write kept for later still rolls back and says so if Trakt refuses it, whatever screen is open by then. */

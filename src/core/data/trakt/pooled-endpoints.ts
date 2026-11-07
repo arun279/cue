@@ -1,23 +1,30 @@
 import type { TraktClient, TraktResult } from "./client";
 import * as raw from "./endpoints";
 
+type Read<Args extends unknown[], T> = (
+  client: TraktClient,
+  ...rest: Args
+) => Promise<TraktResult<T>>;
+
 // Identical reads share one pooled read, so a caller still waiting for a slot joins the read in flight.
+// `fresh` never joins one: it is for a caller that must see a write that has just landed.
 function pool<Args extends unknown[], T>(
-  fn: (client: TraktClient, ...rest: Args) => Promise<TraktResult<T>>,
-): (client: TraktClient, ...rest: Args) => Promise<TraktResult<T>> {
+  fn: Read<Args, T>,
+): Read<Args, T> & { readonly fresh: Read<Args, T> } {
   const inFlight = new WeakMap<TraktClient, Map<string, Promise<TraktResult<T>>>>();
-  return (client, ...rest) => {
+  const fresh: Read<Args, T> = (client, ...rest) =>
+    client.reads.withRateRetry(() => fn(client, ...rest));
+  const pooled: Read<Args, T> = (client, ...rest) => {
     const reads = inFlight.get(client) ?? new Map<string, Promise<TraktResult<T>>>();
     inFlight.set(client, reads);
     const key = JSON.stringify(rest);
     const existing = reads.get(key);
     if (existing !== undefined) return existing;
-    const read = client.reads
-      .withRateRetry(() => fn(client, ...rest))
-      .finally(() => reads.delete(key));
+    const read = fresh(client, ...rest).finally(() => reads.delete(key));
     reads.set(key, read);
     return read;
   };
+  return Object.assign(pooled, { fresh });
 }
 
 export const getWatchedMovies = pool(raw.getWatchedMovies);

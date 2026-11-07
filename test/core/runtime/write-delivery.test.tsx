@@ -14,6 +14,7 @@ import {
   buildMarkEpisodeOp,
   buildMarkMovieOp,
   buildRemoveWatchlistOp,
+  buildUndoAddOp,
   buildUnmarkEpisodeOp,
 } from "@/core/domain/write-queue/ops";
 import { useHideShow } from "@/core/hooks/useHideShow";
@@ -429,4 +430,139 @@ it("undoes a mark whose answer was lost after it was sent again, for an episode 
   await online(cue);
 
   expect(await cue.loadEpisodePlays(NEXT_EPISODE)).toEqual([]);
+});
+
+/** Another app signed in to the same account plays an episode or a movie at `watchedAt`. */
+async function playedElsewhere(
+  section: "episodes" | "movies",
+  trakt: number,
+  watchedAt: string,
+): Promise<void> {
+  const response = await fake.fetch("https://api.trakt.tv/sync/history", {
+    method: "POST",
+    headers: { authorization: `Bearer ${fake.session().access_token}` },
+    body: JSON.stringify({ [section]: [{ ids: { trakt }, watched_at: watchedAt }] }),
+  });
+  if (response.status >= 300) throw new Error(`the other app's play answered ${response.status}`);
+}
+
+it("keeps the play another app made when an offline mark replaced it and the mark is undone", async () => {
+  fake.reset({ multiplePlays: false });
+  const { cue, entry, wrapper } = await libraryAt();
+  await playedElsewhere("episodes", NEXT_EPISODE, "2026-09-09T20:00:00.000Z");
+  offlineFor(2);
+  const up = renderHook(useMarkWatched, { wrapper });
+  await waited(() => up.result.current.mark(entry));
+  await waited(() => up.result.current.reverse(SHOW));
+  const said: unknown[] = [];
+  const listening = useSnackbar.subscribe(({ snack }) => said.push(snack?.message));
+  await online(cue);
+  listening();
+
+  expect(await cue.loadEpisodePlays(NEXT_EPISODE)).toHaveLength(1);
+  expect(posts("/sync/history/remove")).toHaveLength(0);
+  expect(said).toContain("Couldn't save an earlier change to Trakt.");
+});
+
+it("removes only the plays it found before it was first sent when an Undo whose answer was lost goes again", async () => {
+  const { cue } = await libraryAt();
+  const mark = buildMarkEpisodeOp({ opId: "mark", ids: { trakt: NEXT_EPISODE }, watchedAt: AT });
+  await waited(() => cue.submit(mark));
+  fake.drop({ method: "POST", path: /^\/sync\/history\/remove$/ }, "after");
+  await waited(() => cue.submit(buildUndoAddOp("undo", mark)));
+  await playedElsewhere("episodes", NEXT_EPISODE, AT);
+  await online(cue);
+
+  expect(await cue.loadEpisodePlays(NEXT_EPISODE)).toHaveLength(1);
+  expect(cue.pendingWrites()).toBe(0);
+});
+
+it("marks an episode again after an offline Undo of its mark, so Trakt keeps the new mark", async () => {
+  const { cue, entry, wrapper } = await libraryAt();
+  offlineFor(3);
+  const up = renderHook(useMarkWatched, { wrapper });
+  await waited(() => up.result.current.mark(entry));
+  await waited(() => up.result.current.reverse(SHOW));
+  vi.setSystemTime(Date.now() + 60_000);
+  const minute = new Date(Math.floor(Date.now() / 60_000) * 60_000).toISOString();
+  await waited(() => up.result.current.mark(entry));
+  await online(cue);
+
+  expect((await cue.loadEpisodePlays(NEXT_EPISODE)).map((play) => play.watchedAt)).toEqual([
+    minute,
+  ]);
+  expect(cue.pendingWrites()).toBe(0);
+});
+
+it("takes back a mark while a read of its history begun before the mark is still answering", async () => {
+  const cue = await buildRuntime();
+  const releaseRead = fake.hold(
+    { method: "GET", path: new RegExp(`^/sync/history/episodes/${NEXT_EPISODE}$`) },
+    "after",
+  );
+  const early = cue.loadEpisodePlays(NEXT_EPISODE);
+  const releaseMark = fake.hold({ method: "POST", path: HISTORY });
+  const mark = buildMarkEpisodeOp({ opId: "mark", ids: { trakt: NEXT_EPISODE }, watchedAt: AT });
+  const marking = cue.submit(mark);
+  await vi.waitFor(() => expect(cue.writeState("mark")).toBe("sent"));
+  const undoing = cue.submit(buildUndoAddOp("undo", mark));
+  releaseMark();
+  await vi.waitFor(() => expect(cue.writeState("undo")).not.toBe("unsent"));
+  releaseRead();
+  await Promise.all([marking, undoing, early]);
+  await cue.flushWrites();
+
+  expect(await cue.loadEpisodePlays(NEXT_EPISODE)).toEqual([]);
+});
+
+it("cancels every still-queued write of a folded Undo before any is sent, keeping earlier plays", async () => {
+  const { cue, wrapper } = await restarted();
+  const before = [await playsOf(cue, FIRST_EPISODE), await playsOf(cue, SECOND_EPISODE)];
+  const release = fake.hold({ method: "POST", path: HIDDEN });
+  void cue.submit(buildHideShowOp({ opId: "slow", ids: { trakt: 8802 } }));
+  await vi.waitFor(() => expect(cue.writeState("slow")).toBe("sent"));
+  const show = renderHook(useMarkSeason, { wrapper });
+  act(
+    () =>
+      void show.result.current.toggleEpisode(TARGET, unwatched(1, FIRST_EPISODE), {
+        undoLabel: "S1 E1 marked",
+      }),
+  );
+  const season: SeasonView = {
+    number: 1,
+    title: "Season 1",
+    isSpecial: false,
+    isHidden: false,
+    episodes: [{ ...unwatched(1, FIRST_EPISODE), watched: true }, unwatched(2, SECOND_EPISODE)],
+    airedCount: 2,
+    completedCount: 1,
+  };
+  act(
+    () =>
+      void show.result.current.markUpToHere(
+        TARGET,
+        [season],
+        { season: 1, number: 2 },
+        { absorbUndo: true },
+      ),
+  );
+  await act(async () => {
+    const undone = show.result.current.undo();
+    release();
+    await undone;
+  });
+  await cue.flushWrites();
+
+  expect([await playsOf(cue, FIRST_EPISODE), await playsOf(cue, SECOND_EPISODE)]).toEqual(before);
+});
+
+it("takes back a movie mark by removing only that mark's play", async () => {
+  const { cue } = await libraryAt();
+  const earlier = "2026-09-09T20:00:00.000Z";
+  await playedElsewhere("movies", 5503, earlier);
+  const mark = buildMarkMovieOp({ opId: "mark", ids: { trakt: 5503 }, watchedAt: AT });
+  await waited(() => cue.submit(mark));
+  await waited(() => cue.submit(buildUndoAddOp("undo", mark)));
+
+  expect((await cue.loadMoviePlays(5503)).map((play) => play.watchedAt)).toEqual([earlier]);
 });

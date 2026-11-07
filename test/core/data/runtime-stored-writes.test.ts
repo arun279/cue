@@ -142,3 +142,26 @@ it("applies an Undo the last run queued behind its mark, removing only that mark
   expect(runtime.pendingWrites()).toBe(0);
   expect(await rows("/sync/history/episodes/880100")).toHaveLength(earlier);
 });
+
+it("keeps the plays an Undo found before it was sent, so after a relaunch it removes those and no other", async () => {
+  vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+  vi.setSystemTime(FIXTURE_NOW);
+  const earlier = (await rows("/sync/history/episodes/880100")).length;
+  const mark = buildMarkEpisodeOp({ opId: "mark", ids: { trakt: 880100 }, watchedAt });
+  await landed(mark);
+  const kv = memoryKeyValueStore({ [OP_LOG_KEY]: JSON.stringify([buildUndoAddOp("undo", mark)]) });
+  const release = fake.hold({ method: "POST", path: /^\/sync\/history\/remove$/ });
+  vi.setSystemTime(Date.now() + 60_000);
+  await buildRuntime({ kv });
+  await vi.advanceTimersByTimeAsync(5_000);
+  const atStop = kv.values.get(OP_LOG_KEY) ?? "[]";
+  release();
+  await vi.advanceTimersByTimeAsync(5_000);
+  await landed({ id: "elsewhere", request: mark.request });
+
+  const relaunched = await buildRuntime({ kv: memoryKeyValueStore({ [OP_LOG_KEY]: atStop }) });
+  await vi.advanceTimersByTimeAsync(5_000);
+
+  expect(relaunched.pendingWrites()).toBe(0);
+  expect(await rows("/sync/history/episodes/880100")).toHaveLength(earlier + 1);
+});

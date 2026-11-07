@@ -17,7 +17,7 @@ import type { EpisodeDetail } from "@/core/domain/episode-detail";
 import type { LibraryEntry } from "@/core/domain/model/library";
 import type { EpisodePlay } from "@/core/domain/reversal";
 import type { EpisodeView, SeasonView, ShowProgress } from "@/core/domain/show-detail";
-import { buildUnmarkEpisodeOp, markedEpisodesOf } from "@/core/domain/write-queue/ops";
+import { buildUnmarkEpisodeOp } from "@/core/domain/write-queue/ops";
 import type { WriteReceipt } from "@/core/domain/write-queue/receipt";
 import type { QueuedOp } from "@/core/domain/write-queue/types";
 import { useActivitiesPoll } from "@/core/hooks/useActivitiesPoll";
@@ -124,8 +124,6 @@ interface FakeRuntime {
   readonly submitted: QueuedOp[];
   /** The simulated durable queue `pendingOps()` reads. */
   readonly queued: QueuedOp[];
-  /** Record Trakt's answer for a write delivered outside `submit` (a queued op that later lands). */
-  readonly deliver: (op: QueuedOp) => void;
   readonly loadEpisode: ReturnType<typeof vi.fn>;
   readonly loadEpisodePlays: ReturnType<typeof vi.fn>;
   readonly loadShowPlays: ReturnType<typeof vi.fn>;
@@ -208,7 +206,7 @@ function fakeRuntime(opts: {
       opts.progress === undefined ? new Promise(() => {}) : Promise.resolve(opts.progress),
     ),
   });
-  return { runtime, submitted, queued, deliver, loadEpisode, loadEpisodePlays, loadShowPlays };
+  return { runtime, submitted, queued, loadEpisode, loadEpisodePlays, loadShowPlays };
 }
 
 /** Trakt applied the write: one play added for a mark, one removed for a removal. */
@@ -268,19 +266,6 @@ function seededClient(entries: readonly LibraryEntry[], seasons?: readonly Seaso
 
 const flush = () => act(async () => new Promise((r) => setTimeout(r, 0)));
 
-/** A fake whose catch-up marks stay queued while every other write lands at once. */
-function queueingCatchUp(sentOpId?: () => string | null): FakeRuntime {
-  const fake = fakeRuntime({
-    sentOpId,
-    submit: (op) => {
-      if (!op.itemKey.includes(":bulk:")) return Promise.resolve("done");
-      fake.queued.push(op);
-      return Promise.resolve("deferred");
-    },
-  });
-  return fake;
-}
-
 /** Mark S1 E3 from the detail screen, then catch up through S1 E2, folding E3's Undo in. */
 async function catchUpAfterMarkingE3(fake: FakeRuntime) {
   const episodes = [episodeView(1), episodeView(2), episodeView(3)];
@@ -307,7 +292,6 @@ it("advances a show opened without an aggregate cache and reverses it", async ()
   const entry = libraryEntry();
   await act(async () => a.current.mark.mark(entry));
   expect(entryOf(qc, SHOW)).toMatchObject({ completed: entry.completed + 1, pendingAdvance: true });
-  stubLandedPlay(fake);
   await act(async () => a.current.mark.reverse(SHOW));
   expect(entryOf(qc, SHOW)).toEqual(entry);
 });
@@ -319,7 +303,6 @@ it("silently resumes a stopped show after a continue mark and re-stops on Undo",
   const [a] = mountSurfaces(fake.runtime, qc);
   await act(async () => a.current.mark.mark(entry));
   expect(entryOf(qc, SHOW)?.hidden).toBe(false);
-  stubLandedPlay(fake);
   await act(async () => a.current.mark.reverse(SHOW));
   expect(entryOf(qc, SHOW)?.hidden).toBe(true);
   expect(fake.submitted.map((op) => op.request.path)).toEqual([
@@ -358,62 +341,11 @@ function mountWithDurableMark() {
   return { fake, b };
 }
 
-/** A historical play from long before any session mark (a restart-show user). */
-const OLD_PLAY: EpisodePlay = {
-  historyId: 11,
-  episodeTrakt: NEXT_EP_TRAKT,
-  season: 1,
-  number: 2,
-  watchedAt: "2023-01-01T00:00:00.000Z",
-};
-
-/** After the mark landed and left the queue, resolve the episode's plays: `older`
- * plus the mark's own play (id 900) stamped with the exact watched_at it POSTed. */
-/** Stub the history reads with one play per episode each submitted mark created, at its watched_at. */
-function stubOwnPlays(fake: FakeRuntime): EpisodePlay[] {
-  const plays = fake.submitted.flatMap((op) => {
-    const marked = markedEpisodesOf(op);
-    if (marked === null) return [];
-    const numbers = [
-      ...[...marked.traktIds].map((trakt) => trakt - 100),
-      ...[...marked.positions].map((key) => Number(key.split(":")[1])),
-    ];
-    return numbers.map((number) => ({
-      historyId: 500 + number,
-      episodeTrakt: 100 + number,
-      season: 1,
-      number,
-      watchedAt: marked.watchedAt,
-    }));
-  });
-  fake.loadShowPlays.mockResolvedValue(plays);
-  fake.loadEpisodePlays.mockResolvedValue(plays);
-  return plays;
-}
-
-function stubLandedPlay(fake: FakeRuntime, ...older: readonly EpisodePlay[]): void {
-  fake.loadEpisodePlays.mockResolvedValue([
-    ...older,
-    {
-      historyId: 900,
-      episodeTrakt: NEXT_EP_TRAKT,
-      season: 1,
-      number: 2,
-      watchedAt: fake.submitted[0]?.watchedAt ?? "",
-    },
-  ]);
-}
-
 /** Mount one surface over `fake`, mark `entry`, then reverse the mark and settle. */
-async function markThenReverse(
-  fake: FakeRuntime,
-  entry: LibraryEntry,
-  beforeReverse?: () => void,
-): Promise<QueryClient> {
+async function markThenReverse(fake: FakeRuntime, entry: LibraryEntry): Promise<QueryClient> {
   const qc = seededClient([entry]);
   const [a] = mountSurfaces(fake.runtime, qc);
   await act(async () => a.current.mark.mark(entry));
-  beforeReverse?.();
   await act(async () => a.current.mark.reverse(SHOW));
   await flush();
   return qc;
@@ -510,7 +442,6 @@ describe("a read older than the app's own mark never reverts it", () => {
         op.request.path === "/sync/history" ? Promise.resolve("done") : new Promise(() => {}),
     });
     const { qc, surface } = await markWithStaleProgress(fake);
-    stubLandedPlay(fake);
     act(() => void surface.current.mark.reverse(SHOW));
     await flush();
     expect(fake.submitted.map((op) => op.request.path)).toEqual([
@@ -530,7 +461,6 @@ describe("a read older than the app's own mark never reverts it", () => {
       answer: () => null,
     });
     const { qc, surface } = await markWithStaleProgress(fake);
-    stubLandedPlay(fake);
     await act(async () => surface.current.mark.reverse(SHOW));
     await flush();
     expect(snackText()).toBe(`Couldn't undo ${before.title}. Please try again.`);
@@ -669,7 +599,6 @@ describe("a queue mark ticks the show-detail caches in the same frame", () => {
     ).toBe(2);
     expect(qc.getQueryData<EpisodeDetail>(queryKeys.episode(SHOW, 1, 2))?.watched).toBe(true);
 
-    stubLandedPlay(fake); // the op landed and left the queue: the per-play undo path
     await act(async () => a.current.mark.reverse(SHOW));
     await flush();
     expect(entryOf(qc, SHOW)).toStrictEqual(entry); // beforeMark restored verbatim
@@ -843,7 +772,6 @@ describe("the undo windows and snackbar batch are one module-level truth across 
     const { entry, qc, a, b } = mountSeasonSurfaces(fake);
 
     await act(async () => a.current.mark.mark(entry));
-    stubLandedPlay(fake);
     await act(async () => b.current.mark.reverse(SHOW));
     await flush();
     expect(entryOf(qc, SHOW)).toStrictEqual(entry);
@@ -852,15 +780,14 @@ describe("the undo windows and snackbar batch are one module-level truth across 
 });
 
 describe("undoing a landed mark is per-play, never remove-by-item", () => {
-  it("removes exactly the mark's own play by history id, keeping older plays", async () => {
+  it("takes back a landed mark by that write, never by its item", async () => {
     const entry = libraryEntry();
     const fake = fakeRuntime({});
-    // Restart-show user: a historical play predates the mark. Only the fresh one may go.
-    const qc = await markThenReverse(fake, entry, () => stubLandedPlay(fake, OLD_PLAY));
+    const qc = await markThenReverse(fake, entry);
 
-    const reversal = fake.submitted[1];
-    expect(reversal?.request.path).toBe("/sync/history/remove");
-    expect(reversal?.request.body).toEqual({ ids: [900] }); // exact id, not an episodes item
+    const [mark, reversal] = fake.submitted;
+    expect(reversal).toMatchObject({ undoes: mark?.id, itemKey: mark?.itemKey, toState: "absent" });
+    expect(fake.loadEpisodePlays).not.toHaveBeenCalled();
     expect(entryOf(qc, SHOW)).toStrictEqual(entry);
   });
 
@@ -876,26 +803,6 @@ describe("undoing a landed mark is per-play, never remove-by-item", () => {
     const inverse = fake.submitted[1];
     expect(inverse?.toState).toBe("absent");
     expect(inverse?.itemKey).toBe(`episode:${NEXT_EP_TRAKT}`); // coalesces against the queued mark
-  });
-
-  it("fails honestly when the play can't be resolved: no removal, row restored, snack says so", async () => {
-    const entry = libraryEntry();
-    const fake = fakeRuntime({ plays: new Error("offline") });
-    const qc = await markThenReverse(fake, entry);
-    expect(fake.submitted).toHaveLength(1); // the mark only: nothing was wiped
-    expect(useSnackbar.getState().snack?.message).toBe(
-      `Couldn't undo ${entry.title}. Please try again.`,
-    );
-    expect(entryOf(qc, SHOW)?.pendingAdvance).toBe(true); // the play still stands on Trakt
-  });
-
-  it("treats an already-removed play as a satisfied undo (revalidate, nothing removed)", async () => {
-    const entry = libraryEntry();
-    // Only history from long before the mark: never a removal candidate.
-    const fake = fakeRuntime({ plays: [OLD_PLAY] });
-    const qc = await markThenReverse(fake, entry);
-    expect(fake.submitted).toHaveLength(1); // no reversal op: nothing provably ours
-    expect(entryOf(qc, SHOW)).toStrictEqual(entry); // undone UI kept; revalidate reconciles
   });
 });
 
@@ -961,7 +868,6 @@ describe("season write guards and Undo failures", () => {
     await act(async () =>
       a.current.season.markSeason(TARGET, seasonView([episodeView(1), episodeView(2)])),
     );
-    stubOwnPlays(fake);
     await act(async () => a.current.season.undo());
     await flush();
 
@@ -1051,7 +957,6 @@ describe("queue mark edges", () => {
     const fake = fakeRuntime({});
     const [a] = mountSurfaces(fake.runtime, seededClient([libraryEntry()]));
     await act(async () => a.current.mark.mark(libraryEntry()));
-    stubLandedPlay(fake);
     const undo = useSnackbar.getState().snack?.actions?.[0];
     await act(async () => {
       undo?.onPress();
@@ -1069,7 +974,6 @@ describe("queue mark edges", () => {
     const [a] = mountSurfaces(fake.runtime, seededClient([libraryEntry()]));
     await act(async () => a.current.mark.mark(libraryEntry()));
     act(() => void showSnack({ message: "Dune moved to Watchlist" }));
-    stubLandedPlay(fake);
     await act(async () => a.current.mark.reverse(SHOW));
     expect(snackText()).toBe("Dune moved to Watchlist");
   });
@@ -1088,7 +992,7 @@ describe("queue mark edges", () => {
       submit: (op) => Promise.resolve(op.toState === "present" ? "done" : "failed"),
     });
     const entry = libraryEntry();
-    const qc = await markThenReverse(fake, entry, () => stubLandedPlay(fake));
+    const qc = await markThenReverse(fake, entry);
     expect(entryOf(qc, SHOW)?.pendingAdvance).toBe(true);
     expect(snackText()).toBe(`Couldn't undo ${entry.title}. Please try again.`);
   });
@@ -1115,7 +1019,7 @@ describe("queue mark edges", () => {
   it("gives up an Undo that waits too long on a mark still being delivered", async () => {
     vi.useFakeTimers();
     try {
-      const fake = fakeRuntime({ sentOpId: () => "op-0" });
+      const fake = fakeRuntime({ sentOpId: () => "op-0", submit: async () => "deferred" });
       const entry = libraryEntry();
       const qc = seededClient([entry]);
       const [a] = mountSurfaces(fake.runtime, qc);
@@ -1198,13 +1102,9 @@ describe("season controls", () => {
       a.current.season.toggleEpisode(TARGET, episodeView(3), { undoLabel: "S1 E3 marked" }),
     );
     await act(async () => refuse("failed"));
-    stubOwnPlays(fake);
     await act(async () => a.current.season.undo());
-    expect(fake.submitted.at(-1)?.request).toEqual({
-      method: "POST",
-      path: "/sync/history/remove",
-      body: { ids: [503] },
-    });
+    const episodeMark = fake.submitted[1];
+    expect(fake.submitted.slice(2).map((op) => op.undoes)).toEqual([episodeMark?.id]);
   });
 
   it("leaves an episode unwatched when Trakt refuses a mark its Undo waited on", async () => {
@@ -1245,11 +1145,9 @@ describe("season controls", () => {
     expect(snackText()).toBe("Caught up through S1 E2");
     expect([1, 2, 3].map((n) => seasonEp(qc, n)?.watched)).toEqual([true, true, true]);
 
-    stubOwnPlays(fake);
     await act(async () => a.current.season.undo());
-    expect(fake.submitted.slice(2).map((op) => op.request.body)).toEqual([
-      { ids: [503, 501, 502] },
-    ]);
+    const [episodeMark, catchUp] = fake.submitted;
+    expect(fake.submitted.slice(2).map((op) => op.undoes)).toEqual([episodeMark?.id, catchUp?.id]);
   });
 
   it("sends nothing to catch up on episodes already watched", async () => {
@@ -1506,7 +1404,6 @@ describe("episode controls", () => {
     await act(async () =>
       a.current.season.toggleEpisode(TARGET, episodeView(2), { undoLabel: "S1 E2 marked" }),
     );
-    stubOwnPlays(fake);
     await act(async () => a.current.season.undo());
     await act(async () => a.current.season.undo());
     expect(fake.submitted).toHaveLength(2);
@@ -1587,7 +1484,7 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
   it("retires a queue mark's Undo once Trakt says it replaced a play, and says what happened", async () => {
     const entry = libraryEntry();
     const fake = fakeRuntime({ answer: replacing(replaced) });
-    const qc = await markThenReverse(fake, entry, () => stubLandedPlay(fake));
+    const qc = await markThenReverse(fake, entry);
     expect(fake.submitted.map((op) => op.request.path)).toEqual(["/sync/history"]);
     expect(fake.loadEpisodePlays).not.toHaveBeenCalled();
     expect(snackText()).toBe(
@@ -1616,7 +1513,6 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     const qc = seededClient([entry]);
     const [a] = mountSurfaces(fake.runtime, qc);
     act(() => void a.current.mark.mark(entry));
-    stubLandedPlay(fake);
     const reversed = act(async () => a.current.mark.reverse(SHOW));
     await act(async () => land("done"));
     await reversed;
@@ -1643,7 +1539,6 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     const [a] = mountSurfaces(fake.runtime, seededClient([entry]));
     act(() => void a.current.mark.mark(entry));
     await flush();
-    stubLandedPlay(fake);
     await act(async () => a.current.mark.reverse(SHOW));
     await act(async () => resumed("done"));
     await act(async () => resumed("done"));
@@ -1661,7 +1556,7 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
   it("refuses to guess when a landed mark has no answer and the account's setting is unknown", async () => {
     const entry = libraryEntry();
     const fake = fakeRuntime({ answer: () => null });
-    const qc = await markThenReverse(fake, entry, () => stubLandedPlay(fake));
+    const qc = await markThenReverse(fake, entry);
     expect(fake.submitted).toHaveLength(1);
     expect(snackText()).toBe(`Couldn't undo ${entry.title}. Please try again.`);
     expect(entryOf(qc, SHOW)?.pendingAdvance).toBe(true);
@@ -1671,55 +1566,10 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     usePlayPolicy.setState({ policy: "multiple" });
     try {
       const fake = fakeRuntime({ answer: () => null });
-      await markThenReverse(fake, libraryEntry(), () => stubLandedPlay(fake, OLD_PLAY));
-      expect(fake.submitted[1]?.request.body).toEqual({ ids: [900] });
+      await markThenReverse(fake, libraryEntry());
+      expect(fake.submitted[1]?.undoes).toBe(fake.submitted[0]?.id);
     } finally {
       usePlayPolicy.setState({ policy: "unknown" });
-    }
-  });
-
-  it("re-plans a season Undo when a queued mark lands while the history is read", async () => {
-    const fake = queueingCatchUp();
-    const { a } = await catchUpAfterMarkingE3(fake);
-    const plays = stubOwnPlays(fake);
-    fake.loadShowPlays.mockImplementation(async () => {
-      const [landing] = fake.queued.splice(0);
-      if (landing !== undefined) fake.deliver(landing);
-      return plays;
-    });
-    await act(async () => a.current.season.undo());
-    expect(fake.submitted.slice(2).map((op) => op.request.body)).toEqual([
-      { ids: [503, 501, 502] },
-    ]);
-  });
-
-  it("waits for a queued season mark that starts sending while the history is read", async () => {
-    vi.useFakeTimers();
-    try {
-      let sending: string | null = null;
-      const fake = queueingCatchUp(() => sending);
-      const { a } = await catchUpAfterMarkingE3(fake);
-      const plays = stubOwnPlays(fake);
-      const beforeLanding = [OLD_PLAY, ...plays.filter((play) => play.number === 3)];
-      fake.loadShowPlays.mockImplementation(async () => {
-        const [bulk] = fake.queued;
-        if (bulk === undefined) return [OLD_PLAY, ...plays];
-        sending = bulk.id;
-        setTimeout(() => {
-          fake.queued.splice(0);
-          fake.deliver(bulk);
-          sending = null;
-        }, 300);
-        return beforeLanding;
-      });
-      const undone = act(async () => a.current.season.undo());
-      await act(() => vi.advanceTimersByTimeAsync(1_000));
-      await undone;
-      expect(fake.submitted.slice(2).map((op) => op.request.body)).toEqual([
-        { ids: [503, 501, 502] },
-      ]);
-    } finally {
-      vi.useRealTimers();
     }
   });
 
@@ -1761,16 +1611,6 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     );
   });
 
-  it("keeps a season mark and says so when Undo cannot reach the history", async () => {
-    const fake = fakeRuntime({ showPlays: new Error("offline") });
-    const season = seasonView([episodeView(1), episodeView(2)]);
-    const { a } = mountSeasonSurfaces(fake, season.episodes);
-    await act(async () => a.current.season.markSeason(TARGET, season));
-    await act(async () => a.current.season.undo());
-    expect(fake.submitted).toHaveLength(1);
-    expect(snackText()).toBe("Couldn't undo that. Please try again.");
-  });
-
   it("cancels a season mark that is still queued without reading the history", async () => {
     const fake = fakeRuntime({
       submit: (op) => {
@@ -1792,7 +1632,7 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
   it("gives up a season Undo while the mark is still being delivered", async () => {
     vi.useFakeTimers();
     try {
-      const fake = fakeRuntime({ sentOpId: () => "op-0" });
+      const fake = fakeRuntime({ sentOpId: () => "op-0", submit: async () => "deferred" });
       const season = seasonView([episodeView(1), episodeView(2)]);
       const { a } = mountSeasonSurfaces(fake, season.episodes);
       await act(async () => a.current.season.markSeason(TARGET, season));
@@ -1815,18 +1655,6 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     await act(async () => a.current.season.undo());
     expect(fake.submitted).toHaveLength(1);
     expect(seasonEp(qc, 2)?.watched).toBe(true);
-  });
-
-  it("keeps the older play when a detail mark is undone on an account that keeps every play", async () => {
-    const fake = fakeRuntime({});
-    const { a } = mountSeasonSurfaces(fake);
-    await act(async () =>
-      a.current.season.toggleEpisode(TARGET, episodeView(2), { undoLabel: "S1 E2 marked" }),
-    );
-    const [own] = stubOwnPlays(fake);
-    fake.loadEpisodePlays.mockResolvedValue([{ ...OLD_PLAY, episodeTrakt: 102 }, own]);
-    await act(async () => a.current.season.undo());
-    expect(fake.submitted[1]?.request.body).toEqual({ ids: [own?.historyId] });
   });
 
   it("reports a season rewatch as added and replaced plays", async () => {

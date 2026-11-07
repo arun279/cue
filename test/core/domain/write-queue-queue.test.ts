@@ -42,7 +42,7 @@ function harness(
     return answer(req);
   });
   return {
-    deps: { dispatch, sleep, now: clock.now, settle: () => true, ownPlays },
+    deps: { dispatch, sleep, now: clock.now, settle: () => true, ownPlays, save: async () => {} },
     dispatch,
     clock,
     times,
@@ -179,6 +179,34 @@ describe("WriteQueue settles each answer", () => {
     ]);
   });
 
+  it("tells settle whether Trakt answered a write's first send", async () => {
+    const answers = [
+      () => ok(),
+      () => Promise.reject(new Error("network")),
+      () => ok(),
+      () => Promise.resolve(dispatchResult(503)),
+      () => ok(),
+      () => ok(),
+    ];
+    const h = harness(() => (answers.shift() ?? ok)());
+    const firsts: [string, boolean][] = [];
+    const settle = (op: QueuedOp, _result: DispatchResult, firstSend: boolean): boolean => {
+      firsts.push([op.id, firstSend]);
+      return true;
+    };
+    const q = new WriteQueue({ ...h.deps, settle }, []);
+    for (const id of ["a", "lost", "refused"]) q.enqueue(mark(id, id.length));
+    await q.flush();
+    await q.flush();
+    await new WriteQueue({ ...h.deps, settle }, [mark("stored", 9)]).flush();
+    expect(firsts).toEqual([
+      ["a", true],
+      ["lost", false],
+      ["refused", false],
+      ["stored", false],
+    ]);
+  });
+
   it("fails a write whose answer shows Trakt did not apply it", async () => {
     const h = harness(() => Promise.resolve(answered({ not_found: { episodes: [{}] } })));
     const q = new WriteQueue({ ...h.deps, settle: () => false }, [mark("a", 1)]);
@@ -299,8 +327,8 @@ describe("WriteQueue coalescing", () => {
 describe("WriteQueue taking back an add that may be on Trakt", () => {
   it("removes only the rows the add made, read once the add has gone", async () => {
     const order: string[] = [];
-    const h = harness(ok, (add, watchedAt) => {
-      order.push(`read ${JSON.stringify(add.body)} at ${watchedAt}`);
+    const h = harness(ok, (undo, undoes) => {
+      order.push(`read ${undoes} at ${undo.watchedAt}`);
       return Promise.resolve([11, 12]);
     });
     h.dispatch.mockImplementation(async (req: unknown) => {
@@ -313,7 +341,7 @@ describe("WriteQueue taking back an add that may be on Trakt", () => {
     await q.flush();
     expect(order).toEqual([
       `send ${JSON.stringify(added.request)}`,
-      `read ${JSON.stringify(added.request.body)} at ${WATCHED_AT}`,
+      `read a at ${WATCHED_AT}`,
       `send ${JSON.stringify({ method: "POST", path: "/sync/history/remove", body: { ids: [11, 12] } })}`,
     ]);
     expect(states(q, "a", "undo")).toEqual(["done", "done"]);
