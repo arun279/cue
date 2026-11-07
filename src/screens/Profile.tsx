@@ -129,17 +129,18 @@ function useWatchTotals() {
   const shows = useQuery({ ...libraryQuery(runtime), enabled: showsEnabled });
   const movies = useQuery({ ...movieLibraryQuery(runtime), enabled: moviesEnabled });
   const needed = [...(showsEnabled ? [shows] : []), ...(moviesEnabled ? [movies] : [])];
-  const ready = needed.every((query) => query.data !== undefined);
+  const missing = needed.filter((query) => query.data === undefined);
   return {
-    totals: ready
-      ? watchTotals(
-          (showsEnabled && shows.data?.entries) || [],
-          (moviesEnabled && movies.data?.entries) || [],
-        )
-      : null,
-    status: combineStatus(needed, ready),
+    totals:
+      missing.length === 0
+        ? watchTotals(
+            (showsEnabled && shows.data?.entries) || [],
+            (moviesEnabled && movies.data?.entries) || [],
+          )
+        : null,
+    status: combineStatus(missing, false),
     retry: () => {
-      for (const query of needed) if (query.isError) void query.refetch();
+      for (const query of missing) if (query.isError) void query.refetch();
     },
   };
 }

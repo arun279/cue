@@ -110,6 +110,26 @@ test("a failed earlier page stays disarmed until Retry, then paging resumes", as
   await waitFor(() => expect(loadHistory).toHaveBeenCalledTimes(4));
 });
 
+test("says the earlier page is loading, not that it failed, while Retry fetches it", async () => {
+  const loadHistory = jest
+    .fn<ReturnType<CueRuntime["loadHistory"]>, Parameters<CueRuntime["loadHistory"]>>()
+    .mockResolvedValueOnce({ entries: HISTORY, page: 1, pageCount: 2 })
+    .mockRejectedValueOnce(new Error("unavailable"))
+    .mockReturnValue(new Promise(() => {}));
+  await paint(runtime({ loadHistory }));
+  await screen.findByTestId("history-row-0");
+  await fireEvent(screen.getByTestId("history-list"), "endReached");
+  await screen.findByText("Couldn't load earlier history.");
+
+  await fireEvent.press(screen.getByTestId("history-more"));
+
+  await waitFor(() =>
+    expect(screen.getByTestId("history-more")).toHaveAccessibleName("Loading earlier history"),
+  );
+  expect(loadHistory).toHaveBeenCalledTimes(3);
+  expect(screen.queryByText("Couldn't load earlier history.")).toBeNull();
+});
+
 test("filters loaded titles without hiding the load-more control", async () => {
   await paint(
     runtime({ loadHistory: () => Promise.resolve({ entries: HISTORY, page: 1, pageCount: 2 }) }),
