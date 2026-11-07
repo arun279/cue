@@ -13,10 +13,9 @@ import { useEpisodeReminders } from "@/core/hooks/useEpisodeReminders";
 import { AppVersionProvider } from "@/core/ports/app-version";
 import { HapticsProvider } from "@/core/ports/haptics";
 import { RemindersProvider } from "@/core/ports/reminders";
-import { createTokenStore } from "@/core/ports/token-store";
 import { createPrefsStore, PrefsProvider } from "@/core/prefs/prefs-store";
 import { PERSIST_MAX_AGE } from "@/core/runtime/query-cache";
-import { bootNativeStores } from "../src/boot";
+import { bootNativeStores, createInstallTokenStore } from "../src/boot";
 import { NATIVE_REDIRECT_URI, TRAKT_BASE_OVERRIDE, TRAKT_CLIENT_ID } from "../src/config";
 import { nativeCrypto } from "../src/crypto";
 import { nativeAppVersion } from "../src/platform/app-version";
@@ -83,14 +82,17 @@ function useNativeSession(): NativeSession | null {
 
   useEffect(() => {
     let alive = true;
-    const tokenStore = createTokenStore(secureStore);
+    const tokenStore = createInstallTokenStore({
+      secure: secureStore,
+      bulk: bulkStore,
+      newInstallId: nativeCrypto.newId,
+    });
     void bootNativeStores({
       tokenStore,
       secure: secureStore,
       bulk: bulkStore,
       legacy: legacyStore,
       preferences: preferenceStorage,
-      newInstallId: nativeCrypto.newId,
       digest: nativeCrypto.digest,
     })
       .then(

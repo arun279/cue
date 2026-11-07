@@ -1,5 +1,6 @@
+import type { KeyValueStore } from "@/core/ports/kv";
 import { createTokenStore } from "@/core/ports/token-store";
-import { bootNativeStores } from "../src/boot";
+import { bootNativeStores, createInstallTokenStore } from "../src/boot";
 import {
   memoryKeyValueStore,
   memoryLegacyStore,
@@ -13,19 +14,22 @@ const TOKEN = {
   expires_in: 604_800,
 } as const;
 
+const appTokenStore = (secure: KeyValueStore, bulk: KeyValueStore) =>
+  createInstallTokenStore({ secure, bulk, newInstallId: () => "an-install" });
+
 function deps(options: {
   secure?: Record<string, string>;
   bulk?: Record<string, string>;
   legacy?: Record<string, string>;
 }) {
   const secure = memoryKeyValueStore(options.secure);
+  const bulk = memoryKeyValueStore(options.bulk);
   return {
     secure,
-    tokenStore: createTokenStore(secure),
-    bulk: memoryKeyValueStore(options.bulk),
+    tokenStore: appTokenStore(secure, bulk),
+    bulk,
     legacy: memoryLegacyStore(options.legacy),
     preferences: memoryPreferenceStorage(),
-    newInstallId: () => "an-install",
     digest: async (bytes: Uint8Array<ArrayBuffer>) => bytes,
   };
 }
@@ -55,13 +59,16 @@ describe("the native boot", () => {
     // on its next start and sign the new install in with it.
     const reinstall = deps({ secure: { "cue.trakt.token": JSON.stringify(TOKEN) } });
     let finishDelete = () => {};
-    const tokenStore = createTokenStore({
-      ...reinstall.secure,
-      remove: (key) =>
-        new Promise((resolve) => {
-          finishDelete = () => resolve(reinstall.secure.remove(key));
-        }),
-    });
+    const tokenStore = appTokenStore(
+      {
+        ...reinstall.secure,
+        remove: (key) =>
+          new Promise((resolve) => {
+            finishDelete = () => resolve(reinstall.secure.remove(key));
+          }),
+      },
+      reinstall.bulk,
+    );
 
     await bootNativeStores({ ...reinstall, tokenStore });
 
@@ -80,10 +87,35 @@ describe("the native boot", () => {
     };
     await bootNativeStores({ ...upgrade, tokenStore: locked }).catch(() => {});
 
-    await bootNativeStores({ ...upgrade, tokenStore: createTokenStore(upgrade.secure) });
+    await bootNativeStores({ ...upgrade, tokenStore: appTokenStore(upgrade.secure, upgrade.bulk) });
     await new Promise(setImmediate);
 
     expect(await createTokenStore(upgrade.secure).read()).toEqual(TOKEN);
+  });
+
+  it("keeps a token saved during a launch whose purge failed", async () => {
+    const reinstall = deps({ secure: { "cue.trakt.token": JSON.stringify(TOKEN) } });
+    let refused = false;
+    const locked = {
+      ...reinstall.secure,
+      remove: (key: string) => {
+        if (refused) return reinstall.secure.remove(key);
+        refused = true;
+        return Promise.reject(new Error("Keychain unavailable"));
+      },
+    };
+    const tokenStore = appTokenStore(locked, reinstall.bulk);
+    await bootNativeStores({ ...reinstall, tokenStore });
+    const signedIn = { ...TOKEN, access_token: "signed-in" };
+    await tokenStore.write(signedIn);
+
+    await bootNativeStores({
+      ...reinstall,
+      tokenStore: appTokenStore(reinstall.secure, reinstall.bulk),
+    });
+    await new Promise(setImmediate);
+
+    expect(await createTokenStore(reinstall.secure).read()).toEqual(signedIn);
   });
 
   it("leaves a signed-in session alone on every launch after the first", async () => {
