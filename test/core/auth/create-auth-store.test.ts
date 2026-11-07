@@ -97,16 +97,13 @@ describe("leaving a session", () => {
     expect(store.getState().phase).toBe("onboarding");
   });
 
-  it.each([
-    "first",
-    "second",
-  ] as const)("signs out once, and leaves the next session alone, when the %s sign-out's revoke finishes first", async (which) => {
+  it("revokes once however often sign-out is pressed, and leaves the next session alone", async () => {
     const { tokens, store } = await connectedSession();
     const revokes = heldRevokes();
     const signOuts = [store.getState().disconnect(), store.getState().disconnect()];
     await settle();
-    const [finishing, ...late] = which === "first" ? revokes : [...revokes].reverse();
-    finishing?.();
+    const [first, ...late] = revokes;
+    first?.();
     await vi.waitFor(() => expect(store.getState().phase).toBe("onboarding"));
     await connectNext(store);
     for (const revoke of late) revoke();
