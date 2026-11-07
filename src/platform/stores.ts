@@ -1,6 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 import Storage from "expo-sqlite/kv-store";
-import type { KeyValueStore } from "@/core/ports/kv";
+import type { BatchKeyValueStore, KeyValueStore } from "@/core/ports/kv";
 import type { PreferenceStorage } from "@/core/ports/preference-storage";
 import { createPrefsStore, type PrefsStore } from "@/core/prefs/prefs-store";
 
@@ -30,10 +30,12 @@ export const bulkStorage = {
   removeItem: (key: string) => oneAtATime(() => Storage.removeItem(key)),
 };
 
-export const bulkStore: KeyValueStore = {
+// multiSet runs in one exclusive SQLite transaction.
+export const bulkStore: BatchKeyValueStore = {
   read: bulkStorage.getItem,
   write: bulkStorage.setItem,
   remove: bulkStorage.removeItem,
+  writeAll: (entries) => oneAtATime(() => Storage.multiSet(Object.entries(entries))),
 };
 
 const PREFIX = "pref.";

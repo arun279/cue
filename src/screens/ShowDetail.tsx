@@ -84,7 +84,7 @@ function ShowContent({ showId }: { readonly showId: number }): ReactElement {
         <View style={styles.seasons}>
           <SeasonsStatus
             loading={queryStatus(seasons, seasons.data !== undefined).isLoading}
-            failed={seasons.isError}
+            failed={seasons.isError && seasons.data === undefined}
             empty={seasons.data?.length === 0}
             retry={() => void seasons.refetch()}
           />

@@ -8,8 +8,8 @@ import { AccessibilityInfo, AppState, Text } from "react-native";
 import * as runtimeBoot from "@/core/app/boot";
 import { queryKeys } from "@/core/data/query-keys";
 import { useActivitiesPoll } from "@/core/hooks/useActivitiesPoll";
+import { migrateLegacyData } from "@/core/migration/legacy-capacitor";
 import { sessionTeardown } from "@/core/runtime/session";
-import { bootNativeStores } from "../src/boot";
 import { persistBuster, queryClient, shouldDehydrateQuery } from "../src/platform/query-persister";
 import { useScreenReader } from "../src/platform/screen-reader";
 import {
@@ -33,9 +33,10 @@ jest.mock("expo-splash-screen", () => ({
   hide: jest.fn(),
 }));
 jest.mock("expo-font", () => ({ useFonts: jest.fn(() => [true, null]) }));
-jest.mock("../src/boot", () => ({
-  ...jest.requireActual("../src/boot"),
-  bootNativeStores: jest.fn(jest.requireActual("../src/boot").bootNativeStores),
+jest.mock("@/core/migration/legacy-capacitor", () => ({
+  migrateLegacyData: jest.fn(
+    jest.requireActual("@/core/migration/legacy-capacitor").migrateLegacyData,
+  ),
 }));
 jest.mock("@/core/hooks/useActivitiesPoll", () => ({ useActivitiesPoll: jest.fn() }));
 jest.mock("expo-application", () => ({
@@ -82,6 +83,8 @@ const TOKEN = JSON.stringify({
   created_at: 1_700_000_000,
   expires_in: 604_800,
 });
+/** A token this install saved on an earlier launch, bound to its install id. */
+const SAVED_TOKEN = JSON.stringify({ ...JSON.parse(TOKEN), install: "an-earlier-install" });
 
 // Required rather than imported: the module reads its stores at import time, so
 // it has to be loaded after the mocks above are in place.
@@ -138,18 +141,9 @@ describe("the native composition root", () => {
     expect(await screen.findByText("true")).toBeOnTheScreen();
   });
 
-  it("shows sign-in on a fresh install while the Keychain is still deleting the old token", async () => {
-    secureBacking.set("cue.trakt.token", TOKEN);
-    jest.spyOn(secureStoreModule, "deleteItemAsync").mockReturnValue(new Promise(() => {}));
-
-    await render(<RootLayout />);
-
-    expect(await screen.findByTestId("screen-onboarding")).toBeOnTheScreen();
-  });
-
   it("reads the Keychain once on a returning launch", async () => {
-    bulkBacking.values.set("cue.install-id", "an-earlier-install");
-    secureBacking.set("cue.trakt.token", TOKEN);
+    bulkBacking.values.set("cue.install", "an-earlier-install");
+    secureBacking.set("cue.trakt.token", SAVED_TOKEN);
     const read = jest.spyOn(secureStoreModule, "getItemAsync");
 
     await render(<RootLayout />);
@@ -164,10 +158,10 @@ describe("the native composition root", () => {
       now: new Date("2026-10-14T12:00:00Z"),
       doNotFake: ["queueMicrotask", "nextTick", "setImmediate"],
     });
-    bulkBacking.values.set("cue.install-id", "an-earlier-install");
+    bulkBacking.values.set("cue.install", "an-earlier-install");
     secureBacking.set(
       "cue.trakt.token",
-      JSON.stringify({ ...JSON.parse(TOKEN), created_at: Math.floor(Date.now() / 1000) }),
+      JSON.stringify({ ...JSON.parse(SAVED_TOKEN), created_at: Math.floor(Date.now() / 1000) }),
     );
     const cached = entry();
     queryClient.setQueryData(queryKeys.library(), { entries: [cached], isPartial: false });
@@ -213,8 +207,8 @@ describe("the native composition root", () => {
     ["an earlier build", "1.2.2 (44)"],
     ["an earlier update of this build", "1.2.3 (45)"],
   ])("drops a cache persisted by %s", async (_, buster) => {
-    bulkBacking.values.set("cue.install-id", "an-earlier-install");
-    secureBacking.set("cue.trakt.token", TOKEN);
+    bulkBacking.values.set("cue.install", "an-earlier-install");
+    secureBacking.set("cue.trakt.token", SAVED_TOKEN);
     queryClient.setQueryData(queryKeys.library(), { entries: [entry()], isPartial: false });
     bulkBacking.values.set(
       "cue.query-cache",
@@ -257,14 +251,17 @@ describe("the native composition root", () => {
     await render(<RootLayout />);
     await screen.findByTestId("router-stack");
 
-    expect(secureBacking.get("cue.trakt.token")).toBe(TOKEN);
+    expect(JSON.parse(secureBacking.get("cue.trakt.token") ?? "null")).toEqual({
+      ...JSON.parse(TOKEN),
+      install: "an-install",
+    });
     expect(legacyBacking.size).toBe(0);
     await waitFor(() => expect(legacyWebViewBacking.size).toBe(0));
   });
 
   it("deletes anything left in the legacy store when the session ends", async () => {
-    bulkBacking.values.set("cue.install-id", "an-earlier-install");
-    secureBacking.set("cue.trakt.token", TOKEN);
+    bulkBacking.values.set("cue.install", "an-earlier-install");
+    secureBacking.set("cue.trakt.token", SAVED_TOKEN);
     await render(<RootLayout />);
     await screen.findByTestId("router-stack");
     legacyBacking.set("cue.trakt.token", TOKEN);
@@ -281,14 +278,17 @@ describe("the native composition root", () => {
     await screen.findByTestId("router-stack");
 
     expect([...bulkBacking.values.keys()]).not.toContain("cue.trakt.token");
-    expect(secureBacking.get("cue.trakt.token")).toBe(TOKEN);
+    expect(JSON.parse(secureBacking.get("cue.trakt.token") ?? "null")).toEqual({
+      ...JSON.parse(TOKEN),
+      install: "an-install",
+    });
   });
 
   // The two ways a store can refuse. Neither has a phase of its own, and a
   // launch that swallows either one ends on a gate rather than on a screen: the
   // app is up and responsive with nothing on it and no way off it.
   it("reaches a screen and says so when the store boot fails", async () => {
-    jest.mocked(bootNativeStores).mockRejectedValueOnce(new Error("kv-store unavailable"));
+    jest.mocked(migrateLegacyData).mockRejectedValueOnce(new Error("kv-store unavailable"));
 
     await render(<RootLayout />);
 
@@ -297,7 +297,7 @@ describe("the native composition root", () => {
   });
 
   it("reaches a screen and says so when the Keychain refuses the token read", async () => {
-    bulkBacking.values.set("cue.install-id", "an-earlier-install");
+    bulkBacking.values.set("cue.install", "an-earlier-install");
     jest
       .spyOn(secureStoreModule, "getItemAsync")
       .mockRejectedValue(new Error("errSecMissingEntitlement"));
@@ -316,8 +316,8 @@ describe("the native composition root", () => {
  * controls only one of them asserts on whichever happens to settle first.
  */
 const renderWithPendingStores = async () => {
-  const boot = Promise.withResolvers<Awaited<ReturnType<typeof bootNativeStores>>>();
-  jest.mocked(bootNativeStores).mockReturnValueOnce(boot.promise);
+  const boot = Promise.withResolvers<Awaited<ReturnType<typeof migrateLegacyData>>>();
+  jest.mocked(migrateLegacyData).mockReturnValueOnce(boot.promise);
   const { rerender } = await render(<RootLayout />);
 
   expect(screen.getByTestId("boot-hold")).toBeOnTheScreen();
@@ -325,10 +325,7 @@ const renderWithPendingStores = async () => {
 
   return {
     rerender,
-    settleStores: () =>
-      act(async () =>
-        boot.resolve({ purged: true, migration: { adoptedToken: false, adoptedOps: 0 } }),
-      ),
+    settleStores: () => act(async () => boot.resolve({ adoptedToken: false, adoptedOps: 0 })),
   };
 };
 

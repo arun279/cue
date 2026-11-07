@@ -16,9 +16,9 @@ export interface PosterProps {
 }
 
 export function Poster({ title, posters, width }: PosterProps): ReactElement {
-  const [broken, setBroken] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
   const resolved = resolvePoster({ title, traktPosters: posters });
-  const url = resolved.source === "placeholder" || broken ? null : resolved.url;
+  const url = resolved.source === "placeholder" || resolved.url === failed ? null : resolved.url;
 
   return (
     <View
@@ -50,7 +50,7 @@ export function Poster({ title, posters, width }: PosterProps): ReactElement {
           source={{ uri: url }}
           resizeMethod="resize"
           style={StyleSheet.absoluteFill}
-          onError={() => setBroken(true)}
+          onError={() => setFailed(url)}
         />
       )}
     </View>

@@ -1,4 +1,4 @@
-import type { KeyValueStore } from "@/core/ports/kv";
+import type { BatchKeyValueStore } from "@/core/ports/kv";
 import type { LegacyStore } from "@/core/ports/legacy-store";
 import type { PreferenceStorage } from "@/core/ports/preference-storage";
 
@@ -10,7 +10,7 @@ import type { PreferenceStorage } from "@/core/ports/preference-storage";
  * that can drift from the port they stand for.
  */
 
-export type MemoryKeyValueStore = KeyValueStore & { readonly values: Map<string, string> };
+export type MemoryKeyValueStore = BatchKeyValueStore & { readonly values: Map<string, string> };
 
 export function memoryKeyValueStore(seed: Record<string, string> = {}): MemoryKeyValueStore {
   const values = new Map(Object.entries(seed));
@@ -23,6 +23,10 @@ export function memoryKeyValueStore(seed: Record<string, string> = {}): MemoryKe
     },
     remove: (key) => {
       values.delete(key);
+      return Promise.resolve();
+    },
+    writeAll: (entries) => {
+      for (const [key, value] of Object.entries(entries)) values.set(key, value);
       return Promise.resolve();
     },
   };
