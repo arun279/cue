@@ -193,8 +193,7 @@ function fakeRuntime(opts: {
     settled,
     writeState: (opId: string) => {
       if ((opts.sentOpId?.() ?? null) === opId) return "sent";
-      const outcome = outcomes.get(opId);
-      return outcome === undefined || outcome === "ended" ? "unsent" : outcome;
+      return outcomes.get(opId) ?? "unsent";
     },
     flushWrites: () => Promise.resolve(queued.length),
     pendingOps: () => [...new Set([...queued, ...sending])],

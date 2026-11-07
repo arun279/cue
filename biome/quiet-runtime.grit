@@ -1,0 +1,12 @@
+language js
+
+or {
+  JsImport() as $use where { $use <: contains r"RuntimeProvider" },
+  `$_.RuntimeProvider` as $use
+} as $use where {
+  register_diagnostic(
+    span=$use,
+    message="Screens get the runtime from RuntimeBoot, which keeps an ended session's answers from reaching them.",
+    severity="error"
+  )
+}

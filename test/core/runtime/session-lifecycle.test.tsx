@@ -13,8 +13,8 @@ import { useRuntimeBoot } from "@/core/app/boot";
 import { createAuthStore } from "@/core/auth/create-auth-store";
 import { queryKeys } from "@/core/data/query-keys";
 import type { Token } from "@/core/domain/model/token";
+import type { SeasonView } from "@/core/domain/show-detail";
 import { buildHideShowOp, buildMarkEpisodeOp } from "@/core/domain/write-queue/ops";
-import type { QueuedOp } from "@/core/domain/write-queue/types";
 import { useHideShow } from "@/core/hooks/useHideShow";
 import { useMarkSeason } from "@/core/hooks/useMarkSeason";
 import { useMoveToWatchlist } from "@/core/hooks/useMoveToWatchlist";
@@ -24,11 +24,11 @@ import { createTokenStore } from "@/core/ports/token-store";
 import { createPrefsStore } from "@/core/prefs/prefs-store";
 import { clearAccount } from "@/core/runtime/create-runtime";
 import { createQueryClient } from "@/core/runtime/query-cache";
-import type { CueRuntime } from "@/core/runtime/runtime";
+import { type CueRuntime, forScreens } from "@/core/runtime/runtime";
 import { usePlayPolicy } from "@/core/stores/play-policy-store";
 import { useReadIncidents } from "@/core/stores/read-incidents-store";
 import { getSeasonMarkDelta, rememberSeasonMark } from "@/core/stores/season-reversal";
-import { useSnackbar } from "@/core/stores/snackbar-store";
+import { showSnack, useSnackbar } from "@/core/stores/snackbar-store";
 import { withRuntime } from "../support/runtime";
 import {
   type MemoryKeyValueStore,
@@ -176,40 +176,32 @@ function answerAfterAbort(): void {
   vi.stubGlobal("fetch", fake.fetch);
 }
 
-/**
- * Account A on a session Trakt is about to end, with its writes to `held` held back. Its
- * runtime counts writes as they start and settle, since the screens may never hear back.
- */
-async function doomedSessionHolding(held: RegExp) {
+/** Account A on a session Trakt is about to end, with its requests matching `held` held back. */
+async function doomedSessionHolding(held: {
+  readonly method: "GET" | "POST";
+  readonly path: RegExp;
+}) {
   answerAfterAbort();
-  const release = fake.hold({ method: "POST", path: held });
+  const release = fake.hold(held);
   fake.fail({ method: "GET", path: /^\/users\/settings$/ }, 401);
   const device = await install(doomed());
   const launched = launch(device);
   const runtime = await launched.runtime();
-  let started = 0;
-  let settled = 0;
-  const counted: CueRuntime = {
-    ...runtime,
-    submit: (op: QueuedOp) => {
-      started += 1;
-      return runtime.submit(op).finally(() => {
-        settled += 1;
-      });
-    },
-  };
   return {
-    runtime: counted,
+    runtime,
     /** Ends the session, signs the next account in and readies it, then lets Trakt answer. */
     async answerAfterNextSignIn(ready: (next: CueRuntime) => Promise<void> | void): Promise<void> {
-      await counted.loadUserProfile().catch(() => null);
+      void runtime.loadUserProfile().catch(() => null);
       await vi.waitFor(() => expect(device.auth.getState().phase).toBe("onboarding"));
       launched.hook.unmount();
       await signIn(device);
       await ready(await launch(device).runtime());
       release();
-      await vi.waitFor(() => expect(started > 0 && settled === started).toBe(true));
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await vi.waitFor(() =>
+        expect(sent(held.method, held.path).every((request) => request.bytes > 0)).toBe(true),
+      );
+      // Long enough for an answer that reached the runtime to reach the screens too.
+      await new Promise((resolve) => setTimeout(resolve, 50));
     },
   };
 }
@@ -274,7 +266,6 @@ it("clears the account when its session dies during sign-out, and never sends it
 
   await expect(signOut(device, runtime)).resolves.toBeUndefined();
 
-  await expect(runtime.settled("hide-1")).resolves.toBe("ended");
   expect(device.auth.getState().phase).toBe("onboarding");
   expect(await device.tokens.read()).toBeNull();
   expect(device.bulk.values.has(OP_LOG_KEY)).toBe(false);
@@ -534,10 +525,10 @@ it("keeps every preference changeable after a sign-in clears the last account's"
 
 it("offers the next session no Undo for a hide Trakt answers after its session ended", async () => {
   const hide = /^\/users\/hidden\/progress_watched$/;
-  const session = await doomedSessionHolding(hide);
+  const session = await doomedSessionHolding({ method: "POST", path: hide });
   const queryClient = createQueryClient();
   const shows = renderHook(() => useHideShow(), {
-    wrapper: withRuntime(session.runtime, queryClient),
+    wrapper: withRuntime(forScreens(session.runtime), queryClient),
   });
   void shows.result.current.hide(8801, { trakt: 8801 }, "A show");
   await vi.waitFor(() => expect(sent("POST", hide)).toHaveLength(1));
@@ -547,14 +538,14 @@ it("offers the next session no Undo for a hide Trakt answers after its session e
 
 it("offers the next session no Undo when a move to Watchlist ends with its session while resuming the show", async () => {
   const resume = /^\/users\/hidden\/progress_watched\/remove$/;
-  const session = await doomedSessionHolding(resume);
+  const session = await doomedSessionHolding({ method: "POST", path: resume });
   const queryClient = createQueryClient();
   const [listed] = (await session.runtime.loadUpNext()).entries;
   if (listed === undefined) throw new Error("the fake account has no shows");
   const stopped = { ...listed, completed: 0, inWatchlist: false, hidden: true };
   queryClient.setQueryData(queryKeys.library(), { entries: [stopped] });
   const move = renderHook(() => useMoveToWatchlist(), {
-    wrapper: withRuntime(session.runtime, queryClient),
+    wrapper: withRuntime(forScreens(session.runtime), queryClient),
   });
   void move.result.current(stopped);
   await vi.waitFor(() => expect(sent("POST", resume)).toHaveLength(1), { timeout: 3000 });
@@ -564,11 +555,11 @@ it("offers the next session no Undo when a move to Watchlist ends with its sessi
 
 it("leaves the next session's season marks alone when the last one's season unmark ends with it", async () => {
   const removal = /^\/sync\/history\/remove$/;
-  const session = await doomedSessionHolding(removal);
+  const session = await doomedSessionHolding({ method: "POST", path: removal });
   const season = (await session.runtime.loadShowSeasons(8801)).find((s) => s.number === 1);
   if (season === undefined) throw new Error("the fake show has no first season");
   const seasons = renderHook(() => useMarkSeason(), {
-    wrapper: withRuntime(session.runtime, createQueryClient()),
+    wrapper: withRuntime(forScreens(session.runtime), createQueryClient()),
   });
   void seasons.result.current.unmarkSeason(
     { showId: 8801, ids: { trakt: 8801 }, includeSpecials: false },
@@ -579,4 +570,38 @@ it("leaves the next session's season marks alone when the last one's season unma
   await session.answerAfterNextSignIn(() => rememberSeasonMark(8801, 1, [3, 4]));
 
   expect(getSeasonMarkDelta(8801, 1)).toEqual(new Set([3, 4]));
+});
+
+it("leaves the next session's episode alone when the last one's unmark read answers after it ended", async () => {
+  const plays = /^\/sync\/history\/episodes\/880100$/;
+  const session = await doomedSessionHolding({ method: "GET", path: plays });
+  const queryClient = createQueryClient();
+  const seasons = await session.runtime.loadShowSeasons(8801);
+  const episode = seasons.flatMap((season) => season.episodes).find((e) => e.ids.trakt === 880100);
+  if (episode === undefined || !episode.watched) throw new Error("the fake episode is not watched");
+  queryClient.setQueryData(queryKeys.showSeasons(8801), seasons);
+  const marks = renderHook(() => useMarkSeason(), {
+    wrapper: withRuntime(forScreens(session.runtime), queryClient),
+  });
+  void marks.result.current.toggleEpisode(
+    { showId: 8801, ids: { trakt: 8801 }, includeSpecials: false },
+    episode,
+  );
+  await vi.waitFor(() => expect(sent("GET", plays)).toHaveLength(1));
+  const unwatched = seasons.map((season) => ({
+    ...season,
+    episodes: season.episodes.map((e) =>
+      e.ids.trakt === 880100 ? { ...e, watched: false, watchedAt: null } : e,
+    ),
+  }));
+
+  await session.answerAfterNextSignIn(() => {
+    queryClient.setQueryData(queryKeys.showSeasons(8801), unwatched);
+    showSnack({ message: "The next account's own snack" });
+  });
+
+  const cached = queryClient.getQueryData<readonly SeasonView[]>(queryKeys.showSeasons(8801));
+  const shown = cached?.flatMap((season) => season.episodes).find((e) => e.ids.trakt === 880100);
+  expect(shown).toMatchObject({ watched: false, watchedAt: null });
+  expect(useSnackbar.getState().snack?.message).toBe("The next account's own snack");
 });

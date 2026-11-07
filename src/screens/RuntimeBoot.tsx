@@ -1,9 +1,9 @@
-import { type ReactElement, type ReactNode, useEffect } from "react";
+import { type ReactElement, type ReactNode, useEffect, useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { type RuntimeBootDeps, useRuntimeBoot } from "@/core/app/boot";
 import { useAuth } from "@/core/auth/store";
-import { RuntimeProvider } from "@/core/runtime/runtime";
+import { forScreens, RuntimeProvider } from "@/core/runtime/runtime";
 import { useSplashRelease } from "../platform/splash";
 import { Button } from "../ui/Button";
 import { EmptyState } from "../ui/EmptyState";
@@ -18,9 +18,10 @@ export interface RuntimeBootProps {
 export function RuntimeBoot({ deps, children }: RuntimeBootProps): ReactElement | null {
   const endSession = useAuth((s) => s.endSession);
   const { runtime, failure, booting, retry } = useRuntimeBoot({ ...deps, endSession });
+  const screens = useMemo(() => (runtime === null ? null : forScreens(runtime)), [runtime]);
   useSplashRelease(runtime !== null || failure !== null);
 
-  if (runtime !== null) return <RuntimeProvider value={runtime}>{children}</RuntimeProvider>;
+  if (screens !== null) return <RuntimeProvider value={screens}>{children}</RuntimeProvider>;
   if (failure !== null) return <BootFailure detail={failure} retrying={booting} onRetry={retry} />;
   return null;
 }

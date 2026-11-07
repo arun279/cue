@@ -73,6 +73,7 @@ import { usePlayPolicy } from "../stores/play-policy-store";
 import { useReadIncidents } from "../stores/read-incidents-store";
 import { resetSeasonMarks } from "../stores/season-reversal";
 import { dismissSnack } from "../stores/snackbar-store";
+import { useSyncActivity } from "../stores/sync-activity-store";
 import type {
   ActivitiesReconcile,
   BrowseData,
@@ -143,6 +144,7 @@ const ACCOUNT_STORES: readonly (() => void)[] = [
   dismissSnack,
   () => useReadIncidents.setState({ incidents: [] }),
   () => usePlayPolicy.setState({ policy: "unknown" }),
+  () => useSyncActivity.setState(useSyncActivity.getInitialState()),
 ];
 
 /** Removes everything the device keeps for an account, so the next one starts without it. */
@@ -235,14 +237,12 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
 
   const persistLog = (): Promise<void> => opLogStore.write(queue.snapshot());
   void queue.flush().then(persistLog);
-  const ended = new Promise<"ended">((resolve) =>
-    signal.addEventListener("abort", () => resolve("ended")),
-  );
 
   const { readsPausedUntil, subscribeReadPause, readRetryFailure, subscribeReadRetry } =
     client.reads;
 
   return {
+    session: signal,
     newId: deps.newId,
     async loadUpNext(): Promise<UpNextData> {
       return { entries: await loadUpNextEntries(client) };
@@ -389,17 +389,16 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       return assembleUserProfile(unwrapRead(await getUserSettings(client), "user settings"));
     },
 
-    async submit(op: QueuedOp): Promise<SubmitOutcome | "ended"> {
+    async submit(op: QueuedOp): Promise<SubmitOutcome> {
       queue.enqueue(op);
       await persistLog();
       await queue.flush();
       await persistLog();
-      if (signal.aborted) return "ended";
       const state = queue.stateOf(op.id);
       return state === "unsent" || state === "sent" ? "deferred" : state;
     },
 
-    settled: (opId) => Promise.race([ended, queue.settled(opId)]),
+    settled: (opId) => queue.settled(opId),
     writeState: (opId) => queue.stateOf(opId),
     writeReceipt: receipts.receiptOf,
     readsPausedUntil,
