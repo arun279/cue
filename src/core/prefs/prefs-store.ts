@@ -54,6 +54,8 @@ interface PrefsState {
   setNextEpisodeOrder: (order: NextEpisodeOrder) => void;
   lapsedOrder: LapsedOrder;
   setLapsedOrder: (order: LapsedOrder) => void;
+  /** Forgets every stored preference and puts this store back on the defaults. */
+  clearPreferences: () => void;
 }
 
 export type PrefsStore = StoreApi<PrefsState>;
@@ -71,76 +73,82 @@ export function createPrefsStore(storage: PreferenceStorage): PrefsStore {
   const lapsedOrder = lapsedOrderPref(storage);
   const threshold = thresholdPref(storage);
 
+  const stored = () => ({
+    theme: theme.initial(),
+    thresholdDays: threshold.initial(),
+    ...initialMediaVisibility(storage),
+    hapticsEnabled: haptics.initial(),
+    remindersEnabled: reminders.initial(),
+    alertsCardAnswered: alertsCard.initial(),
+    dailySummary: dailySummary.initial(),
+    mutedShowIds: mutedShows.initial(),
+    hideStillsUntilWatched: hideStills.initial(),
+    everyWatchlistEpisode: everyWatchlistEpisode.initial(),
+    nextEpisodeOrder: nextEpisodeOrder.initial(),
+    lapsedOrder: lapsedOrder.initial(),
+  });
+
   return createStore<PrefsState>((set, get) => {
-    const media = initialMediaVisibility(storage);
     const commit = (next: MediaVisibility): void => {
       if (!next.showsEnabled && !next.moviesEnabled) return;
       persistMediaVisibility(storage, next);
       set(next);
     };
     return {
-      theme: theme.initial(),
+      ...stored(),
       setTheme: (value) => {
         theme.persist(value);
         set({ theme: value });
       },
-      thresholdDays: threshold.initial(),
       setThresholdDays: (thresholdDays) => {
         threshold.persist(thresholdDays);
         set({ thresholdDays });
       },
-      showsEnabled: media.showsEnabled,
-      moviesEnabled: media.moviesEnabled,
       setShowsEnabled: (showsEnabled) =>
         commit({ showsEnabled, moviesEnabled: get().moviesEnabled }),
       setMoviesEnabled: (moviesEnabled) =>
         commit({ showsEnabled: get().showsEnabled, moviesEnabled }),
-      hapticsEnabled: haptics.initial(),
       setHapticsEnabled: (hapticsEnabled) => {
         haptics.persist(hapticsEnabled);
         set({ hapticsEnabled });
       },
-      remindersEnabled: reminders.initial(),
       setRemindersEnabled: (remindersEnabled) => {
         reminders.persist(remindersEnabled);
         set({ remindersEnabled });
       },
-      alertsCardAnswered: alertsCard.initial(),
       answerAlertsCard: () => {
         alertsCard.persist(true);
         set({ alertsCardAnswered: true });
       },
-      dailySummary: dailySummary.initial(),
       setDailySummary: (enabled) => {
         dailySummary.persist(enabled);
         set({ dailySummary: enabled });
       },
-      mutedShowIds: mutedShows.initial(),
       setShowMuted: (showId, muted) => {
         const others = get().mutedShowIds.filter((id) => id !== showId);
         const mutedShowIds = muted ? [...others, showId] : others;
         mutedShows.persist(mutedShowIds);
         set({ mutedShowIds });
       },
-      hideStillsUntilWatched: hideStills.initial(),
       setHideStillsUntilWatched: (hideStillsUntilWatched) => {
         hideStills.persist(hideStillsUntilWatched);
         set({ hideStillsUntilWatched });
       },
-      everyWatchlistEpisode: everyWatchlistEpisode.initial(),
       setEveryWatchlistEpisode: (enabled) => {
         everyWatchlistEpisode.persist(enabled);
         set({ everyWatchlistEpisode: enabled });
       },
-      nextEpisodeOrder: nextEpisodeOrder.initial(),
       setNextEpisodeOrder: (order) => {
         nextEpisodeOrder.persist(order);
         set({ nextEpisodeOrder: order });
       },
-      lapsedOrder: lapsedOrder.initial(),
       setLapsedOrder: (order) => {
         lapsedOrder.persist(order);
         set({ lapsedOrder: order });
+      },
+      clearPreferences: () => {
+        storage.clearNamespace("cue.");
+        set(stored());
       },
     };
   });

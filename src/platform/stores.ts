@@ -2,7 +2,6 @@ import * as SecureStore from "expo-secure-store";
 import Storage from "expo-sqlite/kv-store";
 import type { KeyValueStore } from "@/core/ports/kv";
 import type { PreferenceStorage } from "@/core/ports/preference-storage";
-import { createPrefsStore, type PrefsStore } from "@/core/prefs/prefs-store";
 
 // WHEN_UNLOCKED_THIS_DEVICE_ONLY items never migrate to a new device through a backup.
 const SECURE: SecureStore.SecureStoreOptions = {
@@ -48,9 +47,4 @@ export const preferenceStorage: PreferenceStorage = {
       if (key.startsWith(PREFIX + prefix)) Storage.removeItemSync(key);
     }
   },
-};
-
-export const clearLocalPreferences = (store: PrefsStore): void => {
-  preferenceStorage.clearNamespace("cue.");
-  store.setState(createPrefsStore(preferenceStorage).getState());
 };

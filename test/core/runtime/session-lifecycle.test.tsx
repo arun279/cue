@@ -15,11 +15,16 @@ import { buildHideShowOp, buildMarkEpisodeOp } from "@/core/domain/write-queue/o
 import type { KeyValueStore } from "@/core/ports/kv";
 import { INCIDENTS_KEY, OP_LOG_KEY, PLAY_POLICY_KEY } from "@/core/ports/storage-keys";
 import { createTokenStore } from "@/core/ports/token-store";
+import { createPrefsStore } from "@/core/prefs/prefs-store";
 import { clearAccount } from "@/core/runtime/create-runtime";
 import type { CueRuntime } from "@/core/runtime/runtime";
 import { usePlayPolicy } from "@/core/stores/play-policy-store";
 import { useReadIncidents } from "@/core/stores/read-incidents-store";
-import { type MemoryKeyValueStore, memoryKeyValueStore } from "../support/stores";
+import {
+  type MemoryKeyValueStore,
+  memoryKeyValueStore,
+  memoryPreferenceStorage,
+} from "../support/stores";
 import { startTraktFake } from "../trakt-fake/in-process.ts";
 
 const fake = startTraktFake();
@@ -91,7 +96,15 @@ type Device = Awaited<ReturnType<typeof start>>;
 /** A device signed in on `token`, whose bulk store may fail the first removal of one key. */
 async function install(
   token: Token,
-  { seed = {}, failRemoval }: { seed?: Record<string, string>; failRemoval?: string } = {},
+  {
+    seed = {},
+    failRemoval,
+    clearLocalPreferences = () => undefined,
+  }: {
+    seed?: Record<string, string>;
+    failRemoval?: string;
+    clearLocalPreferences?: () => void;
+  } = {},
 ): Promise<Device> {
   const secure = memoryKeyValueStore();
   const store = memoryKeyValueStore(seed);
@@ -108,7 +121,7 @@ async function install(
     secure,
     bulk,
     clearPersistedCaches: vi.fn(() => Promise.resolve()),
-    clearLocalPreferences: vi.fn(),
+    clearLocalPreferences: vi.fn(clearLocalPreferences),
   });
 }
 
@@ -431,4 +444,21 @@ it("keeps a read an ended session starts out of the next session's incidents", a
 
   expect(useReadIncidents.getState().incidents).toEqual([]);
   expect(fake.requests.slice(before)).toEqual([]);
+});
+
+it("keeps every preference changeable after a sign-in clears the last account's", async () => {
+  const preferences = memoryPreferenceStorage();
+  const prefs = createPrefsStore(preferences);
+  const device = await install(live(), {
+    clearLocalPreferences: () => prefs.getState().clearPreferences(),
+  });
+  const first = launch(device);
+  await signOut(device, await first.runtime());
+  first.hook.unmount();
+  await signIn(device);
+
+  prefs.getState().setRemindersEnabled(true);
+  prefs.getState().setTheme("dark");
+
+  expect(prefs.getState()).toMatchObject({ remindersEnabled: true, theme: "dark" });
 });

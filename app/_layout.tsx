@@ -34,12 +34,7 @@ import {
 import { createNativeReminders, useOpenTappedReminder } from "../src/platform/reminders";
 import { trackScreenReader } from "../src/platform/screen-reader";
 import { useSplashRelease } from "../src/platform/splash";
-import {
-  bulkStore,
-  clearLocalPreferences,
-  preferenceStorage,
-  secureStore,
-} from "../src/platform/stores";
+import { bulkStore, preferenceStorage, secureStore } from "../src/platform/stores";
 import { RootStack } from "../src/RootStack";
 import { useAppearance } from "../src/screens/account/ThemeControl";
 import { Onboarding } from "../src/screens/Onboarding";
@@ -71,7 +66,7 @@ const sessionDeps = {
   clearPersistedCaches: async () => {
     await Promise.all([clearPersistedCaches(), legacyStore.clear()]);
   },
-  clearLocalPreferences: () => clearLocalPreferences(prefsStore),
+  clearLocalPreferences: () => prefsStore.getState().clearPreferences(),
 };
 
 interface NativeSession {
