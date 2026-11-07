@@ -55,6 +55,28 @@ describe("the install's token store", () => {
     expect(await launch(phone).read()).toEqual(TOKEN);
   });
 
+  it("keeps a token the previous build saved, and stamps it with this install's id", async () => {
+    // Builds before tokens carried an install id marked the install once their first purge landed.
+    const update = device({ "cue.trakt.token": JSON.stringify(TOKEN) });
+    await update.bulk.write("cue.install-id", "an-earlier-build");
+
+    expect(await launch(update).read()).toEqual(TOKEN);
+    await new Promise(setImmediate);
+    expect(JSON.parse(update.secure.values.get("cue.trakt.token") ?? "null")).toEqual({
+      ...TOKEN,
+      install: expect.any(String),
+    });
+    expect(await launch(update).read()).toEqual(TOKEN);
+  });
+
+  it("reads no token without an install id when no earlier build marked the install", async () => {
+    const phone = device();
+    await launch(phone).read();
+    await phone.secure.write("cue.trakt.token", JSON.stringify(TOKEN));
+
+    expect(await launch(phone).read()).toBeNull();
+  });
+
   it("keeps a token a sign-in saved when the launch dies right after saving it", async () => {
     // The Keychain still holds an earlier install's token and refuses to delete it.
     const reinstall = device({ "cue.trakt.token": JSON.stringify(TOKEN) });

@@ -142,7 +142,7 @@ describe("the native composition root", () => {
   });
 
   it("reads the Keychain once on a returning launch", async () => {
-    bulkBacking.values.set("cue.install-id", "an-earlier-install");
+    bulkBacking.values.set("cue.install", "an-earlier-install");
     secureBacking.set("cue.trakt.token", SAVED_TOKEN);
     const read = jest.spyOn(secureStoreModule, "getItemAsync");
 
@@ -158,7 +158,7 @@ describe("the native composition root", () => {
       now: new Date("2026-10-14T12:00:00Z"),
       doNotFake: ["queueMicrotask", "nextTick", "setImmediate"],
     });
-    bulkBacking.values.set("cue.install-id", "an-earlier-install");
+    bulkBacking.values.set("cue.install", "an-earlier-install");
     secureBacking.set(
       "cue.trakt.token",
       JSON.stringify({ ...JSON.parse(SAVED_TOKEN), created_at: Math.floor(Date.now() / 1000) }),
@@ -207,7 +207,7 @@ describe("the native composition root", () => {
     ["an earlier build", "1.2.2 (44)"],
     ["an earlier update of this build", "1.2.3 (45)"],
   ])("drops a cache persisted by %s", async (_, buster) => {
-    bulkBacking.values.set("cue.install-id", "an-earlier-install");
+    bulkBacking.values.set("cue.install", "an-earlier-install");
     secureBacking.set("cue.trakt.token", SAVED_TOKEN);
     queryClient.setQueryData(queryKeys.library(), { entries: [entry()], isPartial: false });
     bulkBacking.values.set(
@@ -260,7 +260,7 @@ describe("the native composition root", () => {
   });
 
   it("deletes anything left in the legacy store when the session ends", async () => {
-    bulkBacking.values.set("cue.install-id", "an-earlier-install");
+    bulkBacking.values.set("cue.install", "an-earlier-install");
     secureBacking.set("cue.trakt.token", SAVED_TOKEN);
     await render(<RootLayout />);
     await screen.findByTestId("router-stack");
@@ -297,7 +297,7 @@ describe("the native composition root", () => {
   });
 
   it("reaches a screen and says so when the Keychain refuses the token read", async () => {
-    bulkBacking.values.set("cue.install-id", "an-earlier-install");
+    bulkBacking.values.set("cue.install", "an-earlier-install");
     jest
       .spyOn(secureStoreModule, "getItemAsync")
       .mockRejectedValue(new Error("errSecMissingEntitlement"));
