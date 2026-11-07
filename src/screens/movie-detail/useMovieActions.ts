@@ -7,12 +7,13 @@ import type { MoviePlay } from "@/core/domain/reversal";
 import {
   buildMarkMovieOp,
   buildRemoveHistoryPlayOp,
+  buildUndoAddOp,
   buildUnmarkMovieOp,
 } from "@/core/domain/write-queue/ops";
 import { replacedPlays } from "@/core/domain/write-queue/receipt";
 import type { QueuedOp } from "@/core/domain/write-queue/types";
 import { REPLACED_COPY } from "@/core/hooks/replaced-copy";
-import { planLandedUndo, resolveMovieUnmark, waitUntilSettled } from "@/core/hooks/resolve-unmark";
+import { planLandedUndo, resolveMovieUnmark } from "@/core/hooks/resolve-unmark";
 import { useOptimisticWrite } from "@/core/hooks/useOptimisticWrite";
 import { useSetWatchlisted } from "@/core/hooks/useSetWatchlisted";
 import { movieLibraryQuery } from "@/core/queries/library";
@@ -89,6 +90,7 @@ export function useMovieActions(header: MovieHeader) {
     const plan = await planLandedUndo(
       runtime,
       [op.id],
+      false,
       async () => {
         plays = await runtime.loadMoviePlays(header.movieId);
         return plays;
@@ -117,26 +119,25 @@ export function useMovieActions(header: MovieHeader) {
     };
   };
   const reverseMark = async (op: QueuedOp) => {
-    if (!(await waitUntilSettled(runtime, [op.id]))) {
-      error();
-      return;
-    }
     const state = runtime.writeState(op.id);
-    if (state !== "unsent" && state !== "done") {
+    if (state === "failed" || state === "cancelled") {
       revalidate();
       return;
     }
     const plan =
-      state === "unsent"
-        ? {
-            inverse: buildUnmarkMovieOp({
-              opId: runtime.newId(),
-              ids: header.ids,
-              watchedAt: op.watchedAt ?? "",
-            }),
+      state === "done"
+        ? await reverseLanded(op)
+        : {
+            inverse:
+              state === "sent"
+                ? buildUndoAddOp(runtime.newId(), op)
+                : buildUnmarkMovieOp({
+                    opId: runtime.newId(),
+                    ids: header.ids,
+                    watchedAt: op.watchedAt ?? "",
+                  }),
             remainingAt: null,
-          }
-        : await reverseLanded(op);
+          };
     if (plan === null) return;
     if (plan.inverse === undefined) {
       revalidate();

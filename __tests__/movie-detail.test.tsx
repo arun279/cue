@@ -209,16 +209,16 @@ it("cancels a deferred mark after remount without reading live plays", async () 
   expect(runtime.submit.mock.calls[0]?.[0].toState).toBe("absent");
 });
 
-it("removes nothing while the mark it would undo may still be on its way to Trakt", async () => {
+it("queues the Undo of a mark that may already be on Trakt, to take back only that mark's play", async () => {
   jest.useFakeTimers();
   try {
-    const { runtime } = pendingMovieRuntime(true);
+    const { runtime, pending } = pendingMovieRuntime(true);
     await mount(runtime);
     await fireEvent.press(await screen.findByTestId(TEST_IDS.movieMark));
     await act(() => jest.advanceTimersByTimeAsync(10_000));
-    expect(screen.getByText("Couldn't update this movie. Please try again.")).toBeOnTheScreen();
-    expect(runtime.submit).not.toHaveBeenCalled();
-    expect(screen.getByTestId(TEST_IDS.movieMark)).toBeChecked();
+    expect(runtime.submit.mock.calls.map(([op]) => op.undoes)).toEqual([pending.request]);
+    expect(screen.queryByText("Couldn't update this movie. Please try again.")).toBeNull();
+    expect(screen.getByTestId(TEST_IDS.movieMark)).not.toBeChecked();
   } finally {
     jest.useRealTimers();
   }

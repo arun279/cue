@@ -86,6 +86,7 @@ const WRITES: Readonly<Record<Write, () => QueuedOp | readonly QueuedOp[]>> = {
   buildAddEpisodePlayOp: () => ops.buildAddEpisodePlayOp(history),
   buildMarkMovieOp: () => ops.buildMarkMovieOp(history),
   buildUnmarkMovieOp: () => ops.buildUnmarkMovieOp(history),
+  buildUndoAddOp: () => ops.buildUndoAddOp("undo", ops.buildMarkEpisodeOp(history)),
   buildRemoveHistoryPlayOp: () => ops.buildRemoveHistoryPlayOp({ opId: "op", ids: [1], restore }),
   buildRemovePlaysOp: () =>
     ops.buildRemovePlaysOp({

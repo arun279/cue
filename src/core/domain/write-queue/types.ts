@@ -18,4 +18,6 @@ export interface QueuedOp {
   readonly watchedAt: string | null;
   readonly fromState: "present" | "absent";
   readonly toState: "present" | "absent";
+  /** The history add this write takes back: only the plays that add made are removed, found when it is sent. */
+  readonly undoes?: RequestDescriptor;
 }

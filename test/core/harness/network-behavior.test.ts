@@ -240,6 +240,7 @@ describe("write receipts", () => {
     const undo = await planLandedUndo(
       cue,
       ["first"],
+      true,
       () => cue.loadEpisodePlays(watched.trakt),
       () => at,
       (play) => play.episodeTrakt,

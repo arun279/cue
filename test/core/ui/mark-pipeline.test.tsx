@@ -1034,9 +1034,9 @@ describe("queue mark edges", () => {
   it("does not refetch a mark that lands while its Undo is still resolving", async () => {
     let land: (outcome: "done") => void = () => {};
     const fake = fakeRuntime({
-      submit: () =>
+      submit: (op) =>
         new Promise((resolve) => {
-          land = resolve;
+          if (op.toState === "present") land = resolve;
         }),
     });
     fake.loadEpisodePlays.mockReturnValue(new Promise(() => {}));

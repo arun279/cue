@@ -54,15 +54,23 @@ export type LandedUndo<P> =
   | { readonly kind: "replaced"; readonly count: number }
   | { readonly kind: "none" };
 
+/**
+ * Whether the plays at a mark's own minute can only be the mark's: the item had none before it, or
+ * the account keeps every play, so the mark cannot have replaced an earlier one.
+ */
+export const canRemoveOwnPlays = (priorPlay: boolean): boolean =>
+  !priorPlay || usePlayPolicy.getState().policy === "multiple";
+
 export async function planLandedUndo<P extends PlayRef>(
   runtime: CueRuntime,
   opIds: readonly string[],
+  priorPlay: boolean,
   loadPlays: () => Promise<readonly P[]>,
   sentAt: (play: P) => string | null,
   itemOf: (play: P) => number,
 ): Promise<LandedUndo<P> | null> {
   const receipts = opIds.map((id) => runtime.writeReceipt(id));
-  if (receipts.includes(null) && usePlayPolicy.getState().policy !== "multiple") return null;
+  if (receipts.includes(null) && !canRemoveOwnPlays(priorPlay)) return null;
   const replaced = receipts.reduce((total, receipt) => total + replacedPlays(receipt), 0);
   if (replaced > 0) return { kind: "replaced", count: replaced };
   let plays: readonly P[];

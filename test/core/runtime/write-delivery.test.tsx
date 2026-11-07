@@ -41,6 +41,17 @@ const EVERY = Number.POSITIVE_INFINITY;
 // The seed's first show has its first 20 episodes watched; this is its 21st.
 const NEXT_EPISODE = 880120;
 
+/** A runtime whose writes each get their own id, as the app's do. */
+function distinctIds() {
+  let made = 0;
+  return buildRuntime({
+    newId: () => {
+      made += 1;
+      return `op-${made}`;
+    },
+  });
+}
+
 const posts = (path: string) =>
   fake.requests.filter((entry) => entry.method === "POST" && entry.path === path);
 
@@ -92,7 +103,7 @@ it("gives up a write Trakt keeps refusing, and sends the writes queued behind it
 });
 
 it("rolls a write back and says so when Trakt refuses it after its screen has gone", async () => {
-  const cue = await buildRuntime();
+  const cue = await distinctIds();
   const queryClient = createQueryClient();
   await queryClient.fetchQuery(libraryQuery(cue));
   const hidden = () =>
@@ -156,7 +167,7 @@ const SECOND_EPISODE = 880101;
 
 /** The show started again from S1E1, which Up Next offers once more. */
 async function restarted() {
-  const cue = await buildRuntime();
+  const cue = await distinctIds();
   const queryClient = createQueryClient();
   const library = await queryClient.fetchQuery(libraryQuery(cue));
   const entry = library.entries.find((candidate) => candidate.showId === SHOW);
@@ -273,7 +284,7 @@ it("undoes a catch-up whose answer was lost by removing only the plays it added"
 });
 
 it("shows a mark Trakt refused later as not watched, however the library is read again", async () => {
-  const cue = await buildRuntime();
+  const cue = await distinctIds();
   const queryClient = createQueryClient();
   const library = await queryClient.fetchQuery(libraryQuery(cue));
   const entry = library.entries.find((candidate) => candidate.showId === SHOW);
@@ -292,4 +303,130 @@ it("shows a mark Trakt refused later as not watched, however the library is read
     ?.entries.find((candidate) => candidate.showId === SHOW);
   expect(reread?.nextEpisode?.ids.trakt).toBe(NEXT_EPISODE);
   expect(reread?.completed).toBe(entry.completed);
+});
+
+/** No connection for the next `posts` history writes: none of them reaches Trakt. */
+const offlineFor = (posts: number) =>
+  fake.drop({ method: "POST", path: HISTORY, times: posts }, "before");
+
+/** Runs `action` while the queue's waits and pacing pass, as they would for a person waiting. */
+async function waited(action: () => Promise<unknown>): Promise<void> {
+  await act(async () => {
+    const running = action();
+    await vi.advanceTimersByTimeAsync(15_000);
+    await running;
+  });
+}
+
+async function online(cue: CueRuntime): Promise<void> {
+  await waited(() => cue.flushWrites());
+}
+
+async function libraryAt() {
+  vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+  vi.setSystemTime(new Date(AT));
+  const cue = await distinctIds();
+  const queryClient = createQueryClient();
+  const library = await queryClient.fetchQuery(libraryQuery(cue));
+  const entry = library.entries.find((candidate) => candidate.showId === SHOW);
+  if (entry === undefined) throw new Error("the show needs to be in the library");
+  return { cue, queryClient, entry, wrapper: withRuntime(cue, queryClient) };
+}
+
+it("applies an Undo made offline once Trakt is reachable, so a new episode ends unwatched", async () => {
+  const { cue, entry, wrapper } = await libraryAt();
+  offlineFor(2);
+  const up = renderHook(useMarkWatched, { wrapper });
+  await waited(() => up.result.current.mark(entry));
+  await waited(() => up.result.current.reverse(SHOW));
+  await online(cue);
+
+  expect(await cue.loadEpisodePlays(NEXT_EPISODE)).toEqual([]);
+});
+
+it.each([
+  [true, 2],
+  [false, 1],
+])("keeps an episode's earlier play when an offline mark is undone and the account's play setting is unknown (Multiple Plays %s)", async (multiplePlays, plays) => {
+  fake.reset({ multiplePlays });
+  const { cue, queryClient, entry, wrapper } = await libraryAt();
+  const again = {
+    ...entry,
+    completed: 0,
+    nextEpisode: entry.nextEpisode && {
+      ...entry.nextEpisode,
+      season: 1,
+      number: 1,
+      ids: { trakt: FIRST_EPISODE },
+    },
+  };
+  queryClient.setQueryData(
+    libraryQuery(cue).queryKey,
+    (data) =>
+      data && { ...data, entries: data.entries.map((e) => (e.showId === SHOW ? again : e)) },
+  );
+  offlineFor(2);
+  const up = renderHook(useMarkWatched, { wrapper });
+  await waited(() => up.result.current.mark(again));
+  await waited(() => up.result.current.reverse(SHOW));
+  await online(cue);
+
+  expect(await cue.loadEpisodePlays(FIRST_EPISODE)).toHaveLength(plays);
+  expect(posts("/sync/history/remove")).toHaveLength(0);
+});
+
+const THIRD_SEASON = (number: number, trakt: number) => ({
+  ...unwatched(number, trakt),
+  season: 3,
+});
+
+it("applies a show-screen Undo made offline once Trakt is reachable", async () => {
+  const { cue, wrapper } = await libraryAt();
+  offlineFor(2);
+  const show = renderHook(useMarkSeason, { wrapper });
+  await waited(() =>
+    show.result.current.toggleEpisode(TARGET, THIRD_SEASON(5, NEXT_EPISODE), {
+      undoLabel: "S3 E5 marked",
+    }),
+  );
+  await waited(() => show.result.current.undo());
+  await online(cue);
+
+  expect(await cue.loadEpisodePlays(NEXT_EPISODE)).toEqual([]);
+});
+
+it("applies a catch-up Undo made offline once Trakt is reachable", async () => {
+  const { cue, wrapper } = await libraryAt();
+  const season: SeasonView = {
+    number: 3,
+    title: "Season 3",
+    isSpecial: false,
+    isHidden: false,
+    episodes: [THIRD_SEASON(5, NEXT_EPISODE), THIRD_SEASON(6, NEXT_EPISODE + 1)],
+    airedCount: 2,
+    completedCount: 0,
+  };
+  offlineFor(2);
+  const show = renderHook(useMarkSeason, { wrapper });
+  await waited(() => show.result.current.markUpToHere(TARGET, [season], { season: 3, number: 6 }));
+  await waited(() => show.result.current.undo());
+  await online(cue);
+
+  expect([
+    await cue.loadEpisodePlays(NEXT_EPISODE),
+    await cue.loadEpisodePlays(NEXT_EPISODE + 1),
+  ]).toEqual([[], []]);
+});
+
+it("undoes a mark whose answer was lost after it was sent again, for an episode never played before", async () => {
+  const { cue, entry, wrapper } = await libraryAt();
+  fake.drop({ method: "POST", path: HISTORY }, "after");
+  const up = renderHook(useMarkWatched, { wrapper });
+  await waited(() => up.result.current.mark(entry));
+  await online(cue);
+  expect(cue.writeState("op-1")).toBe("done");
+  await waited(() => up.result.current.reverse(SHOW));
+  await online(cue);
+
+  expect(await cue.loadEpisodePlays(NEXT_EPISODE)).toEqual([]);
 });

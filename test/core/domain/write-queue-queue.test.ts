@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildAddEpisodePlayOp,
   buildMarkEpisodeOp,
+  buildUndoAddOp,
   buildUnmarkEpisodeOp,
 } from "@/core/domain/write-queue/ops";
 import { WriteQueue, type WriteQueueDeps } from "@/core/domain/write-queue/queue";
@@ -25,7 +26,10 @@ interface Harness {
   sent: () => string[];
 }
 
-function harness(answer: (req: unknown) => Promise<DispatchResult>): Harness {
+function harness(
+  answer: (req: unknown) => Promise<DispatchResult>,
+  ownPlays: WriteQueueDeps["ownPlays"] = () => Promise.resolve([]),
+): Harness {
   const clock = fakeClock(0);
   const times: number[] = [];
   const slept: number[] = [];
@@ -38,7 +42,7 @@ function harness(answer: (req: unknown) => Promise<DispatchResult>): Harness {
     return answer(req);
   });
   return {
-    deps: { dispatch, sleep, now: clock.now, settle: () => true },
+    deps: { dispatch, sleep, now: clock.now, settle: () => true, ownPlays },
     dispatch,
     clock,
     times,
@@ -289,6 +293,56 @@ describe("WriteQueue coalescing", () => {
     expect(q.size).toBe(5);
     await q.flush();
     expect(states(q, "a", "b", "c", "d", "e")).toEqual(["done", "done", "done", "done", "done"]);
+  });
+});
+
+describe("WriteQueue taking back an add that may be on Trakt", () => {
+  it("removes only the rows the add made, read once the add has gone", async () => {
+    const order: string[] = [];
+    const h = harness(ok, (add, watchedAt) => {
+      order.push(`read ${JSON.stringify(add.body)} at ${watchedAt}`);
+      return Promise.resolve([11, 12]);
+    });
+    h.dispatch.mockImplementation(async (req: unknown) => {
+      order.push(`send ${JSON.stringify(req)}`);
+      return dispatchResult(200);
+    });
+    const added = mark("a", 1);
+    const q = new WriteQueue(h.deps, [added]);
+    q.enqueue(buildUndoAddOp("undo", added));
+    await q.flush();
+    expect(order).toEqual([
+      `send ${JSON.stringify(added.request)}`,
+      `read ${JSON.stringify(added.request.body)} at ${WATCHED_AT}`,
+      `send ${JSON.stringify({ method: "POST", path: "/sync/history/remove", body: { ids: [11, 12] } })}`,
+    ]);
+    expect(states(q, "a", "undo")).toEqual(["done", "done"]);
+  });
+
+  it("sends nothing when the add left no play to remove", async () => {
+    const h = harness(ok);
+    const added = mark("a", 1);
+    const q = new WriteQueue(h.deps, [added]);
+    q.enqueue(buildUndoAddOp("undo", added));
+    await q.flush();
+    expect(h.dispatch).toHaveBeenCalledTimes(1);
+    expect(q.stateOf("undo")).toBe("done");
+  });
+
+  it("keeps the undo first in line while the add's history cannot be read", async () => {
+    let readable = false;
+    const h = harness(ok, () =>
+      readable ? Promise.resolve([11]) : Promise.reject(new Error("offline")),
+    );
+    const added = mark("a", 1);
+    const q = new WriteQueue(h.deps, [added]);
+    q.enqueue(buildUndoAddOp("undo", added));
+    await q.flush();
+    expect(states(q, "a", "undo")).toEqual(["done", "sent"]);
+    readable = true;
+    await q.flush();
+    expect(q.stateOf("undo")).toBe("done");
+    expect(h.dispatch).toHaveBeenCalledTimes(2);
   });
 });
 

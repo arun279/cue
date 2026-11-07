@@ -1,9 +1,15 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 import { queryKeys } from "../data/query-keys";
-import { advancePastNext, epCode, type LibraryEntry } from "../domain/model/library";
+import {
+  advancePastNext,
+  epCode,
+  type LibraryEntry,
+  playsOnlyInProgress,
+} from "../domain/model/library";
 import {
   buildMarkEpisodeOp,
+  buildUndoAddOp,
   buildUnmarkEpisodeOp,
   episodeItemKey,
 } from "../domain/write-queue/ops";
@@ -45,7 +51,12 @@ import {
 } from "./library-cache";
 import type { OptimisticEffects } from "./optimistic-write";
 import { REPLACED_COPY } from "./replaced-copy";
-import { planLandedUndo, removeEpisodePlays, waitUntilSettled } from "./resolve-unmark";
+import {
+  canRemoveOwnPlays,
+  planLandedUndo,
+  removeEpisodePlays,
+  waitUntilSettled,
+} from "./resolve-unmark";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 import { useResumeOnMark } from "./useResumeOnMark";
 
@@ -157,11 +168,16 @@ export function useMarkWatched(): MarkWatched {
   );
 
   const undoLanded = useCallback(
-    async (record: MarkRecord, effects: OptimisticEffects): Promise<SubmitOutcome | null> => {
+    async (
+      record: MarkRecord,
+      priorPlay: boolean,
+      effects: OptimisticEffects,
+    ): Promise<SubmitOutcome | null> => {
       const episode = record.episodeIds.trakt;
       const plan = await planLandedUndo(
         runtime,
         [record.opId],
+        priorPlay,
         () => runtime.loadEpisodePlays(episode),
         () => record.watchedAt,
         (play) => play.episodeTrakt,
@@ -191,21 +207,24 @@ export function useMarkWatched(): MarkWatched {
         revalidate: () =>
           revalidate(record.showId, { season: record.season, number: record.number }),
       };
-      if (!(await waitUntilSettled(runtime, [record.opId]))) {
-        reapplyMark(record);
-        showUndoFailed(haptics, record.title);
-        return null;
+      const priorPlay = !playsOnlyInProgress(record.beforeMark);
+      let state = runtime.writeState(record.opId);
+      if (state === "sent" && !canRemoveOwnPlays(priorPlay)) {
+        if (!(await waitUntilSettled(runtime, [record.opId]))) {
+          reapplyMark(record);
+          showUndoFailed(haptics, record.title);
+          return null;
+        }
+        state = runtime.writeState(record.opId);
       }
-      const state = runtime.writeState(record.opId);
+      const write = { opId: record.opId, ids: record.episodeIds, watchedAt: record.watchedAt };
       if (state === "unsent") {
-        const op = buildUnmarkEpisodeOp({
-          opId: runtime.newId(),
-          ids: record.episodeIds,
-          watchedAt: record.watchedAt,
-        });
-        return submit([op], effects);
+        return submit([buildUnmarkEpisodeOp({ ...write, opId: runtime.newId() })], effects);
       }
-      return state === "done" ? undoLanded(record, effects) : null;
+      if (state === "sent") {
+        return submit([buildUndoAddOp(runtime.newId(), buildMarkEpisodeOp(write))], effects);
+      }
+      return state === "done" ? undoLanded(record, priorPlay, effects) : null;
     },
     [runtime, submit, reapplyMark, revalidate, haptics, resume, undoLanded],
   );

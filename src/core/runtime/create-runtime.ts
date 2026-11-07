@@ -57,9 +57,11 @@ import { sleep } from "../domain/abortable";
 import { parseIncidents, type ReadIncident, recordIncident } from "../domain/diagnostics";
 import type { Token } from "../domain/model/token";
 import type { UserProfile } from "../domain/model/user";
+import { markedAt, ownPlays } from "../domain/reversal";
 import type { LastActivities } from "../domain/sync-activities";
+import { historiesOf, markedEpisodesIn } from "../domain/write-queue/ops";
 import { WriteQueue } from "../domain/write-queue/queue";
-import type { QueuedOp } from "../domain/write-queue/types";
+import type { QueuedOp, RequestDescriptor } from "../domain/write-queue/types";
 import { createJsonStore } from "../ports/json-store";
 import type { KeyValueStore } from "../ports/kv";
 import type { Reminders } from "../ports/reminders";
@@ -101,6 +103,32 @@ export interface RuntimeDeps {
   readonly clearPersistedCaches: () => Promise<void>;
   readonly clearLocalPreferences: () => void;
   readonly reminders: Pick<Reminders, "cancelAll">;
+}
+
+/** The history rows a history add made: in each item it names, the newest play at its watched_at. */
+async function ownPlayIds(
+  client: TraktClient,
+  add: RequestDescriptor,
+  watchedAt: string,
+): Promise<number[]> {
+  const marked = markedEpisodesIn(add, watchedAt);
+  const rows = await Promise.all(
+    historiesOf(add).map(async ({ kind, trakt }) => {
+      const history = unwrapRead(await getItemPlays(client, kind, trakt), "history");
+      return kind === "movies"
+        ? ownPlays(
+            assembleMoviePlays(history),
+            () => watchedAt,
+            () => trakt,
+          )
+        : ownPlays(
+            assembleEpisodePlays(history),
+            markedAt(marked === null ? [] : [marked]),
+            (play) => play.episodeTrakt,
+          );
+    }),
+  );
+  return rows.flat().map((play) => play.historyId);
 }
 
 /** Every client store that holds something of one account. */
@@ -194,6 +222,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       sleep: (ms) => sleep(ms, signal),
       now: Date.now,
       settle: receipts.settle,
+      ownPlays: (add, watchedAt) => ownPlayIds(client, add, watchedAt),
     },
     (await opLogStore.read()) ?? [],
   );

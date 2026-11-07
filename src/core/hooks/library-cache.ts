@@ -2,7 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { invalidateShowProgress } from "../data/query-invalidation";
 import { queryKeys } from "../data/query-keys";
 import type { EpisodeDetail } from "../domain/episode-detail";
-import type { LibraryEntry } from "../domain/model/library";
+import { type LibraryEntry, playsOnlyInProgress } from "../domain/model/library";
 import {
   type EpisodeMatch,
   patchEpisodes,
@@ -70,6 +70,14 @@ export function refreshShowProgress(
 
 export function patchLibraryHidden(qc: QueryClient, showId: number, hidden: boolean): void {
   patchLibraryEntry(qc, showId, (e) => ({ ...e, hidden }));
+}
+
+/** Whether the show may have a play its progress does not count, as a show watched again from the start has. */
+export function mayHavePlaysOutsideProgress(qc: QueryClient, showId: number): boolean {
+  const entry = qc
+    .getQueryData<UpNextData>(queryKeys.library())
+    ?.entries.find((e) => e.showId === showId);
+  return entry === undefined || !playsOnlyInProgress(entry);
 }
 
 export function isLibraryHidden(qc: QueryClient, showId: number): boolean {

@@ -1,4 +1,5 @@
 import { classifyStatus, computePacingDelay, RETRY_AFTER_MAX_MS } from "./classify";
+import { removePlaysRequest } from "./ops";
 import type { DispatchResult, QueuedOp, RequestDescriptor } from "./types";
 
 const MAX_ATTEMPTS_PER_FLUSH = 5;
@@ -16,6 +17,8 @@ export interface WriteQueueDeps {
   readonly sleep: (ms: number) => Promise<void>;
   readonly now: () => number;
   readonly settle: (op: QueuedOp, result: DispatchResult) => boolean;
+  /** The history rows `add` made, read from Trakt: its items' plays at `watchedAt`. */
+  readonly ownPlays: (add: RequestDescriptor, watchedAt: string) => Promise<readonly number[]>;
 }
 
 interface Delivery {
@@ -120,13 +123,27 @@ export class WriteQueue {
     }
   }
 
+  /** What a write sends, worked out when it goes; null when nothing is left to send. */
+  private async requestOf({ request, undoes, watchedAt }: QueuedOp) {
+    if (undoes === undefined || watchedAt === null) return request;
+    const ids = await this.deps.ownPlays(undoes, watchedAt);
+    return ids.length === 0 ? null : removePlaysRequest(ids);
+  }
+
   /** The write's outcome, or null to keep it first in line for a later flush. */
   private async deliver(next: Delivery): Promise<WriteOutcome | null> {
+    let request: RequestDescriptor | null;
+    try {
+      request = await this.requestOf(next.op);
+    } catch {
+      return null;
+    }
+    if (request === null) return "done";
     for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_FLUSH; attempt += 1) {
       await this.pace();
       let result: DispatchResult;
       try {
-        result = await this.deps.dispatch(next.op.request);
+        result = await this.deps.dispatch(request);
       } catch {
         return null;
       }

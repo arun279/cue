@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { buildMarkEpisodeOp, buildUndoAddOp } from "@/core/domain/write-queue/ops";
 import { OP_LOG_KEY } from "@/core/ports/storage-keys";
 import { memoryKeyValueStore } from "../support/stores";
 import { FIXTURE_NOW } from "../trakt-fake/account.ts";
@@ -73,7 +74,10 @@ const STORED = [
 ];
 
 /** The write reached Trakt and applied, and only its answer was lost. */
-async function landed(op: (typeof STORED)[number]): Promise<void> {
+async function landed(op: {
+  readonly id: string;
+  readonly request: { readonly path: string; readonly body: unknown };
+}): Promise<void> {
   vi.setSystemTime(Date.now() + 5000);
   const response = await fake.fetch(`https://api.trakt.tv${op.request.path}`, {
     method: "POST",
@@ -119,4 +123,22 @@ it("sends every write the last run stored again, in order, and Trakt keeps one c
     STORED.map((op) => [op.request.path, true]),
   );
   expect(await trakt()).toEqual(before);
+});
+
+it("applies an Undo the last run queued behind its mark, removing only that mark's play", async () => {
+  vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+  vi.setSystemTime(FIXTURE_NOW);
+  const earlier = (await rows("/sync/history/episodes/880100")).length;
+  const mark = buildMarkEpisodeOp({ opId: "mark", ids: { trakt: 880100 }, watchedAt });
+  await landed(mark);
+  const kv = memoryKeyValueStore({
+    [OP_LOG_KEY]: JSON.stringify([mark, buildUndoAddOp("undo", mark)]),
+  });
+  vi.setSystemTime(Date.now() + 60_000);
+
+  const runtime = await buildRuntime({ kv });
+  await vi.advanceTimersByTimeAsync(5_000);
+
+  expect(runtime.pendingWrites()).toBe(0);
+  expect(await rows("/sync/history/episodes/880100")).toHaveLength(earlier);
 });

@@ -194,8 +194,27 @@ export function buildRemoveWatchlistOp(params: WatchlistOpParams): QueuedOp {
   return watchlistOp("absent", params);
 }
 
+export function removePlaysRequest(ids: readonly number[]): RequestDescriptor {
+  return post(HISTORY_REMOVE, { ids: [...ids] });
+}
+
+/** Takes back a history add that may already be on Trakt, without touching any play it did not make. */
+export function buildUndoAddOp(opId: string, add: QueuedOp): QueuedOp {
+  return {
+    id: opId,
+    itemKey: `undo:${add.id}`,
+    request: removePlaysRequest([]),
+    inverse: add.request,
+    watchedAt: add.watchedAt,
+    fromState: "present",
+    toState: "absent",
+    undoes: add.request,
+  };
+}
+
 interface HistoryBody {
   readonly episodes?: readonly { readonly ids: { readonly trakt: number } }[];
+  readonly movies?: readonly { readonly ids: { readonly trakt: number } }[];
   readonly shows?: readonly {
     readonly ids: { readonly trakt: number };
     readonly seasons: readonly {
@@ -206,8 +225,12 @@ interface HistoryBody {
 }
 
 export function markedEpisodesOf(op: QueuedOp): MarkedEpisodes | null {
-  if (op.request.path !== HISTORY || op.watchedAt === null) return null;
-  const body = op.request.body as HistoryBody;
+  return op.watchedAt === null ? null : markedEpisodesIn(op.request, op.watchedAt);
+}
+
+export function markedEpisodesIn(add: RequestDescriptor, watchedAt: string): MarkedEpisodes | null {
+  if (add.path !== HISTORY) return null;
+  const body = add.body as HistoryBody;
   const traktIds = new Set((body.episodes ?? []).map((item) => item.ids.trakt));
   const positions = new Set(
     (body.shows ?? []).flatMap((show) =>
@@ -217,7 +240,18 @@ export function markedEpisodesOf(op: QueuedOp): MarkedEpisodes | null {
     ),
   );
   if (traktIds.size === 0 && positions.size === 0) return null;
-  return { watchedAt: op.watchedAt, traktIds, positions };
+  return { watchedAt, traktIds, positions };
+}
+
+/** The item histories that hold the plays a history add made. */
+export function historiesOf(add: RequestDescriptor): {
+  readonly kind: "shows" | "episodes" | "movies";
+  readonly trakt: number;
+}[] {
+  const body = add.body as HistoryBody;
+  return (["shows", "episodes", "movies"] as const).flatMap((kind) =>
+    (body[kind] ?? []).map((item) => ({ kind, trakt: item.ids.trakt })),
+  );
 }
 
 /** The shows and episodes a history write names, in what it sends or in what undoes it. */
