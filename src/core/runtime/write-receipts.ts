@@ -14,7 +14,6 @@ import { usePlayPolicy } from "../stores/play-policy-store";
 export interface WriteReceipts {
   settle(op: QueuedOp, result: DispatchResult): boolean;
   receiptOf(opId: string): WriteReceipt | null;
-  clear(): Promise<void>;
 }
 
 export async function createWriteReceipts(kv: KeyValueStore): Promise<WriteReceipts> {
@@ -39,11 +38,5 @@ export async function createWriteReceipts(kv: KeyValueStore): Promise<WriteRecei
     },
 
     receiptOf: (opId) => receipts.get(opId) ?? null,
-
-    async clear() {
-      receipts.clear();
-      usePlayPolicy.setState({ policy: "unknown" });
-      await store.clear();
-    },
   };
 }

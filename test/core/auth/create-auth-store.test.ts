@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type AuthDeps, createAuthStore } from "@/core/auth/create-auth-store";
+import type { AuthStore } from "@/core/auth/store";
 import { pollDeviceToken, requestDeviceCode, revokeToken } from "@/core/data/auth/oauth";
 import { createPkcePair } from "@/core/data/auth/pkce";
 import { createTokenStore, type TokenStore } from "@/core/ports/token-store";
@@ -24,6 +25,7 @@ function authDeps(tokenStore: TokenStore): AuthDeps {
     clientId: "a-public-client-id",
     redirectUri: "cue://auth/callback",
     traktBaseUrl: undefined,
+    clearAccount: () => Promise.resolve(),
   };
 }
 
@@ -41,9 +43,30 @@ async function connectedSession() {
   return { token, tokens, store };
 }
 
+const NEXT = {
+  access_token: "next-access",
+  refresh_token: "next-refresh",
+  created_at: 1_700_100_000,
+  expires_in: 604_800,
+};
+
+/** Another account approves a device code, with no poll interval to wait out. */
+async function connectNext(store: AuthStore): Promise<void> {
+  vi.mocked(createPkcePair).mockResolvedValue({ verifier: "verifier", challenge: "challenge" });
+  vi.mocked(requestDeviceCode).mockResolvedValue({
+    deviceCode: "next-device",
+    userCode: "NEXT",
+    verificationUrl: "https://trakt.test/activate",
+    intervalMs: 0,
+    expiresInMs: 60_000,
+  });
+  vi.mocked(pollDeviceToken).mockResolvedValue({ status: "success", token: NEXT });
+  await store.getState().connectWithDeviceCode();
+}
+
 describe("leaving a session", () => {
   afterEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
   });
 
   it("revokes and forgets the token on sign-out, even when the revoke fails", async () => {
@@ -61,6 +84,45 @@ describe("leaving a session", () => {
     expect(revokeToken).not.toHaveBeenCalled();
     expect(await tokens.read()).toBeNull();
     expect(store.getState().phase).toBe("onboarding");
+  });
+});
+
+describe("starting a session", () => {
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("clears what the last account left on the device before saving the new token", async () => {
+    const tokens = createTokenStore(memoryKeyValueStore());
+    let tokenWhileClearing: unknown = "never cleared";
+    const store = createAuthStore({
+      ...authDeps(tokens),
+      clearAccount: async () => {
+        tokenWhileClearing = await tokens.read();
+      },
+    });
+    await vi.waitFor(() => expect(store.getState().phase).toBe("onboarding"));
+
+    await connectNext(store);
+
+    expect(tokenWhileClearing).toBeNull();
+    expect(store.getState().phase).toBe("connected");
+    expect(await tokens.read()).toEqual(NEXT);
+  });
+
+  it("stays signed out, and says why, when the last account's data cannot be cleared", async () => {
+    const tokens = createTokenStore(memoryKeyValueStore());
+    const store = createAuthStore({
+      ...authDeps(tokens),
+      clearAccount: () => Promise.reject(new Error("storage busy")),
+    });
+    await vi.waitFor(() => expect(store.getState().phase).toBe("onboarding"));
+
+    await connectNext(store);
+
+    expect(store.getState()).toMatchObject({ phase: "onboarding", connectStatus: "error" });
+    expect(store.getState().errorMessage).toEqual(expect.any(String));
+    expect(await tokens.read()).toBeNull();
   });
 });
 

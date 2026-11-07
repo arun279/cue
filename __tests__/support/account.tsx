@@ -52,6 +52,7 @@ export function accountFixture(overrides: Partial<CueRuntime> = {}) {
     clientId: "test",
     redirectUri: "cue://auth/callback",
     traktBaseUrl: undefined,
+    clearAccount: () => Promise.resolve(),
   });
   auth.setState({ disconnect });
   const runtime = {

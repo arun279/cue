@@ -15,6 +15,7 @@ import { HapticsProvider } from "@/core/ports/haptics";
 import { RemindersProvider } from "@/core/ports/reminders";
 import { createTokenStore } from "@/core/ports/token-store";
 import { createPrefsStore, PrefsProvider } from "@/core/prefs/prefs-store";
+import { clearAccount } from "@/core/runtime/create-runtime";
 import { PERSIST_MAX_AGE } from "@/core/runtime/query-cache";
 import { bootNativeStores } from "../src/boot";
 import { NATIVE_REDIRECT_URI, TRAKT_BASE_OVERRIDE, TRAKT_CLIENT_ID } from "../src/config";
@@ -105,6 +106,7 @@ function useNativeSession(): NativeSession | null {
           clientId: TRAKT_CLIENT_ID,
           redirectUri: NATIVE_REDIRECT_URI,
           traktBaseUrl: TRAKT_BASE_OVERRIDE,
+          clearAccount: () => clearAccount(sessionDeps),
         });
         if (bootFailure !== null) store.setState({ errorMessage: bootFailure });
         setSession({ authStore: store, runtimeDeps: { ...sessionDeps, tokenStore } });

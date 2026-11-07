@@ -20,9 +20,13 @@ export interface AuthDeps {
   readonly clientId: string;
   readonly redirectUri: string;
   readonly traktBaseUrl: string | undefined;
+  /** Removes what the device keeps for an account; a sign-in runs it before saving its token. */
+  readonly clearAccount: () => Promise<void>;
 }
 
 const SESSION_UNREADABLE = "Cue could not read your saved sign-in. Connect again to continue.";
+const ACCOUNT_NOT_CLEARED =
+  "Cue couldn't remove the previous account's data from this device. Try again.";
 
 export function createAuthStore(deps: AuthDeps): AuthStore {
   const config: OAuthConfig = {
@@ -49,7 +53,16 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
       toOnboarding();
     }
 
-    function connect(token: Token): void {
+    async function connect(token: Token, attempt: number): Promise<void> {
+      try {
+        await deps.clearAccount();
+      } catch {
+        if (activeAttempt === attempt) {
+          set({ connectStatus: "error", deviceCode: null, errorMessage: ACCOUNT_NOT_CLEARED });
+        }
+        return;
+      }
+      if (activeAttempt !== attempt) return;
       void deps.tokenStore.write(token);
       set({
         phase: "connected",
@@ -59,10 +72,13 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
       });
     }
 
-    function applyDevicePoll(result: DeviceTokenResult): "pending" | "slow-down" | "done" {
+    async function applyDevicePoll(
+      result: DeviceTokenResult,
+      attempt: number,
+    ): Promise<"pending" | "slow-down" | "done"> {
       if (result.status === "pending" || result.status === "slow-down") return result.status;
       if (result.status === "success") {
-        connect(result.token);
+        await connect(result.token, attempt);
         return "done";
       }
       const messages = {
@@ -87,7 +103,7 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
       if (activeAttempt !== attempt) return "cancelled";
       const result = await poll();
       if (activeAttempt !== attempt) return "cancelled";
-      return applyDevicePoll(result);
+      return applyDevicePoll(result, attempt);
     }
 
     async function pollLoop(code: DeviceCode, verifier: string, attempt: number): Promise<void> {

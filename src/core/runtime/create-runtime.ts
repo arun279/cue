@@ -66,9 +66,10 @@ import { WriteQueue } from "../domain/write-queue/queue";
 import type { QueuedOp } from "../domain/write-queue/types";
 import { createJsonStore } from "../ports/json-store";
 import type { KeyValueStore } from "../ports/kv";
-import { INCIDENTS_KEY, OP_LOG_KEY } from "../ports/storage-keys";
+import { INCIDENTS_KEY, OP_LOG_KEY, PLAY_POLICY_KEY } from "../ports/storage-keys";
 import type { TokenStore } from "../ports/token-store";
 import { resetOwnMarks } from "../stores/own-marks";
+import { usePlayPolicy } from "../stores/play-policy-store";
 import { useReadIncidents } from "../stores/read-incidents-store";
 import type {
   ActivitiesReconcile,
@@ -191,6 +192,20 @@ function createReconcile(client: TraktClient): (op: QueuedOp) => Promise<boolean
   };
 }
 
+/** Removes everything the device keeps for an account, so the next one starts without it. */
+export async function clearAccount(
+  deps: Pick<RuntimeDeps, "kv" | "clearPersistedCaches" | "clearLocalPreferences">,
+): Promise<void> {
+  await Promise.all(
+    [OP_LOG_KEY, ACTIVITIES_KEY, INCIDENTS_KEY, PLAY_POLICY_KEY].map((key) => deps.kv.remove(key)),
+  );
+  useReadIncidents.setState({ incidents: [] });
+  usePlayPolicy.setState({ policy: "unknown" });
+  resetOwnMarks();
+  await deps.clearPersistedCaches();
+  deps.clearLocalPreferences();
+}
+
 export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
   const session = new AbortController();
   const { signal } = session;
@@ -214,21 +229,10 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
   const activitiesStore = createJsonStore<LastActivities>(kv, ACTIVITIES_KEY);
   const receipts = await createWriteReceipts(kv);
 
-  async function clearAccount(): Promise<void> {
-    await opLogStore.clear();
-    await activitiesStore.clear();
-    await incidentStore.clear();
-    await receipts.clear();
-    useReadIncidents.setState({ incidents: [] });
-    resetOwnMarks();
-    await deps.clearPersistedCaches();
-    deps.clearLocalPreferences();
-  }
-
   let ending: Promise<void> | null = null;
   function end(): Promise<void> {
     session.abort();
-    ending ??= clearAccount().catch((error: unknown) => {
+    ending ??= clearAccount(deps).catch((error: unknown) => {
       ending = null;
       throw error;
     });
