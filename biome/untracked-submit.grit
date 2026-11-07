@@ -1,0 +1,9 @@
+language js
+
+`$runtime.submit($op)` as $call where {
+  register_diagnostic(
+    span=$call,
+    message="Write through useTrackedSubmit, which never hands a write back to screens whose session has ended.",
+    severity="error"
+  )
+}
