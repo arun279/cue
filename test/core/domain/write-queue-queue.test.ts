@@ -5,7 +5,7 @@ import {
   buildUndoAddOp,
   buildUnmarkEpisodeOp,
 } from "@/core/domain/write-queue/ops";
-import { WriteQueue, type WriteQueueDeps } from "@/core/domain/write-queue/queue";
+import { type Settlement, WriteQueue, type WriteQueueDeps } from "@/core/domain/write-queue/queue";
 import type { DispatchResult, QueuedOp } from "@/core/domain/write-queue/types";
 import { dispatchResult, fakeClock } from "./_helpers";
 
@@ -42,7 +42,14 @@ function harness(
     return answer(req);
   });
   return {
-    deps: { dispatch, sleep, now: clock.now, settle: () => true, ownPlays, save: async () => {} },
+    deps: {
+      dispatch,
+      sleep,
+      now: clock.now,
+      settle: () => "applied",
+      ownPlays,
+      save: async () => {},
+    },
     dispatch,
     clock,
     times,
@@ -166,9 +173,9 @@ describe("WriteQueue settles each answer", () => {
       order.push(`send ${JSON.stringify(req).includes('"trakt":1') ? "a" : "b"}`);
       return answered({ added: { episodes: 1 } });
     });
-    const settle = (op: QueuedOp, result: DispatchResult): boolean => {
+    const settle = (op: QueuedOp, result: DispatchResult): Settlement => {
       order.push(`settle ${op.id} ${JSON.stringify(result.data)}`);
-      return true;
+      return "applied";
     };
     await new WriteQueue({ ...h.deps, settle }, [mark("a", 1), mark("b", 2)]).flush();
     expect(order).toEqual([
@@ -190,9 +197,9 @@ describe("WriteQueue settles each answer", () => {
     ];
     const h = harness(() => (answers.shift() ?? ok)());
     const firsts: [string, boolean][] = [];
-    const settle = (op: QueuedOp, _result: DispatchResult, firstSend: boolean): boolean => {
+    const settle = (op: QueuedOp, _result: DispatchResult, firstSend: boolean): Settlement => {
       firsts.push([op.id, firstSend]);
-      return true;
+      return "applied";
     };
     const q = new WriteQueue({ ...h.deps, settle }, []);
     for (const id of ["a", "lost", "refused"]) q.enqueue(mark(id, id.length));
@@ -209,7 +216,7 @@ describe("WriteQueue settles each answer", () => {
 
   it("fails a write whose answer shows Trakt did not apply it", async () => {
     const h = harness(() => Promise.resolve(answered({ not_found: { episodes: [{}] } })));
-    const q = new WriteQueue({ ...h.deps, settle: () => false }, [mark("a", 1)]);
+    const q = new WriteQueue({ ...h.deps, settle: () => "refused" as const }, [mark("a", 1)]);
     await q.flush();
     expect(q.stateOf("a")).toBe("failed");
     expect(h.dispatch).toHaveBeenCalledTimes(1);
@@ -327,8 +334,8 @@ describe("WriteQueue coalescing", () => {
 describe("WriteQueue taking back an add that may be on Trakt", () => {
   it("removes only the rows the add made, read once the add has gone", async () => {
     const order: string[] = [];
-    const h = harness(ok, (undo, undoes) => {
-      order.push(`read ${undoes} at ${undo.watchedAt}`);
+    const h = harness(ok, (undo) => {
+      order.push(`read ${undo.undoes} at ${undo.watchedAt}`);
       return Promise.resolve([11, 12]);
     });
     h.dispatch.mockImplementation(async (req: unknown) => {
@@ -355,6 +362,34 @@ describe("WriteQueue taking back an add that may be on Trakt", () => {
     await q.flush();
     expect(h.dispatch).toHaveBeenCalledTimes(1);
     expect(q.stateOf("undo")).toBe("done");
+  });
+
+  it("sends a take-back's removal only after it was saved, finding its plays again after a failed save", async () => {
+    const order: string[] = [];
+    const h = harness(ok, () => Promise.resolve([11]));
+    h.dispatch.mockImplementation(async (req: unknown) => {
+      order.push(`send ${JSON.stringify(req)}`);
+      return dispatchResult(200);
+    });
+    let saves = 0;
+    const save = async () => {
+      saves += 1;
+      order.push(saves === 1 ? "save refused" : "saved");
+      if (saves === 1) throw new Error("storage full");
+    };
+    const added = mark("a", 1);
+    const q = new WriteQueue({ ...h.deps, save }, [added]);
+    q.enqueue(buildUndoAddOp("undo", added));
+    await q.flush();
+    expect(states(q, "a", "undo")).toEqual(["done", "sent"]);
+    await q.flush();
+    expect(q.stateOf("undo")).toBe("done");
+    expect(order).toEqual([
+      `send ${JSON.stringify(added.request)}`,
+      "save refused",
+      "saved",
+      `send ${JSON.stringify({ method: "POST", path: "/sync/history/remove", body: { ids: [11] } })}`,
+    ]);
   });
 
   it("keeps the undo first in line while the add's history cannot be read", async () => {

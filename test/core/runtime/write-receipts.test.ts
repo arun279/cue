@@ -17,7 +17,7 @@ it("believes what a write added only when Trakt answered its first send", async 
   const receipts = await createWriteReceipts(memoryKeyValueStore());
   const added = answer({ added: { episodes: 1 } });
 
-  expect(receipts.settle(replay, added, false)).toBe(true);
+  expect(receipts.settle(replay, added, false)).toBe("applied");
   expect([receipts.receiptOf("replay"), usePlayPolicy.getState().policy]).toEqual([
     null,
     "unknown",

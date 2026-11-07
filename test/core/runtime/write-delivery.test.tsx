@@ -491,6 +491,29 @@ it("keeps the play another app made when an offline mark replaced it and the mar
   expect(said).toContain("Couldn't save an earlier change to Trakt.");
 });
 
+it("keeps the play a mark replaced when the app is relaunched before that mark's Undo is sent", async () => {
+  fake.reset({ multiplePlays: false });
+  await playedElsewhere("episodes", NEXT_EPISODE, "2026-09-09T20:00:00.000Z");
+  const kv = memoryKeyValueStore();
+  const release = fake.hold({ method: "POST", path: HISTORY });
+  const cue = await buildRuntime({ kv });
+  const mark = buildMarkEpisodeOp({ opId: "mark", ids: { trakt: NEXT_EPISODE }, watchedAt: AT });
+  const marking = cue.submit(mark);
+  await vi.waitFor(() => expect(cue.writeState("mark")).toBe("sent"));
+  void cue.submit(buildHideShowOp({ opId: "hide", ids: { trakt: 8802 } }));
+  void cue.submit(buildUndoAddOp("undo", mark));
+  fake.drop({ method: "POST", path: HIDDEN });
+  release();
+  await marking;
+
+  const relaunched = await buildRuntime({ kv });
+  await relaunched.flushWrites();
+
+  expect(relaunched.pendingWrites()).toBe(0);
+  expect(await relaunched.loadEpisodePlays(NEXT_EPISODE)).toHaveLength(1);
+  expect(posts("/sync/history/remove")).toHaveLength(0);
+});
+
 it("removes only the plays it found before it was first sent when an Undo whose answer was lost goes again", async () => {
   const { cue } = await libraryAt();
   const mark = buildMarkEpisodeOp({ opId: "mark", ids: { trakt: NEXT_EPISODE }, watchedAt: AT });

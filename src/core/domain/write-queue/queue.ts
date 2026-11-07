@@ -12,17 +12,17 @@ export type WriteOutcome = "done" | "failed" | "cancelled";
 /** Where a write stands: not sent yet, sent and possibly on Trakt already, or how it ended. */
 export type WriteState = "unsent" | "sent" | WriteOutcome;
 
+/** What Trakt did with a write it answered; "replaced" is a history add that overwrote an earlier play. */
+export type Settlement = "applied" | "replaced" | "refused";
+
 export interface WriteQueueDeps {
   readonly dispatch: (req: RequestDescriptor) => Promise<DispatchResult>;
   readonly sleep: (ms: number) => Promise<void>;
   readonly now: () => number;
   /** Reads Trakt's answer to `op`. `firstSend` is false once an earlier send of it may have reached Trakt. */
-  readonly settle: (op: QueuedOp, result: DispatchResult, firstSend: boolean) => boolean;
-  /**
-   * The history rows made by the add that `undo` takes back, read after that add was answered; null
-   * when the add replaced an earlier play, which taking it back would lose.
-   */
-  readonly ownPlays: (undo: QueuedOp, undoes: string) => Promise<readonly number[] | null>;
+  readonly settle: (op: QueuedOp, result: DispatchResult, firstSend: boolean) => Settlement;
+  /** The history rows made by the add that `undo` takes back, read after that add was answered. */
+  readonly ownPlays: (undo: QueuedOp) => Promise<readonly number[]>;
   readonly save: (ops: readonly QueuedOp[]) => Promise<void>;
 }
 
@@ -134,19 +134,25 @@ export class WriteQueue {
 
   /** The write's outcome, or null to keep it first in line for a later flush. */
   private async deliver(next: Delivery, firstSend: boolean): Promise<WriteOutcome | null> {
-    const { undoes } = next.op;
-    if (undoes === undefined) return this.send(next, firstSend);
-    let plays: readonly number[] | null;
+    if (next.op.undoes === undefined) return this.send(next, firstSend);
+    let resolved: QueuedOp;
     try {
-      plays = await this.deps.ownPlays(next.op, undoes);
+      const plays = await this.deps.ownPlays(next.op);
+      if (plays.length === 0) return "done";
+      resolved = resolvedUndo(next.op, plays);
+      await this.deps.save(this.snapshot().map((op) => (op === next.op ? resolved : op)));
     } catch {
       return null;
     }
-    if (plays === null) return "failed";
-    if (plays.length === 0) return "done";
-    next.op = resolvedUndo(next.op, plays);
-    await this.deps.save(this.snapshot());
+    next.op = resolved;
     return this.send(next, firstSend);
+  }
+
+  /** Taking back an add that replaced an earlier play would lose that play, so its take-backs fail. */
+  private refuseTakeBacks(addId: string): void {
+    const refused = this.pending.filter(({ op }) => op.undoes === addId);
+    this.pending = this.pending.filter((queued) => !refused.includes(queued));
+    for (const takeBack of refused) this.finish(takeBack, "failed");
   }
 
   private async send(next: Delivery, firstSend: boolean): Promise<WriteOutcome | null> {
@@ -161,8 +167,11 @@ export class WriteQueue {
       }
       const now = this.deps.now();
       const classification = classifyStatus(result, attempt, now);
-      if (classification.kind === "ok")
-        return this.deps.settle(next.op, result, first) ? "done" : "failed";
+      if (classification.kind === "ok") {
+        const settlement = this.deps.settle(next.op, result, first);
+        if (settlement === "replaced") this.refuseTakeBacks(next.op.id);
+        return settlement === "refused" ? "failed" : "done";
+      }
       if (classification.kind === "failed") return "failed";
       first = false;
       this.resumeAt = now + classification.delayMs;

@@ -61,7 +61,6 @@ import { markedAt, ownPlays } from "../domain/reversal";
 import type { LastActivities } from "../domain/sync-activities";
 import { historiesOf, markedEpisodesIn } from "../domain/write-queue/ops";
 import { WriteQueue } from "../domain/write-queue/queue";
-import { replacedPlays, type WriteReceipt } from "../domain/write-queue/receipt";
 import type { QueuedOp } from "../domain/write-queue/types";
 import { createJsonStore } from "../ports/json-store";
 import type { KeyValueStore } from "../ports/kv";
@@ -107,16 +106,12 @@ export interface RuntimeDeps {
   readonly reminders: Pick<Reminders, "cancelAll">;
 }
 
-/**
- * The history rows made by the add `undo` takes back: in each item it names, the newest play at its
- * watched_at. Null when Trakt said the add replaced an earlier play.
- */
+/** The history rows made by the add `undo` takes back: in each item it names, the newest play at its watched_at. */
 async function ownPlayIds(
   client: TraktClient,
   { inverse: add, watchedAt }: QueuedOp,
-  receipt: WriteReceipt | null,
-): Promise<number[] | null> {
-  if (replacedPlays(receipt) > 0 || watchedAt === null) return null;
+): Promise<number[]> {
+  if (watchedAt === null) return [];
   const marked = markedEpisodesIn(add, watchedAt);
   const rows = await Promise.all(
     historiesOf(add).map(async ({ kind, trakt }) => {
@@ -229,7 +224,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       sleep: (ms) => sleep(ms, signal),
       now: Date.now,
       settle: receipts.settle,
-      ownPlays: (undo, undoes) => ownPlayIds(client, undo, receipts.receiptOf(undoes)),
+      ownPlays: (undo) => ownPlayIds(client, undo),
       save: (ops) => opLogStore.write([...ops]),
     },
     (await opLogStore.read()) ?? [],
