@@ -100,13 +100,13 @@ async function adoptToken(deps: LegacyMigrationDeps): Promise<boolean> {
 async function adoptOpLog(deps: LegacyMigrationDeps): Promise<number> {
   const rawOpLog = await deps.legacy.read(OP_LOG_KEY);
   if (rawOpLog === null) return 0;
-  const migrated = parseOpLog(rawOpLog);
-  if (migrated.length > 0) {
-    const opLog = createJsonStore<QueuedOp[]>(deps.bulk, OP_LOG_KEY, (value) =>
-      Array.isArray(value) ? (value as QueuedOp[]) : [],
-    );
-    await opLog.write([...migrated, ...((await opLog.read()) ?? [])]);
-  }
+  const opLog = createJsonStore<QueuedOp[]>(deps.bulk, OP_LOG_KEY, (value) =>
+    Array.isArray(value) ? (value as QueuedOp[]) : [],
+  );
+  const queued = (await opLog.read()) ?? [];
+  const queuedIds = new Set(queued.map((op) => op.id));
+  const migrated = parseOpLog(rawOpLog).filter((op) => !queuedIds.has(op.id));
+  if (migrated.length > 0) await opLog.write([...migrated, ...queued]);
   await deps.legacy.remove(OP_LOG_KEY);
   return migrated.length;
 }

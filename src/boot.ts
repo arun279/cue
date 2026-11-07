@@ -3,6 +3,7 @@ import type { CryptoPort } from "@/core/ports/crypto";
 import type { KeyValueStore } from "@/core/ports/kv";
 import type { LegacyStore } from "@/core/ports/legacy-store";
 import type { PreferenceStorage } from "@/core/ports/preference-storage";
+import { TOKEN_KEY } from "@/core/ports/storage-keys";
 import type { TokenStore } from "@/core/ports/token-store";
 
 const INSTALL_MARKER_KEY = "cue.install-id";
@@ -26,10 +27,13 @@ export interface NativeBootResult {
 export async function bootNativeStores(deps: NativeBootDeps): Promise<NativeBootResult> {
   const purged = (await deps.bulk.read(INSTALL_MARKER_KEY)) === null;
   if (purged) {
-    void deps.tokenStore
+    const adopting = (await deps.legacy.read(TOKEN_KEY)) !== null;
+    const purge = deps.tokenStore
       .clear()
-      .then(() => deps.bulk.write(INSTALL_MARKER_KEY, deps.newInstallId()))
-      .catch(() => {});
+      .then(() => deps.bulk.write(INSTALL_MARKER_KEY, deps.newInstallId()));
+    // A legacy token adopted before the purge lands would be purged again on the next launch.
+    if (adopting) await purge;
+    else void purge.catch(() => {});
   }
 
   const migration = await migrateLegacyData({

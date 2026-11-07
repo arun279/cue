@@ -72,6 +72,20 @@ describe("the native boot", () => {
     expect(reinstall.bulk.values.get("cue.install-id")).toBe("an-install");
   });
 
+  it("keeps a legacy token through the launch after one whose purge failed", async () => {
+    const upgrade = deps({ legacy: { "cue.trakt.token": JSON.stringify(TOKEN) } });
+    const locked = {
+      ...upgrade.tokenStore,
+      clear: () => Promise.reject(new Error("Keychain unavailable")),
+    };
+    await bootNativeStores({ ...upgrade, tokenStore: locked }).catch(() => {});
+
+    await bootNativeStores({ ...upgrade, tokenStore: createTokenStore(upgrade.secure) });
+    await new Promise(setImmediate);
+
+    expect(await createTokenStore(upgrade.secure).read()).toEqual(TOKEN);
+  });
+
   it("leaves a signed-in session alone on every launch after the first", async () => {
     const returning = deps({
       secure: { "cue.trakt.token": JSON.stringify(TOKEN) },
