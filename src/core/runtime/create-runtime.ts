@@ -302,6 +302,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     client.reads;
 
   return {
+    session: signal,
     newId: deps.newId,
     async loadUpNext(): Promise<UpNextData> {
       return { entries: await loadUpNextEntries(client) };
@@ -448,12 +449,11 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       return assembleUserProfile(unwrapRead(await getUserSettings(client), "user settings"));
     },
 
-    async submit(op: QueuedOp): Promise<SubmitOutcome | "ended"> {
+    async submit(op: QueuedOp): Promise<SubmitOutcome> {
       queue.enqueue(op);
       await persistLog();
       const result = await queue.flush();
       await persistLog();
-      if (signal.aborted) return "ended";
       if (result.completed.some((done) => done.id === op.id)) return "done";
       if (result.failed.some((failure) => failure.op.id === op.id)) return "failed";
       return "deferred";

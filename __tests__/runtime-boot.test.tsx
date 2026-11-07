@@ -1,9 +1,11 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { hide } from "expo-splash-screen";
+import type { ReactElement, ReactNode } from "react";
 import { Text } from "react-native";
 import type { KeyValueStore } from "@/core/ports/kv";
 import { TOKEN_KEY } from "@/core/ports/storage-keys";
 import { createTokenStore } from "@/core/ports/token-store";
+import { type CueRuntime, useRuntime } from "@/core/runtime/runtime";
 import { useStartFailure } from "@/core/stores/start-failure-store";
 import { RuntimeBoot } from "../src/screens/RuntimeBoot";
 import { TARGET_MIN } from "../src/ui/tokens";
@@ -42,7 +44,7 @@ function deviceStore(entries: Readonly<Record<string, string>> = {}) {
   return { kv, read, values };
 }
 
-async function launch(kv: KeyValueStore): Promise<void> {
+async function launch(kv: KeyValueStore, app: ReactNode = <Text>queue</Text>): Promise<void> {
   await render(
     <RuntimeBoot
       deps={{
@@ -56,7 +58,7 @@ async function launch(kv: KeyValueStore): Promise<void> {
         reminders: { cancelAll: () => Promise.resolve() },
       }}
     >
-      <Text>queue</Text>
+      {app}
     </RuntimeBoot>,
   );
 }
@@ -144,4 +146,22 @@ it("shows the failure, logs the error a failed start hit, and keeps it for Diagn
     at: expect.any(Number),
     detail: "Error: database is locked",
   });
+});
+
+it("gives its screens a runtime that stops answering once its session has ended", async () => {
+  const seen: CueRuntime[] = [];
+  function Screen(): ReactElement {
+    seen.push(useRuntime());
+    return <Text>queue</Text>;
+  }
+  await launch(deviceStore({ [TOKEN_KEY]: TOKEN }).kv, <Screen />);
+  const [runtime] = seen;
+  if (runtime === undefined) throw new Error("no screen got a runtime");
+  await act(() => runtime.endLocalSession());
+
+  const answered = jest.fn();
+  void runtime.loadUserProfile().then(answered, answered);
+  await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+
+  expect(answered).not.toHaveBeenCalled();
 });
