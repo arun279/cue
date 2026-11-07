@@ -74,6 +74,7 @@ import { usePlayPolicy } from "../stores/play-policy-store";
 import { useReadIncidents } from "../stores/read-incidents-store";
 import { resetSeasonMarks } from "../stores/season-reversal";
 import { dismissSnack } from "../stores/snackbar-store";
+import { useSyncActivity } from "../stores/sync-activity-store";
 import type {
   ActivitiesReconcile,
   BrowseData,
@@ -203,6 +204,7 @@ const ACCOUNT_STORES: readonly (() => void)[] = [
   dismissSnack,
   () => useReadIncidents.setState({ incidents: [] }),
   () => usePlayPolicy.setState({ policy: "unknown" }),
+  () => useSyncActivity.setState(useSyncActivity.getInitialState()),
 ];
 
 /** Removes everything the device keeps for an account, so the next one starts without it. */
