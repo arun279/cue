@@ -10,14 +10,15 @@ import { createAuthStore } from "@/core/auth/create-auth-store";
 import { type AuthStore, AuthStoreProvider, useAuth } from "@/core/auth/store";
 import { useActivitiesPoll } from "@/core/hooks/useActivitiesPoll";
 import { useEpisodeReminders } from "@/core/hooks/useEpisodeReminders";
+import { migrateLegacyData } from "@/core/migration/legacy-capacitor";
 import { AppVersionProvider } from "@/core/ports/app-version";
 import { HapticsProvider } from "@/core/ports/haptics";
 import { RemindersProvider } from "@/core/ports/reminders";
 import { createPrefsStore, PrefsProvider } from "@/core/prefs/prefs-store";
 import { PERSIST_MAX_AGE } from "@/core/runtime/query-cache";
-import { bootNativeStores, createInstallTokenStore } from "../src/boot";
 import { NATIVE_REDIRECT_URI, TRAKT_BASE_OVERRIDE, TRAKT_CLIENT_ID } from "../src/config";
 import { nativeCrypto } from "../src/crypto";
+import { createInstallTokenStore } from "../src/install-token-store";
 import { nativeAppVersion } from "../src/platform/app-version";
 import { createNativeHaptics } from "../src/platform/haptics";
 import { legacyStore } from "../src/platform/legacy-store";
@@ -87,7 +88,7 @@ function useNativeSession(): NativeSession | null {
       bulk: bulkStore,
       newInstallId: nativeCrypto.newId,
     });
-    void bootNativeStores({
+    void migrateLegacyData({
       tokenStore,
       secure: secureStore,
       bulk: bulkStore,
