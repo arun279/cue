@@ -15,7 +15,7 @@ import {
   type Movie,
   type Show,
 } from "./account.ts";
-import { allEpisodes, hasAired, latestPlay, playId, playItem, watchedAtOf } from "./bodies.ts";
+import { allEpisodes, hasAired, latestPlay, playId, playIdsOf, watchedAtOf } from "./bodies.ts";
 
 const ids = z.looseObject({ trakt: z.number().optional(), slug: z.string().optional() });
 const stamped = { watched_at: z.string().nullish() };
@@ -73,6 +73,8 @@ function stampOf(sent: readonly (string | null | undefined)[], now: number): num
 interface Target {
   readonly ep: Episode;
   readonly sent: readonly (string | null | undefined)[];
+  /** Named itself, so a removal takes every play of it, not only the rows it names. */
+  readonly byItem: boolean;
 }
 
 interface Counts {
@@ -93,16 +95,19 @@ function seasonTarget(shows: readonly ShowItem[], ep: Episode): Target | null {
   if (season === undefined) return null;
   const named = season.episodes?.find((candidate) => candidate.number === ep.number);
   if (season.episodes !== undefined && named === undefined) return null;
-  return { ep, sent: [named?.watched_at, season.watched_at, entry?.watched_at] };
+  return { ep, sent: [named?.watched_at, season.watched_at, entry?.watched_at], byItem: true };
 }
 
 /** The episodes of one show a write names: by episode id, by history row, or by season (all of it, or listed numbers). */
-function targetedEpisodes(show: Show, body: WriteBody): Target[] {
-  const rows = new Set((body.ids ?? []).map(playItem));
+function targetedEpisodes(account: Account, show: Show, body: WriteBody): Target[] {
+  const rows = new Set(body.ids ?? []);
   const shows = (body.shows ?? []).filter((entry) => matchesIds(entry, show.trakt, show.slug));
   return allEpisodes(show).flatMap((ep) => {
     const direct = (body.episodes ?? []).find((entry) => entry.ids?.trakt === ep.traktId);
-    if (direct !== undefined || rows.has(ep.traktId)) return [{ ep, sent: [direct?.watched_at] }];
+    const byRow = episodeRows(account, show, ep).some((id) => rows.has(id));
+    if (direct !== undefined || byRow) {
+      return [{ ep, sent: [direct?.watched_at], byItem: direct !== undefined }];
+    }
     return seasonTarget(shows, ep) ?? [];
   });
 }
@@ -119,6 +124,46 @@ const isWatched = (show: Show, ep: Episode): boolean =>
     ? show.specialsWatchedAt.has(ep.traktId)
     : show.episodes.indexOf(ep) < show.completed;
 
+const firstPlays = (show: Show, ep: Episode): Map<number, number> =>
+  ep.season === 0 ? show.specialsWatchedAt : show.watchedAt;
+
+/** An episode's play dates in play order: its first, then each later one. */
+const episodeStamps = (account: Account, show: Show, ep: Episode): number[] =>
+  isWatched(show, ep)
+    ? [
+        firstPlays(show, ep).get(ep.traktId) ?? 0,
+        ...(account.rewatchedEpisodes.get(ep.traktId) ?? []),
+      ]
+    : [];
+
+const episodeRows = (account: Account, show: Show, ep: Episode): readonly number[] =>
+  playIdsOf(account, ep.traktId, episodeStamps(account, show, ep).length);
+
+const movieRows = (account: Account, movie: Movie): readonly number[] =>
+  playIdsOf(
+    account,
+    movie.trakt,
+    movie.watchedAt === null ? 0 : account.rewatchedMovies.has(movie.trakt) ? 2 : 1,
+  );
+
+/** Records an item's rows after a change: those of `rows` it keeps, then a new one when `added`. */
+function setRows(
+  account: Account,
+  traktId: number,
+  rows: readonly number[],
+  keep: (id: number) => boolean,
+  added: boolean,
+): void {
+  const used = account.playRows.get(traktId)?.used ?? rows.length;
+  const kept = rows.filter(keep);
+  account.playRows.set(traktId, {
+    ids: added ? [...kept, playId(traktId, used + 1)] : kept,
+    used: added ? used + 1 : used,
+  });
+}
+
+const every = (): boolean => true;
+
 /**
  * A play for a watched episode is one more play, or with Multiple Plays off replaces the first's date.
  * A play the episode already has at that minute is not added again
@@ -131,28 +176,20 @@ function addEpisodePlay(
   stamp: number,
   tally: Tally,
 ): void {
-  const watched = isWatched(show, ep);
-  const first =
-    ep.season === 0 ? show.specialsWatchedAt.get(ep.traktId) : show.watchedAt.get(ep.traktId);
-  if (watched && [first, ...(account.rewatchedEpisodes.get(ep.traktId) ?? [])].includes(stamp)) {
-    return;
+  const stamps = episodeStamps(account, show, ep);
+  if (stamps.includes(stamp)) return;
+  const watched = stamps.length > 0;
+  if (watched && !account.multiplePlays) tally.updated.episodes += 1;
+  else {
+    setRows(account, ep.traktId, episodeRows(account, show, ep), every, true);
+    tally.added.episodes += 1;
   }
   if (watched && account.multiplePlays) {
-    account.rewatchedEpisodes.set(ep.traktId, [
-      ...(account.rewatchedEpisodes.get(ep.traktId) ?? []),
-      stamp,
-    ]);
-    tally.added.episodes += 1;
+    account.rewatchedEpisodes.set(ep.traktId, [...stamps.slice(1), stamp]);
     return;
   }
-  if (watched) tally.updated.episodes += 1;
-  else tally.added.episodes += 1;
-  if (ep.season === 0) {
-    show.specialsWatchedAt.set(ep.traktId, stamp);
-    return;
-  }
-  show.watchedAt.set(ep.traktId, stamp);
-  show.completed = Math.max(show.completed, show.episodes.indexOf(ep) + 1);
+  firstPlays(show, ep).set(ep.traktId, stamp);
+  if (ep.season !== 0) show.completed = Math.max(show.completed, show.episodes.indexOf(ep) + 1);
 }
 
 /**
@@ -175,34 +212,42 @@ function lastPlayOf(account: Account, show: Show): number | null {
 }
 
 /**
- * Removes the plays a write names: a history row id removes that one play, and an
- * item removes every play of it (recorded as `deleted.movies: 2` for a movie with
- * two plays). Answers how many plays went.
+ * Removes the plays a write names: a history row id removes that one play, an id the
+ * item no longer has removes nothing, and an item removes every play of it (recorded as
+ * `deleted.movies: 2` for a movie with two plays). Answers how many plays went.
  */
 function removeEpisodePlays(
   account: Account,
   show: Show,
   ep: Episode,
-  rows: ReadonlySet<number>,
+  rows: ReadonlySet<number> | null,
 ): number {
-  const first =
-    ep.season === 0 ? show.specialsWatchedAt.get(ep.traktId) : show.watchedAt.get(ep.traktId);
-  const stamps = [first ?? 0, ...(account.rewatchedEpisodes.get(ep.traktId) ?? [])];
-  const kept = stamps.filter((_, play) => !rows.has(playId(ep.traktId, play + 1)));
+  const stamps = episodeStamps(account, show, ep);
+  const keep = (id: number): boolean => rows !== null && !rows.has(id);
+  const plays = episodeRows(account, show, ep).map((id, play) => ({ id, at: stamps[play] ?? 0 }));
+  const kept = plays.filter(({ id }) => keep(id));
+  if (kept.length === plays.length) return 0;
+  setRows(
+    account,
+    ep.traktId,
+    plays.map(({ id }) => id),
+    keep,
+    false,
+  );
   account.rewatchedEpisodes.delete(ep.traktId);
   const [earliest, ...later] = kept;
-  if (earliest !== undefined && kept.length < stamps.length) {
-    if (later.length > 0) account.rewatchedEpisodes.set(ep.traktId, later);
-    if (ep.season === 0) show.specialsWatchedAt.set(ep.traktId, earliest);
-    else show.watchedAt.set(ep.traktId, earliest);
-    return stamps.length - kept.length;
+  if (earliest !== undefined) {
+    if (later.length > 0)
+      account.rewatchedEpisodes.set(
+        ep.traktId,
+        later.map(({ at }) => at),
+      );
+    firstPlays(show, ep).set(ep.traktId, earliest.at);
+  } else {
+    firstPlays(show, ep).delete(ep.traktId);
+    if (ep.season !== 0) show.completed = Math.min(show.completed, show.episodes.indexOf(ep));
   }
-  if (ep.season === 0) show.specialsWatchedAt.delete(ep.traktId);
-  else {
-    show.completed = Math.min(show.completed, show.episodes.indexOf(ep));
-    show.watchedAt.delete(ep.traktId);
-  }
-  return stamps.length;
+  return plays.length - kept.length;
 }
 
 function applyShowWrite(
@@ -213,13 +258,16 @@ function applyShowWrite(
   now: number,
   tally: Tally,
 ) {
-  const targeted = targetedEpisodes(show, body).filter(({ ep }) => !remove || isWatched(show, ep));
+  const targeted = targetedEpisodes(account, show, body).filter(
+    ({ ep }) => !remove || isWatched(show, ep),
+  );
   if (targeted.length === 0) return false;
   settlePlays(show);
   show.progressAt = undefined;
   const rows = new Set(body.ids ?? []);
-  for (const { ep, sent } of targeted) {
-    if (remove) tally.deleted.episodes += removeEpisodePlays(account, show, ep, rows);
+  for (const { ep, sent, byItem } of targeted) {
+    if (remove)
+      tally.deleted.episodes += removeEpisodePlays(account, show, ep, byItem ? null : rows);
     else addEpisodePlay(account, show, ep, stampOf(sent, now), tally);
   }
   show.lastWatchedAt = lastPlayOf(account, show);
@@ -229,30 +277,48 @@ function applyShowWrite(
 const sentFor = (movie: Movie, body: WriteBody) =>
   (body.movies ?? []).find((entry) => matchesIds(entry, movie.trakt, movie.slug))?.watched_at;
 
-const movieTargeted = (movie: Movie, body: WriteBody): boolean =>
-  (body.movies ?? []).some((entry) => matchesIds(entry, movie.trakt, movie.slug)) ||
-  (body.ids ?? []).some((id) => playItem(id) === movie.trakt);
+const movieNamed = (movie: Movie, body: WriteBody): boolean =>
+  (body.movies ?? []).some((entry) => matchesIds(entry, movie.trakt, movie.slug));
+
+const movieTargeted = (account: Account, movie: Movie, body: WriteBody): boolean =>
+  movieNamed(movie, body) || movieRows(account, movie).some((id) => body.ids?.includes(id));
 
 /** Removing a movie's history row removes that play; removing the movie removes every play of it. */
 function removeMoviePlays(account: Account, movie: Movie, body: WriteBody, tally: Tally): boolean {
-  if (movie.watchedAt === null) return false;
-  const rows = new Set(body.ids ?? []);
-  const onlySecond = rows.has(playId(movie.trakt, 2)) && !rows.has(playId(movie.trakt));
-  const plays = account.rewatchedMovies.delete(movie.trakt) ? 2 : 1;
-  if (!onlySecond) movie.watchedAt = null;
-  tally.deleted.movies += onlySecond ? 1 : plays;
+  const stamps = [movie.watchedAt, account.rewatchedMovies.get(movie.trakt)];
+  const keep = (id: number): boolean => !movieNamed(movie, body) && !body.ids?.includes(id);
+  const plays = movieRows(account, movie).map((id, play) => ({ id, at: stamps[play] ?? null }));
+  const kept = plays.filter(({ id }) => keep(id));
+  if (kept.length === plays.length) return false;
+  setRows(
+    account,
+    movie.trakt,
+    plays.map(({ id }) => id),
+    keep,
+    false,
+  );
+  movie.watchedAt = kept[0]?.at ?? null;
+  const second = kept[1]?.at;
+  if (second == null) account.rewatchedMovies.delete(movie.trakt);
+  else account.rewatchedMovies.set(movie.trakt, second);
+  tally.deleted.movies += plays.length - kept.length;
   return true;
 }
 
+/** The account holds a movie's first play and at most one more, which a later play replaces. */
 function addMoviePlay(account: Account, movie: Movie, stamp: number, tally: Tally): true {
   if ([movie.watchedAt, account.rewatchedMovies.get(movie.trakt)].includes(stamp)) return true;
   if (movie.watchedAt !== null && account.multiplePlays) {
+    const [first] = movieRows(account, movie);
+    setRows(account, movie.trakt, movieRows(account, movie), (id) => id === first, true);
     account.rewatchedMovies.set(movie.trakt, stamp);
     tally.added.movies += 1;
     return true;
   }
-  if (movie.watchedAt === null) tally.added.movies += 1;
-  else tally.updated.movies += 1;
+  if (movie.watchedAt === null) {
+    tally.added.movies += 1;
+    setRows(account, movie.trakt, [], every, true);
+  } else tally.updated.movies += 1;
   movie.watchedAt = stamp;
   return true;
 }
@@ -266,6 +332,15 @@ function seasonsNotFound(account: Account, shows: readonly ShowItem[] | undefine
   });
 }
 
+/** Every history row id the account holds now. */
+const rowsOf = (account: Account): ReadonlySet<number> =>
+  new Set([
+    ...account.shows.flatMap((show) =>
+      allEpisodes(show).flatMap((ep) => episodeRows(account, show, ep)),
+    ),
+    ...account.movies.flatMap((movie) => movieRows(account, movie)),
+  ]);
+
 function historyNotFound(account: Account, body: WriteBody) {
   return {
     movies: missing(body.movies, (entry) => movieOf(account, entry)),
@@ -274,15 +349,7 @@ function historyNotFound(account: Account, body: WriteBody) {
     episodes: missing(body.episodes, (entry) => episodeOf(account, entry.ids?.trakt)),
     people: [],
     users: [],
-    ...(body.ids === undefined
-      ? {}
-      : {
-          ids: body.ids.filter(
-            (id) =>
-              episodeOf(account, playItem(id)) === undefined &&
-              movieOf(account, { ids: { trakt: playItem(id) } }) === undefined,
-          ),
-        }),
+    ...(body.ids === undefined ? {} : { ids: body.ids.filter((id) => !rowsOf(account).has(id)) }),
   };
 }
 
@@ -301,13 +368,14 @@ export function applyHistoryWrite(
   const now = activityTime(clock);
   const zero = (): Counts => ({ movies: 0, episodes: 0 });
   const tally: Tally = { added: zero(), updated: zero(), deleted: zero() };
+  const notFound = historyNotFound(account, body);
   const shows = account.shows.filter((show) =>
     applyShowWrite(account, show, body, remove, now, tally),
   );
   if (shows.length > 0) account.activities.episodes = activityTime(clock);
   const movies = account.movies.filter(
     (movie) =>
-      movieTargeted(movie, body) &&
+      movieTargeted(account, movie, body) &&
       (remove
         ? removeMoviePlays(account, movie, body, tally)
         : addMoviePlay(account, movie, stampOf([sentFor(movie, body)], now), tally)),
@@ -315,7 +383,7 @@ export function applyHistoryWrite(
   if (movies.length > 0) account.activities.movies = activityTime(clock);
   return {
     ...(remove ? { deleted: tally.deleted } : { added: tally.added, updated: tally.updated }),
-    not_found: historyNotFound(account, body),
+    not_found: notFound,
   };
 }
 

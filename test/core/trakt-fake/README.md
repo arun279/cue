@@ -18,7 +18,7 @@ The only stand-in for Trakt in this repository. It holds a seeded account, OAuth
 
 `conformance.test.ts` compares the fake with `recordings.json`. It asks the fake every read the app makes and fails on any path, type, string class, status or header Trakt was never seen sending, and on any 404 from a recorded read. It also runs `scenarios.ts` on a clock spaced like the recorder's request guard, and fails on any difference from a recorded transcript.
 
-What cannot be recorded follows Trakt's documentation and is tested in `fake.test.ts`: token lifetime and the device token statuses (https://docs.trakt.tv/reference/postoauthdevicetoken), the rate limits (https://developer.trakt.tv/docs/rate-limiting), and a history add that repeats an item's play at the same minute, which Trakt does not add again (https://github.com/trakt/trakt-api/discussions/694).
+What cannot be recorded follows Trakt's documentation and is tested in `fake.test.ts`: token lifetime and the device token statuses (https://docs.trakt.tv/reference/postoauthdevicetoken), the rate limits (https://developer.trakt.tv/docs/rate-limiting), a history add that repeats an item's play at the same minute, which Trakt does not add again (https://github.com/trakt/trakt-api/discussions/694), and a removal by history row id, which removes only that play (https://trakt.docs.apiary.io/#reference/sync/remove-from-history). Each row keeps its id for as long as it exists, so removing a row twice removes nothing the second time, as the recorded `unknownItems` transcript shows for an id Trakt does not have.
 
 ## Provenance of recordings.json
 

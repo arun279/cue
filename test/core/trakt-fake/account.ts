@@ -135,6 +135,11 @@ export interface Account {
   /** Each episode's plays after its first, by trakt id, in the order they were added. */
   readonly rewatchedEpisodes: Map<number, number[]>;
   readonly rewatchedMovies: Map<number, number>;
+  /**
+   * The history row ids of an item's plays, in play order, once its plays have changed (until then
+   * they number from 1), with how many row numbers the item has used: Trakt never reuses a row id.
+   */
+  readonly playRows: Map<number, { readonly ids: readonly number[]; readonly used: number }>;
   /** Trakt's "Multiple Plays" setting. Off, a play for a watched item replaces its play. */
   readonly multiplePlays: boolean;
   readonly activities: Activities;
@@ -732,6 +737,7 @@ export function emptyAccount(multiplePlays = true, now = FIXTURE_NOW): Account {
     dropped: [],
     rewatchedEpisodes: new Map(),
     rewatchedMovies: new Map(),
+    playRows: new Map(),
     multiplePlays,
     activities: {
       episodes: stamp(1),
