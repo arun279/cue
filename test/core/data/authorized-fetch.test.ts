@@ -276,29 +276,27 @@ describe("createAuthorizedFetch: refresh throttle", () => {
 });
 
 describe("createAuthorizedFetch: once its session has ended", () => {
-  it("keeps a refresh that lands afterwards, and never saves it", async () => {
+  /** A read whose refresh Trakt answers only after the session has ended. */
+  async function refreshAnsweredAfterEnd(token: Token) {
     const release = fake.hold(REFRESH);
-    const { authorized, persist, end } = build({ token: expired() });
-
-    const reading = authorized.fetch(READ, { method: "GET" }).catch(() => null);
+    const built = build({ token });
+    const reading = built.authorized.fetch(READ, { method: "GET" }).catch(() => null);
     await vi.waitFor(() => expect(refreshes()).toBe(1));
-    end();
+    built.end();
     release();
     await reading;
+    return built;
+  }
+
+  it("ignores a token refreshed afterwards, and never saves it", async () => {
+    const { authorized, persist } = await refreshAnsweredAfterEnd(expired());
 
     expect(persist).not.toHaveBeenCalled();
     expect(authorized.accessToken()).toBe(session().access_token);
   });
 
   it("ends nothing when a refresh it sent before is refused", async () => {
-    const release = fake.hold(REFRESH);
-    const { authorized, endSession, end } = build({ token: dead() });
-
-    const reading = authorized.fetch(READ, { method: "GET" }).catch(() => null);
-    await vi.waitFor(() => expect(refreshes()).toBe(1));
-    end();
-    release();
-    await reading;
+    const { endSession } = await refreshAnsweredAfterEnd(dead());
 
     expect(endSession).not.toHaveBeenCalled();
   });
