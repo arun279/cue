@@ -38,7 +38,7 @@ import {
   planLandedUndo,
   removeEpisodePlays,
   resolveEpisodeUnmark,
-  waitWhileInFlight,
+  waitUntilSettled,
 } from "./resolve-unmark";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 import { useResumeOnMark } from "./useResumeOnMark";
@@ -161,16 +161,15 @@ async function planUndo(runtime: CueRuntime, pending: UndoState): Promise<UndoPl
     return marked === null ? [] : [{ op, marked }];
   });
   if (
-    !(await waitWhileInFlight(
+    !(await waitUntilSettled(
       runtime,
       marks.map(({ op }) => op.id),
     ))
   )
     return null;
-  const queuedNow = (): Set<string> => new Set(runtime.pendingOps().map((op) => op.id));
-  const queued = queuedNow();
   const ended = (op: QueuedOp, outcome: WriteOutcome): boolean =>
-    runtime.writeOutcome(op.id) === outcome;
+    runtime.writeState(op.id) === outcome;
+  const unsent = marks.filter(({ op }) => runtime.writeState(op.id) === "unsent");
   const landed = marks.filter(({ op }) => ended(op, "done"));
   const landedOps = landed.map(({ op }) => op);
   const inverted = pending.ops
@@ -188,9 +187,7 @@ async function planUndo(runtime: CueRuntime, pending: UndoState): Promise<UndoPl
     markedAt(landed.map(({ marked }) => marked)),
     (play) => play.episodeTrakt,
   );
-  const after = queuedNow();
-  const sending = runtime.inFlightOpId();
-  if (marks.some(({ op }) => queued.has(op.id) && (!after.has(op.id) || op.id === sending)))
+  if (unsent.some(({ op }) => runtime.writeState(op.id) !== "unsent"))
     return planUndo(runtime, pending);
   if (plan === null) return null;
   if (plan.kind === "replaced") return { replaced: plan.count };
@@ -663,7 +660,11 @@ export function useMarkSeason(): MarkSeasonController {
       const queuedMark = runtime
         .pendingOps()
         .find((op) => op.itemKey === episodeItemKey(episode.ids.trakt) && op.toState === "present");
-      if (queuedMark !== undefined) {
+      if (queuedMark !== undefined && !(await waitUntilSettled(runtime, [queuedMark.id]))) {
+        showError("Couldn't update that episode. Please try again.");
+        return;
+      }
+      if (queuedMark !== undefined && runtime.writeState(queuedMark.id) === "unsent") {
         await submitQueuedEpisodeUnmark(target, episode, queuedMark);
         return;
       }

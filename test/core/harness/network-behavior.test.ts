@@ -192,7 +192,7 @@ describe("write faults", () => {
     const cue = await buildRuntime();
     const submitted = cue.submit(mark());
     await posted("/sync/history");
-    expect(cue.inFlightOpId()).toBe("fault-mark");
+    expect(cue.writeState("fault-mark")).toBe("sent");
     expect(cue.pendingWrites()).toBe(1);
     release();
     await expect(submitted).resolves.toBe("done");
@@ -235,7 +235,7 @@ describe("write receipts", () => {
       () => expect(fake.requests.filter((entry) => entry.path === "/sync/history")).toHaveLength(2),
       { timeout: 5000 },
     );
-    expect(cue.inFlightOpId()).toBe("second");
+    expect(cue.writeState("second")).toBe("sent");
     expect(cue.writeReceipt("first")).toMatchObject({ added: 0, updated: 1 });
     const undo = await planLandedUndo(
       cue,

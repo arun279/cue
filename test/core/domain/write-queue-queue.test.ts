@@ -48,7 +48,7 @@ function harness(answer: (req: unknown) => Promise<DispatchResult>): Harness {
 }
 
 const ok = () => Promise.resolve(dispatchResult(200));
-const outcomes = (q: WriteQueue, ...ids: string[]) => ids.map((id) => q.outcomeOf(id));
+const states = (q: WriteQueue, ...ids: string[]) => ids.map((id) => q.stateOf(id));
 
 function gate(): { answer: Promise<DispatchResult>; release: (r: DispatchResult) => void } {
   let release: (r: DispatchResult) => void = () => {};
@@ -63,7 +63,7 @@ describe("WriteQueue dispatch + pacing", () => {
     const h = harness(ok);
     const q = new WriteQueue(h.deps, [mark("a", 1), mark("b", 2), mark("c", 3)]);
     await q.flush();
-    expect(outcomes(q, "a", "b", "c")).toEqual(["done", "done", "done"]);
+    expect(states(q, "a", "b", "c")).toEqual(["done", "done", "done"]);
     expect(h.times).toEqual([0, 1100, 2200]);
     expect(h.slept).toEqual([1100, 1100]);
   });
@@ -80,7 +80,7 @@ describe("WriteQueue failure classification", () => {
     });
     const q = new WriteQueue(h.deps, [mark("a", 1)]);
     await q.flush();
-    expect(q.outcomeOf("a")).toBe("done");
+    expect(q.stateOf("a")).toBe("done");
     expect(h.dispatch).toHaveBeenCalledTimes(2);
     expect(h.dispatch.mock.calls[0]?.[0]).toEqual(h.dispatch.mock.calls[1]?.[0]);
     expect(h.slept).toContain(3000);
@@ -94,14 +94,14 @@ describe("WriteQueue failure classification", () => {
     });
     const q = new WriteQueue(h.deps, [mark("a", 1), mark("b", 2)]);
     await q.flush();
-    expect(outcomes(q, "a", "b")).toEqual(["failed", "done"]);
+    expect(states(q, "a", "b")).toEqual(["failed", "done"]);
   });
 
   it("keeps a write through one flush of server errors, without a sleep after the last try", async () => {
     const h = harness(() => Promise.resolve(dispatchResult(500)));
     const q = new WriteQueue(h.deps, [mark("a", 1), mark("b", 2)]);
     await q.flush();
-    expect(outcomes(q, "a", "b")).toEqual([null, null]);
+    expect(states(q, "a", "b")).toEqual(["sent", "sent"]);
     expect(h.dispatch).toHaveBeenCalledTimes(5);
     expect(h.slept).toEqual([1100, 2200, 4400, 8800]);
   });
@@ -114,12 +114,26 @@ describe("WriteQueue failure classification", () => {
     await q.flush();
     await h.clock.sleep(240_000);
     await q.flush();
-    expect(outcomes(q, "a", "b")).toEqual([null, null]);
+    expect(states(q, "a", "b")).toEqual(["sent", "sent"]);
     await h.clock.sleep(60_000);
     await q.flush();
-    expect(outcomes(q, "a", "b")).toEqual(["failed", "done"]);
+    expect(states(q, "a", "b")).toEqual(["failed", "done"]);
     await expect(q.settled("a")).resolves.toBe("failed");
     expect(q.size).toBe(0);
+  });
+
+  it("gives up on a write once it has been refused for five minutes, then waits out the pause before the next", async () => {
+    const h = harness((req) =>
+      Promise.resolve(
+        JSON.stringify(req).includes('"trakt":1')
+          ? dispatchResult(429, { "retry-after": "300" })
+          : dispatchResult(200),
+      ),
+    );
+    const q = new WriteQueue(h.deps, [mark("a", 1), mark("b", 2)]);
+    await q.flush();
+    expect(states(q, "a", "b")).toEqual(["failed", "done"]);
+    expect(h.times).toEqual([0, 300_000, 600_000]);
   });
 
   it("keeps a write whose answer was lost first in line, and sends it again on the next flush", async () => {
@@ -133,7 +147,7 @@ describe("WriteQueue failure classification", () => {
     expect(h.dispatch).toHaveBeenCalledTimes(1);
     expect(q.snapshot().map((op) => op.id)).toEqual(["a", "b"]);
     await q.flush();
-    expect(outcomes(q, "a", "b")).toEqual(["done", "done"]);
+    expect(states(q, "a", "b")).toEqual(["done", "done"]);
     expect(h.sent()[0]).toBe(h.sent()[1]);
   });
 });
@@ -165,7 +179,7 @@ describe("WriteQueue settles each answer", () => {
     const h = harness(() => Promise.resolve(answered({ not_found: { episodes: [{}] } })));
     const q = new WriteQueue({ ...h.deps, settle: () => false }, [mark("a", 1)]);
     await q.flush();
-    expect(q.outcomeOf("a")).toBe("failed");
+    expect(q.stateOf("a")).toBe("failed");
     expect(h.dispatch).toHaveBeenCalledTimes(1);
   });
 });
@@ -185,7 +199,7 @@ describe("WriteQueue concurrency safety", () => {
     expect(q.size).toBe(2);
     held.release(dispatchResult(200));
     await flushed;
-    expect(outcomes(q, "a", "b")).toEqual(["done", "done"]);
+    expect(states(q, "a", "b")).toEqual(["done", "done"]);
     expect(h.dispatch).toHaveBeenCalledTimes(2);
   });
 
@@ -200,7 +214,7 @@ describe("WriteQueue concurrency safety", () => {
     await q.flush();
     q.enqueue(unmark("b", 1));
     await q.flush();
-    expect(outcomes(q, "a", "b")).toEqual(["done", "done"]);
+    expect(states(q, "a", "b")).toEqual(["done", "done"]);
     expect(h.dispatch).toHaveBeenCalledTimes(3);
   });
 
@@ -213,17 +227,17 @@ describe("WriteQueue concurrency safety", () => {
     expect(h.dispatch).toHaveBeenCalledTimes(2);
   });
 
-  it("exposes the delivering op's id while (and only while) it is in flight", async () => {
+  it("counts a write as sent from the moment it goes until Trakt has answered it for good", async () => {
     const held = gate();
     const h = harness(() => held.answer);
-    const q = new WriteQueue(h.deps, [mark("a", 1)]);
-    expect(q.inFlightId).toBeNull();
+    const q = new WriteQueue(h.deps);
+    q.enqueue(mark("a", 1));
+    expect(q.stateOf("a")).toBe("unsent");
     const flushed = q.flush();
-    await Promise.resolve();
-    expect(q.inFlightId).toBe("a");
+    expect(q.stateOf("a")).toBe("sent");
     held.release(dispatchResult(200));
     await flushed;
-    expect(q.inFlightId).toBeNull();
+    expect(q.stateOf("a")).toBe("done");
   });
 });
 
@@ -247,9 +261,9 @@ describe("WriteQueue coalescing", () => {
     q.enqueue(mark("a", 1));
     q.enqueue(mark("b", 1));
     expect(q.size).toBe(1);
-    expect(q.outcomeOf("b")).toBeNull();
+    expect(q.stateOf("b")).toBe("unsent");
     await q.flush();
-    expect(outcomes(q, "a", "b")).toEqual(["done", "done"]);
+    expect(states(q, "a", "b")).toEqual(["done", "done"]);
     expect(h.dispatch).toHaveBeenCalledTimes(1);
   });
 
@@ -261,7 +275,7 @@ describe("WriteQueue coalescing", () => {
     q.enqueue(unmark("b", 1));
     q.enqueue(mark("c", 1));
     expect(q.snapshot().map((op) => op.id)).toEqual(["a"]);
-    expect(outcomes(q, "b", "c")).toEqual(["cancelled", "cancelled"]);
+    expect(states(q, "b", "c")).toEqual(["cancelled", "cancelled"]);
   });
 
   it("never merges an additive play with a mark, an unmark, or another play", async () => {
@@ -274,7 +288,7 @@ describe("WriteQueue coalescing", () => {
     q.enqueue(addPlay("e", 2));
     expect(q.size).toBe(5);
     await q.flush();
-    expect(outcomes(q, "a", "b", "c", "d", "e")).toEqual(["done", "done", "done", "done", "done"]);
+    expect(states(q, "a", "b", "c", "d", "e")).toEqual(["done", "done", "done", "done", "done"]);
   });
 });
 
@@ -290,6 +304,6 @@ describe("WriteQueue durability", () => {
     q.enqueue(unmark("c", 1));
     expect(q.size).toBe(3);
     await q.flush();
-    expect(outcomes(q, "a", "b", "c")).toEqual(["done", "done", "done"]);
+    expect(states(q, "a", "b", "c")).toEqual(["done", "done", "done"]);
   });
 });

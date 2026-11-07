@@ -45,7 +45,7 @@ import {
 } from "./library-cache";
 import type { OptimisticEffects } from "./optimistic-write";
 import { REPLACED_COPY } from "./replaced-copy";
-import { planLandedUndo, removeEpisodePlays, waitWhileInFlight } from "./resolve-unmark";
+import { planLandedUndo, removeEpisodePlays, waitUntilSettled } from "./resolve-unmark";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 import { useResumeOnMark } from "./useResumeOnMark";
 
@@ -173,7 +173,7 @@ export function useMarkWatched(): MarkWatched {
         return null;
       }
       if (plan.kind === "none") {
-        effects.revalidate();
+        effects.revalidate(true);
         return null;
       }
       return submit([removeEpisodePlays(runtime.newId(), plan.plays)], effects);
@@ -191,12 +191,13 @@ export function useMarkWatched(): MarkWatched {
         revalidate: () =>
           revalidate(record.showId, { season: record.season, number: record.number }),
       };
-      if (!(await waitWhileInFlight(runtime, [record.opId]))) {
+      if (!(await waitUntilSettled(runtime, [record.opId]))) {
         reapplyMark(record);
         showUndoFailed(haptics, record.title);
         return null;
       }
-      if (runtime.pendingOps().some((op) => op.id === record.opId)) {
+      const state = runtime.writeState(record.opId);
+      if (state === "unsent") {
         const op = buildUnmarkEpisodeOp({
           opId: runtime.newId(),
           ids: record.episodeIds,
@@ -204,7 +205,7 @@ export function useMarkWatched(): MarkWatched {
         });
         return submit([op], effects);
       }
-      return runtime.writeOutcome(record.opId) === "done" ? undoLanded(record, effects) : null;
+      return state === "done" ? undoLanded(record, effects) : null;
     },
     [runtime, submit, reapplyMark, revalidate, haptics, resume, undoLanded],
   );
@@ -326,9 +327,10 @@ export function useMarkWatched(): MarkWatched {
         outcome = await submit([op], {
           rollback: () => restorePreMark(record),
           onKept: () => resume.resumeIfStopped(entry.showId, { trakt: entry.showId }),
-          revalidate: () => {
+          revalidate: (landed) => {
             if (isReversalRequested(opId)) return;
-            revalidate(entry.showId, { season: episode.season, number: episode.number }, record);
+            const at = { season: episode.season, number: episode.number };
+            revalidate(entry.showId, at, landed ? record : undefined);
           },
         });
       } finally {

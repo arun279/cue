@@ -46,7 +46,7 @@ describe("Trakt transport wires the write queue to the client", () => {
   it("dispatches a queued mark as a POST /sync/history with the frozen body + auth header", async () => {
     const queue = queueWith();
     await queue.flush();
-    expect(queue.outcomeOf("op-1")).toBe("done");
+    expect(queue.stateOf("op-1")).toBe("done");
     const [sent] = posts();
     expect(sent?.headers["authorization"]).toBe(`Bearer ${fake.session().access_token}`);
     expect(sent?.body).toEqual({ episodes: [{ ids: { trakt: 880120 }, watched_at: WATCHED_AT }] });
@@ -61,7 +61,7 @@ describe("Trakt transport wires the write queue to the client", () => {
     fake.fail(HISTORY, 429, 2);
     const queue = queueWith();
     await queue.flush();
-    expect(queue.outcomeOf("op-1")).toBe("done");
+    expect(queue.stateOf("op-1")).toBe("done");
     expect(posts().map((request) => request.status)).toEqual([429, 201]);
   });
 
@@ -69,9 +69,9 @@ describe("Trakt transport wires the write queue to the client", () => {
     fake.drop(HISTORY);
     const queue = queueWith();
     await queue.flush();
-    expect(queue.outcomeOf("op-1")).toBeNull();
+    expect(queue.stateOf("op-1")).toBe("sent");
     await queue.flush();
-    expect(queue.outcomeOf("op-1")).toBe("done");
+    expect(queue.stateOf("op-1")).toBe("done");
     const [dropped, sent] = posts();
     expect(sent?.body).toEqual(dropped?.body);
   });

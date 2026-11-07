@@ -360,11 +360,12 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       await queue.flush();
       await persistLog();
       if (signal.aborted) return "ended";
-      return queue.outcomeOf(op.id) ?? "deferred";
+      const state = queue.stateOf(op.id);
+      return state === "unsent" || state === "sent" ? "deferred" : state;
     },
 
     settled: (opId) => Promise.race([ended, queue.settled(opId)]),
-    writeOutcome: (opId) => queue.outcomeOf(opId),
+    writeState: (opId) => queue.stateOf(opId),
     writeReceipt: receipts.receiptOf,
     readsPausedUntil,
     subscribeReadPause,
@@ -377,10 +378,6 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
 
     pendingOps(): readonly QueuedOp[] {
       return queue.snapshot();
-    },
-
-    inFlightOpId(): string | null {
-      return queue.inFlightId;
     },
 
     async flushWrites(): Promise<number> {

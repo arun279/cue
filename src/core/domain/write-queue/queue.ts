@@ -8,6 +8,9 @@ const GIVE_UP_AFTER_MS = RETRY_AFTER_MAX_MS;
 /** How a write ended: on Trakt, refused by it, or cancelled by an opposite write before either was sent. */
 export type WriteOutcome = "done" | "failed" | "cancelled";
 
+/** Where a write stands: not sent yet, sent and possibly on Trakt already, or how it ended. */
+export type WriteState = "unsent" | "sent" | WriteOutcome;
+
 export interface WriteQueueDeps {
   readonly dispatch: (req: RequestDescriptor) => Promise<DispatchResult>;
   readonly sleep: (ms: number) => Promise<void>;
@@ -35,8 +38,8 @@ export class WriteQueue {
   private pending: Delivery[];
   private readonly deliveries = new Map<string, Delivery>();
   private lastDispatchAt: number | null = null;
+  private resumeAt = 0;
   private readonly deps: WriteQueueDeps;
-  private inFlight: Delivery | null = null;
   private flushing: Promise<void> | null = null;
 
   /** `stored` comes back from the device, where each write may have been sent before the app stopped. */
@@ -49,17 +52,15 @@ export class WriteQueue {
     return this.pending.length;
   }
 
-  get inFlightId(): string | null {
-    return this.inFlight?.op.id ?? null;
-  }
-
   snapshot(): QueuedOp[] {
     return this.pending.map(({ op }) => op);
   }
 
-  /** How the write ended, or null while it is still to be sent. */
-  outcomeOf(id: string): WriteOutcome | null {
-    return this.deliveries.get(id)?.outcome ?? null;
+  /** A write this queue has not been given yet is one it has not sent. */
+  stateOf(id: string): WriteState {
+    const delivery = this.deliveries.get(id);
+    if (delivery === undefined) return "unsent";
+    return delivery.outcome ?? (delivery.sent ? "sent" : "unsent");
   }
 
   settled(id: string): Promise<WriteOutcome> {
@@ -111,10 +112,8 @@ export class WriteQueue {
 
   private async drain(): Promise<void> {
     for (let next = this.pending[0]; next !== undefined; next = this.pending[0]) {
-      this.inFlight = next;
       next.sent = true;
       const outcome = await this.deliver(next);
-      this.inFlight = null;
       if (outcome === null) return;
       this.pending.shift();
       this.finish(next, outcome);
@@ -123,7 +122,7 @@ export class WriteQueue {
 
   /** The write's outcome, or null to keep it first in line for a later flush. */
   private async deliver(next: Delivery): Promise<WriteOutcome | null> {
-    for (let attempt = 0; ; attempt += 1) {
+    for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_FLUSH; attempt += 1) {
       await this.pace();
       let result: DispatchResult;
       try {
@@ -131,20 +130,22 @@ export class WriteQueue {
       } catch {
         return null;
       }
-      const classification = classifyStatus(result, attempt, this.deps.now());
+      const now = this.deps.now();
+      const classification = classifyStatus(result, attempt, now);
       if (classification.kind === "ok")
         return this.deps.settle(next.op, result) ? "done" : "failed";
       if (classification.kind === "failed") return "failed";
-      next.refusedSince ??= this.deps.now();
-      if (attempt + 1 >= MAX_ATTEMPTS_PER_FLUSH) {
-        return this.deps.now() - next.refusedSince >= GIVE_UP_AFTER_MS ? "failed" : null;
-      }
-      await this.deps.sleep(classification.delayMs);
+      this.resumeAt = now + classification.delayMs;
+      next.refusedSince ??= now;
+      if (now - next.refusedSince >= GIVE_UP_AFTER_MS) return "failed";
     }
+    return null;
   }
 
+  /** Keeps writes a second apart, and holds the next one until Trakt's last asked-for wait is over. */
   private async pace(): Promise<void> {
-    const wait = computePacingDelay(this.deps.now(), this.lastDispatchAt);
+    const now = this.deps.now();
+    const wait = Math.max(computePacingDelay(now, this.lastDispatchAt), this.resumeAt - now);
     if (wait > 0) await this.deps.sleep(wait);
     this.lastDispatchAt = this.deps.now();
   }

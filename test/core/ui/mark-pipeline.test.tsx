@@ -140,7 +140,8 @@ function fakeRuntime(opts: {
   showPlays?: readonly EpisodePlay[] | Error;
   progress?: ShowProgress | Promise<ShowProgress>;
   episode?: EpisodeDetail | Promise<EpisodeDetail>;
-  inFlightOpId?(): string | null;
+  /** The write sent to Trakt and not answered yet, if any. */
+  sentOpId?(): string | null;
   /** What Trakt answers a write with, kept only once that write's submit settles "done". */
   answer?(op: QueuedOp): WriteReceipt | null;
 }): FakeRuntime {
@@ -192,12 +193,13 @@ function fakeRuntime(opts: {
       return outcome;
     },
     settled,
-    writeOutcome: (opId: string) => {
+    writeState: (opId: string) => {
+      if ((opts.sentOpId?.() ?? null) === opId) return "sent";
       const outcome = outcomes.get(opId);
-      return outcome === undefined || outcome === "ended" ? null : outcome;
+      return outcome === undefined || outcome === "ended" ? "unsent" : outcome;
     },
+    flushWrites: () => Promise.resolve(queued.length),
     pendingOps: () => [...new Set([...queued, ...sending])],
-    inFlightOpId: opts.inFlightOpId ?? (() => null),
     writeReceipt: (opId: string) => receipts.get(opId) ?? null,
     loadEpisodePlays,
     loadShowPlays,
@@ -267,9 +269,9 @@ function seededClient(entries: readonly LibraryEntry[], seasons?: readonly Seaso
 const flush = () => act(async () => new Promise((r) => setTimeout(r, 0)));
 
 /** A fake whose catch-up marks stay queued while every other write lands at once. */
-function queueingCatchUp(inFlightOpId?: () => string | null): FakeRuntime {
+function queueingCatchUp(sentOpId?: () => string | null): FakeRuntime {
   const fake = fakeRuntime({
-    inFlightOpId,
+    sentOpId,
     submit: (op) => {
       if (!op.itemKey.includes(":bulk:")) return Promise.resolve("done");
       fake.queued.push(op);
@@ -979,7 +981,7 @@ function refusingInFlight(): { readonly fake: FakeRuntime; readonly refuse: () =
   let sending = true;
   let refuse = () => {};
   const fake = fakeRuntime({
-    inFlightOpId: () => (sending ? "op-0" : null),
+    sentOpId: () => (sending ? "op-0" : null),
     submit: () =>
       new Promise((resolve) => {
         refuse = () => {
@@ -1113,7 +1115,7 @@ describe("queue mark edges", () => {
   it("gives up an Undo that waits too long on a mark still being delivered", async () => {
     vi.useFakeTimers();
     try {
-      const fake = fakeRuntime({ inFlightOpId: () => "op-0" });
+      const fake = fakeRuntime({ sentOpId: () => "op-0" });
       const entry = libraryEntry();
       const qc = seededClient([entry]);
       const [a] = mountSurfaces(fake.runtime, qc);
@@ -1599,7 +1601,7 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     let delivering = true;
     const fake = fakeRuntime({
       answer: replacing(replaced),
-      inFlightOpId: () => (delivering ? "op-0" : null),
+      sentOpId: () => (delivering ? "op-0" : null),
       submit: (op) =>
         op.request.path === "/sync/history"
           ? new Promise((resolve) => {
@@ -1738,7 +1740,7 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     let delivering = true;
     const fake = fakeRuntime({
       answer: replacing({ ...replaced, added: 1 }),
-      inFlightOpId: () => (delivering ? "op-0" : null),
+      sentOpId: () => (delivering ? "op-0" : null),
       submit: () =>
         new Promise((resolve) => {
           land = (outcome) => {
@@ -1790,7 +1792,7 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
   it("gives up a season Undo while the mark is still being delivered", async () => {
     vi.useFakeTimers();
     try {
-      const fake = fakeRuntime({ inFlightOpId: () => "op-0" });
+      const fake = fakeRuntime({ sentOpId: () => "op-0" });
       const season = seasonView([episodeView(1), episodeView(2)]);
       const { a } = mountSeasonSurfaces(fake, season.episodes);
       await act(async () => a.current.season.markSeason(TARGET, season));

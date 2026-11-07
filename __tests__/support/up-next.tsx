@@ -156,9 +156,11 @@ export function fakeRuntime({
         ? new Promise(() => {})
         : Promise.resolve(outcome);
     },
-    writeOutcome: (opId: string) => {
+    writeState: (opId: string) => {
       const outcome = outcomes.get(opId);
-      return outcome === "done" || outcome === "failed" || outcome === "cancelled" ? outcome : null;
+      return outcome === "done" || outcome === "failed" || outcome === "cancelled"
+        ? outcome
+        : "unsent";
     },
     pendingWrites: () => 0,
     readsPausedUntil: () => 0,
@@ -166,7 +168,6 @@ export function fakeRuntime({
     readRetryFailure: () => null,
     subscribeReadRetry: () => () => {},
     pendingOps: () => [...sending],
-    inFlightOpId: () => null,
     writeReceipt: (opId: string) => (answered.has(opId) ? ADDED : null),
     flushWrites: () => Promise.resolve(0),
     pollActivities: () => Promise.resolve(null),

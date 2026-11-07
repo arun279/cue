@@ -3,6 +3,7 @@ import {
   learnPlayPolicy,
   type PlayPolicy,
   receiptApplied,
+  receiptChanged,
   type WriteReceipt,
 } from "../domain/write-queue/receipt";
 import type { DispatchResult, QueuedOp } from "../domain/write-queue/types";
@@ -27,6 +28,8 @@ export async function createWriteReceipts(kv: KeyValueStore): Promise<WriteRecei
     settle(op, result) {
       const receipt = parseWriteReceipt(result.data);
       if (receipt === null) return true;
+      const applied = op.toState === "absent" || receiptApplied(receipt);
+      if (!receiptChanged(receipt)) return applied;
       receipts.set(op.id, receipt);
       const current = usePlayPolicy.getState().policy;
       const policy = learnPlayPolicy(current, op, receipt);
@@ -34,7 +37,7 @@ export async function createWriteReceipts(kv: KeyValueStore): Promise<WriteRecei
         usePlayPolicy.setState({ policy });
         void store.write(policy);
       }
-      return op.toState === "absent" || receiptApplied(receipt);
+      return applied;
     },
 
     receiptOf: (opId) => receipts.get(opId) ?? null,

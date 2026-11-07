@@ -105,19 +105,25 @@ export async function resolveMovieUnmark(
   return { kind: "remove", historyId: play.historyId, watchedAt: play.watchedAt };
 }
 
-const IN_FLIGHT_POLL_MS = 200;
-const IN_FLIGHT_POLL_TRIES = 50;
+const SENT_POLL_MS = 200;
+const SENT_POLL_TRIES = 50;
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function waitWhileInFlight(
+/**
+ * Waits, for as long as an Undo can, until none of these writes is sent but not yet answered for
+ * good, so Undo knows whether each one landed. Sends the queue first: a write whose answer was lost
+ * goes again.
+ */
+export async function waitUntilSettled(
   runtime: CueRuntime,
   opIds: readonly string[],
 ): Promise<boolean> {
-  for (let attempt = 0; attempt < IN_FLIGHT_POLL_TRIES; attempt += 1) {
-    const inFlight = runtime.inFlightOpId();
-    if (inFlight === null || !opIds.includes(inFlight)) return true;
-    await sleep(IN_FLIGHT_POLL_MS);
+  const sending = (): boolean => opIds.some((id) => runtime.writeState(id) === "sent");
+  if (sending()) void runtime.flushWrites();
+  for (let attempt = 0; attempt < SENT_POLL_TRIES; attempt += 1) {
+    if (!sending()) return true;
+    await sleep(SENT_POLL_MS);
   }
   return false;
 }

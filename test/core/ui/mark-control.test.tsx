@@ -65,7 +65,7 @@ function heldRuntime(): CueRuntime {
       return new Promise(() => {});
     },
     pendingOps: () => [...queued],
-    inFlightOpId: () => null,
+    writeState: () => "unsent",
     writeReceipt: () => null,
   });
 }

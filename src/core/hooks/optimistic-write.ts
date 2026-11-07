@@ -6,7 +6,8 @@ import { dismissSnack, showSnack } from "../stores/snackbar-store";
 export interface OptimisticEffects {
   rollback(): void;
   onKept?(): Promise<SubmitOutcome | null>;
-  revalidate(): void;
+  /** Reads back what the write touched: after it landed, or after Trakt refused it once kept. */
+  revalidate(landed: boolean): void;
 }
 
 /** How the UI writes: neither call settles once the write's session has ended. */
@@ -43,7 +44,7 @@ async function settleLater(
       actions: [{ label: "Dismiss", onPress: dismissSnack }],
     });
   }
-  if (outcome === "done" || outcome === "failed") effects.revalidate();
+  if (outcome === "done" || outcome === "failed") effects.revalidate(outcome === "done");
 }
 
 export async function applyOptimisticWrite(
@@ -58,7 +59,7 @@ export async function applyOptimisticWrite(
     return outcome;
   }
   const kept = await effects.onKept?.();
-  if (outcome === "done" && (kept == null || kept === "done")) effects.revalidate();
+  if (outcome === "done" && (kept == null || kept === "done")) effects.revalidate(true);
   if (outcome === "deferred") void settleLater(gateway.settled, ops, effects);
   return outcome;
 }

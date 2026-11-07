@@ -7,6 +7,7 @@
 
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+import type { SeasonView } from "@/core/domain/show-detail";
 import {
   buildAddWatchlistOp,
   buildHideShowOp,
@@ -16,8 +17,12 @@ import {
   buildUnmarkEpisodeOp,
 } from "@/core/domain/write-queue/ops";
 import { useHideShow } from "@/core/hooks/useHideShow";
+import { useMarkSeason } from "@/core/hooks/useMarkSeason";
+import { useMarkWatched } from "@/core/hooks/useMarkWatched";
 import { libraryQuery } from "@/core/queries/library";
 import { createQueryClient } from "@/core/runtime/query-cache";
+import type { CueRuntime } from "@/core/runtime/runtime";
+import { usePlayPolicy } from "@/core/stores/play-policy-store";
 import { useSnackbar } from "@/core/stores/snackbar-store";
 import { buildRuntime } from "../data/_runtime";
 import { withRuntime } from "../support/runtime";
@@ -114,7 +119,7 @@ async function behindAHeldMark() {
   const ahead = cue.submit(
     buildMarkEpisodeOp({ opId: "ahead", ids: { trakt: NEXT_EPISODE }, watchedAt: AT }),
   );
-  await vi.waitFor(() => expect(cue.inFlightOpId()).toBe("ahead"));
+  await vi.waitFor(() => expect(cue.writeState("ahead")).toBe("sent"));
   return { cue, ahead, release };
 }
 
@@ -142,4 +147,149 @@ it("tells a write that repeats one already queued how that one went", async () =
 
   await expect(Promise.all([ahead, first, again])).resolves.toEqual(["done", "done", "done"]);
   expect(posts("/sync/watchlist")).toHaveLength(1);
+});
+
+// Harbor Lights (8801) was watched through S3E4; S1E1 and S1E2 each have one play from then.
+const SHOW = 8801;
+const FIRST_EPISODE = 880100;
+const SECOND_EPISODE = 880101;
+
+/** The show started again from S1E1, which Up Next offers once more. */
+async function restarted() {
+  const cue = await buildRuntime();
+  const queryClient = createQueryClient();
+  const library = await queryClient.fetchQuery(libraryQuery(cue));
+  const entry = library.entries.find((candidate) => candidate.showId === SHOW);
+  if (entry?.nextEpisode == null) throw new Error("the show needs a next episode");
+  const again = {
+    ...entry,
+    completed: 0,
+    nextEpisode: { ...entry.nextEpisode, season: 1, number: 1, ids: { trakt: FIRST_EPISODE } },
+  };
+  const earlier = await cue.loadEpisodePlays(FIRST_EPISODE);
+  const wrapper = withRuntime(cue, queryClient);
+  return { cue, queryClient, entry: again, earlier, wrapper };
+}
+
+const playsOf = async (cue: CueRuntime, episode: number) =>
+  (await cue.loadEpisodePlays(episode)).map((play) => play.historyId);
+
+it("undoes a mark whose answer was lost by removing only that mark's play", async () => {
+  const { cue, entry, earlier, wrapper } = await restarted();
+  usePlayPolicy.setState({ policy: "multiple" });
+  fake.drop({ method: "POST", path: HISTORY }, "after");
+  const up = renderHook(useMarkWatched, { wrapper });
+  await act(() => up.result.current.mark(entry));
+  await act(() => up.result.current.reverse(SHOW));
+
+  expect(await playsOf(cue, FIRST_EPISODE)).toEqual(earlier.map((play) => play.historyId));
+});
+
+it("removes nothing, and says so, when it cannot tell which play a lost mark added", async () => {
+  const { cue, entry, wrapper } = await restarted();
+  fake.drop({ method: "POST", path: HISTORY }, "after");
+  const up = renderHook(useMarkWatched, { wrapper });
+  await act(() => up.result.current.mark(entry));
+  await act(() => up.result.current.reverse(SHOW));
+
+  expect(await playsOf(cue, FIRST_EPISODE)).toHaveLength(2);
+  expect(posts("/sync/history/remove")).toHaveLength(0);
+  expect(useSnackbar.getState().snack?.message).toBe(
+    `Couldn't undo ${entry.title}. Please try again.`,
+  );
+});
+
+it("keeps the one play a lost mark replaced when the account keeps one play per episode", async () => {
+  fake.reset({ multiplePlays: false });
+  const { cue, entry, wrapper } = await restarted();
+  fake.drop({ method: "POST", path: HISTORY }, "after");
+  const up = renderHook(useMarkWatched, { wrapper });
+  await act(() => up.result.current.mark(entry));
+  await act(() => up.result.current.reverse(SHOW));
+
+  expect(await playsOf(cue, FIRST_EPISODE)).toHaveLength(1);
+  expect(posts("/sync/history/remove")).toHaveLength(0);
+});
+
+const TARGET = { showId: SHOW, ids: { trakt: SHOW }, includeSpecials: false };
+const unwatched = (number: number, trakt: number) => ({
+  season: 1,
+  number,
+  title: null,
+  firstAired: "2025-01-01T00:00:00.000Z",
+  ids: { trakt },
+  stills: [],
+  watched: false,
+  watchedAt: null,
+  aired: true,
+});
+
+it("undoes a show-screen mark whose answer was lost by removing only that mark's play", async () => {
+  const { cue, earlier, wrapper } = await restarted();
+  usePlayPolicy.setState({ policy: "multiple" });
+  fake.drop({ method: "POST", path: HISTORY }, "after");
+  const show = renderHook(useMarkSeason, { wrapper });
+  await act(() =>
+    show.result.current.toggleEpisode(TARGET, unwatched(1, FIRST_EPISODE), {
+      undoLabel: "S1 E1 marked",
+    }),
+  );
+  await act(() => show.result.current.undo());
+
+  expect(await playsOf(cue, FIRST_EPISODE)).toEqual(earlier.map((play) => play.historyId));
+});
+
+it("clears an episode tick whose mark's answer was lost by removing only that mark's play", async () => {
+  const { cue, earlier, wrapper } = await restarted();
+  fake.drop({ method: "POST", path: HISTORY }, "after");
+  const show = renderHook(useMarkSeason, { wrapper });
+  await act(() => show.result.current.toggleEpisode(TARGET, unwatched(1, FIRST_EPISODE)));
+  await act(() =>
+    show.result.current.toggleEpisode(TARGET, { ...unwatched(1, FIRST_EPISODE), watched: true }),
+  );
+
+  expect(await playsOf(cue, FIRST_EPISODE)).toEqual(earlier.map((play) => play.historyId));
+});
+
+it("undoes a catch-up whose answer was lost by removing only the plays it added", async () => {
+  const { cue, wrapper } = await restarted();
+  usePlayPolicy.setState({ policy: "multiple" });
+  const before = [await playsOf(cue, FIRST_EPISODE), await playsOf(cue, SECOND_EPISODE)];
+  const season: SeasonView = {
+    number: 1,
+    title: "Season 1",
+    isSpecial: false,
+    isHidden: false,
+    episodes: [unwatched(1, FIRST_EPISODE), unwatched(2, SECOND_EPISODE)],
+    airedCount: 2,
+    completedCount: 0,
+  };
+  fake.drop({ method: "POST", path: HISTORY }, "after");
+  const show = renderHook(useMarkSeason, { wrapper });
+  await act(() => show.result.current.markUpToHere(TARGET, [season], { season: 1, number: 2 }));
+  await act(() => show.result.current.undo());
+
+  expect([await playsOf(cue, FIRST_EPISODE), await playsOf(cue, SECOND_EPISODE)]).toEqual(before);
+});
+
+it("shows a mark Trakt refused later as not watched, however the library is read again", async () => {
+  const cue = await buildRuntime();
+  const queryClient = createQueryClient();
+  const library = await queryClient.fetchQuery(libraryQuery(cue));
+  const entry = library.entries.find((candidate) => candidate.showId === SHOW);
+  if (entry === undefined) throw new Error("the show needs to be in the library");
+  fake.drop({ method: "POST", path: HISTORY });
+  const up = renderHook(useMarkWatched, { wrapper: withRuntime(cue, queryClient) });
+  await act(() => up.result.current.mark(entry));
+  up.unmount();
+
+  fake.fail({ method: "POST", path: HISTORY }, 404);
+  await act(() => cue.flushWrites());
+  await act(() => queryClient.refetchQueries({ queryKey: libraryQuery(cue).queryKey }));
+
+  const reread = queryClient
+    .getQueryData(libraryQuery(cue).queryKey)
+    ?.entries.find((candidate) => candidate.showId === SHOW);
+  expect(reread?.nextEpisode?.ids.trakt).toBe(NEXT_EPISODE);
+  expect(reread?.completed).toBe(entry.completed);
 });

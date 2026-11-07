@@ -10,7 +10,7 @@ import type { UserProfile } from "../domain/model/user";
 import type { TraktFailure } from "../domain/read-failure";
 import type { EpisodePlay, MoviePlay } from "../domain/reversal";
 import type { SeasonView, ShowInfo, ShowProgress } from "../domain/show-detail";
-import type { WriteOutcome } from "../domain/write-queue/queue";
+import type { WriteOutcome, WriteState } from "../domain/write-queue/queue";
 import type { WriteReceipt } from "../domain/write-queue/receipt";
 import type { QueuedOp } from "../domain/write-queue/types";
 
@@ -82,8 +82,7 @@ export interface CueRuntime {
   submit(op: QueuedOp): Promise<SubmitOutcome | "ended">;
   /** How a submitted write ends, however long it waits to be sent. */
   settled(opId: string): Promise<WriteOutcome | "ended">;
-  /** How a write ended, or null while it is still to be sent. */
-  writeOutcome(opId: string): WriteOutcome | null;
+  writeState(opId: string): WriteState;
   writeReceipt(opId: string): WriteReceipt | null;
   readsPausedUntil(): number;
   subscribeReadPause(listener: () => void): () => void;
@@ -91,7 +90,6 @@ export interface CueRuntime {
   subscribeReadRetry(listener: () => void): () => void;
   pendingWrites(): number;
   pendingOps(): readonly QueuedOp[];
-  inFlightOpId(): string | null;
   flushWrites(): Promise<number>;
   pollActivities(): Promise<ActivitiesReconcile | null>;
   endLocalSession(): Promise<void>;
