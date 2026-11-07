@@ -69,6 +69,7 @@ export function HistoryScreen(): ReactElement {
     [entries, clock, title],
   );
   const status = queryStatus(query, query.data !== undefined);
+  const pageFailed = query.isFetchNextPageError && !query.isFetchingNextPage;
   const banner = useSyncBanner(status);
   const refresh = usePullToRefresh();
   const colors = useColors();
@@ -179,7 +180,7 @@ export function HistoryScreen(): ReactElement {
         }
         ListFooterComponent={
           <View style={styles.lead}>
-            {query.isFetchNextPageError ? (
+            {pageFailed ? (
               <CueText variant="rowTitleSecondary" style={{ color: colors.ink2 }}>
                 Couldn't load earlier history.
               </CueText>
@@ -187,7 +188,7 @@ export function HistoryScreen(): ReactElement {
             {query.hasNextPage ? (
               <Button
                 label={
-                  query.isFetchNextPageError
+                  pageFailed
                     ? "Retry"
                     : query.isFetchingNextPage
                       ? "Loading earlier history"

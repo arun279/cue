@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 import type { LibraryEntry } from "@/core/domain/model/library";
 import type { MovieEntry } from "@/core/domain/model/movie";
 import { TraktReadError } from "@/core/domain/read-failure";
+import { usePrefs } from "@/core/prefs/prefs-store";
 import { FILTER_DEBOUNCE_MS } from "../src/screens/library/model";
 import "./support/screen-mocks";
 import { agesAgo, entry, fakeRuntime, Harness, spyHaptics } from "./support/up-next";
@@ -187,6 +188,31 @@ it("remembers a chip per segment", async () => {
 
   await userEvent.press(screen.getByTestId("library-segment-movies"));
   expect(titles()).toEqual(["The Lantern Keeper"]);
+});
+
+it("moves to the medium still on when Settings turns off the one on screen", async () => {
+  const turn = { shows: (_on: boolean): void => {}, movies: (_on: boolean): void => {} };
+  function Settings(): null {
+    turn.shows = usePrefs((state) => state.setShowsEnabled);
+    turn.movies = usePrefs((state) => state.setMoviesEnabled);
+    return null;
+  }
+  await render(
+    <Harness runtime={fakeRuntime({ entries: shows(), movies: movies() })} haptics={haptics}>
+      <Library />
+      <Settings />
+    </Harness>,
+  );
+  await waitFor(() => expect(titles()).toEqual(["Harbor Lights", "Coastal Static"]));
+
+  await act(async () => turn.shows(false));
+  await waitFor(() => expect(titles()).toEqual(["Salt and Static"]));
+  expect(screen.queryByTestId("library-segment-shows")).toBeNull();
+
+  await act(async () => turn.shows(true));
+  await userEvent.press(screen.getByTestId("library-segment-movies"));
+  await act(async () => turn.movies(false));
+  expect(titles()).toEqual(["Harbor Lights", "Coastal Static"]);
 });
 
 it("puts the sort in the navigation bar beside the avatar, and keeps it out of the grid", async () => {

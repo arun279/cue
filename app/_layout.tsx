@@ -10,16 +10,16 @@ import { createAuthStore } from "@/core/auth/create-auth-store";
 import { type AuthStore, AuthStoreProvider, useAuth } from "@/core/auth/store";
 import { useActivitiesPoll } from "@/core/hooks/useActivitiesPoll";
 import { useEpisodeReminders } from "@/core/hooks/useEpisodeReminders";
+import { migrateLegacyData } from "@/core/migration/legacy-capacitor";
 import { AppVersionProvider } from "@/core/ports/app-version";
 import { HapticsProvider } from "@/core/ports/haptics";
 import { RemindersProvider } from "@/core/ports/reminders";
-import { createTokenStore } from "@/core/ports/token-store";
 import { createPrefsStore, PrefsProvider } from "@/core/prefs/prefs-store";
 import { clearAccount } from "@/core/runtime/create-runtime";
 import { PERSIST_MAX_AGE } from "@/core/runtime/query-cache";
-import { bootNativeStores } from "../src/boot";
 import { NATIVE_REDIRECT_URI, TRAKT_BASE_OVERRIDE, TRAKT_CLIENT_ID } from "../src/config";
 import { nativeCrypto } from "../src/crypto";
+import { createInstallTokenStore } from "../src/install-token-store";
 import { nativeAppVersion } from "../src/platform/app-version";
 import { createNativeHaptics } from "../src/platform/haptics";
 import { legacyStore } from "../src/platform/legacy-store";
@@ -80,14 +80,17 @@ function useNativeSession(): NativeSession | null {
 
   useEffect(() => {
     let alive = true;
-    const tokenStore = createTokenStore(secureStore);
-    void bootNativeStores({
+    const tokenStore = createInstallTokenStore({
+      secure: secureStore,
+      bulk: bulkStore,
+      newInstallId: nativeCrypto.newId,
+    });
+    void migrateLegacyData({
       tokenStore,
       secure: secureStore,
       bulk: bulkStore,
       legacy: legacyStore,
       preferences: preferenceStorage,
-      newInstallId: nativeCrypto.newId,
       digest: nativeCrypto.digest,
     })
       .then(

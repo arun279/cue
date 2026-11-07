@@ -15,6 +15,7 @@ interface MemoryStorage {
   getItem(key: string): Promise<string | null>;
   setItem(key: string, value: string): Promise<void>;
   removeItem(key: string): Promise<void>;
+  multiSet(entries: [string, string][]): Promise<void>;
   getItemSync(key: string): string | null;
   setItemSync(key: string, value: string): void;
   removeItemSync(key: string): boolean;
@@ -32,6 +33,10 @@ function createMemoryStorage(): MemoryStorage {
     },
     removeItem: (key) => {
       values.delete(key);
+      return Promise.resolve();
+    },
+    multiSet: (entries) => {
+      for (const [key, value] of entries) values.set(key, value);
       return Promise.resolve();
     },
     getItemSync: (key) => values.get(key) ?? null,
