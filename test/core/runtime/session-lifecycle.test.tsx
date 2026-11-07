@@ -6,6 +6,7 @@
  */
 
 import { createHash } from "node:crypto";
+import type { QueryClient } from "@tanstack/react-query";
 import { renderHook } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { useRuntimeBoot } from "@/core/app/boot";
@@ -13,7 +14,10 @@ import { createAuthStore } from "@/core/auth/create-auth-store";
 import { queryKeys } from "@/core/data/query-keys";
 import type { Token } from "@/core/domain/model/token";
 import { buildHideShowOp, buildMarkEpisodeOp } from "@/core/domain/write-queue/ops";
+import type { QueuedOp } from "@/core/domain/write-queue/types";
 import { useHideShow } from "@/core/hooks/useHideShow";
+import { useMarkSeason } from "@/core/hooks/useMarkSeason";
+import { useMoveToWatchlist } from "@/core/hooks/useMoveToWatchlist";
 import type { KeyValueStore } from "@/core/ports/kv";
 import { INCIDENTS_KEY, OP_LOG_KEY, PLAY_POLICY_KEY } from "@/core/ports/storage-keys";
 import { createTokenStore } from "@/core/ports/token-store";
@@ -23,6 +27,7 @@ import { createQueryClient } from "@/core/runtime/query-cache";
 import type { CueRuntime } from "@/core/runtime/runtime";
 import { usePlayPolicy } from "@/core/stores/play-policy-store";
 import { useReadIncidents } from "@/core/stores/read-incidents-store";
+import { getSeasonMarkDelta, rememberSeasonMark } from "@/core/stores/season-reversal";
 import { useSnackbar } from "@/core/stores/snackbar-store";
 import { withRuntime } from "../support/runtime";
 import {
@@ -174,6 +179,66 @@ function launch(device: Device) {
  */
 function answerAfterAbort(): void {
   vi.stubGlobal("fetch", fake.fetch);
+}
+
+/**
+ * Account A on a session Trakt is about to end, with its writes to `held` held back. Its
+ * runtime counts writes as they start and settle, since the screens may never hear back.
+ */
+async function doomedSessionHolding(held: RegExp) {
+  answerAfterAbort();
+  const release = fake.hold({ method: "POST", path: held });
+  fake.fail({ method: "GET", path: /^\/users\/settings$/ }, 401);
+  const device = await install(doomed());
+  const launched = launch(device);
+  const runtime = await launched.runtime();
+  let started = 0;
+  let settled = 0;
+  const counted: CueRuntime = {
+    ...runtime,
+    submit: (op: QueuedOp) => {
+      started += 1;
+      return runtime.submit(op).finally(() => {
+        settled += 1;
+      });
+    },
+  };
+  return {
+    runtime: counted,
+    /** Ends the session, signs the next account in and readies it, then lets Trakt answer. */
+    async answerAfterNextSignIn(ready: (next: CueRuntime) => Promise<void> | void): Promise<void> {
+      await counted.loadUserProfile().catch(() => null);
+      await vi.waitFor(() => expect(device.auth.getState().phase).toBe("onboarding"));
+      launched.hook.unmount();
+      await signIn(device);
+      await ready(await launch(device).runtime());
+      release();
+      await vi.waitFor(() => expect(started > 0 && settled === started).toBe(true));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    },
+  };
+}
+
+/**
+ * The next account has its library on screen when Trakt answers the last session's write:
+ * nothing from that session may offer an Undo or change the library.
+ */
+async function expectNextLibraryUntouched(
+  session: Awaited<ReturnType<typeof doomedSessionHolding>>,
+  queryClient: QueryClient,
+): Promise<void> {
+  let library: unknown;
+  await session.answerAfterNextSignIn(async (next) => {
+    await queryClient.fetchQuery({
+      queryKey: queryKeys.library(),
+      queryFn: () => next.loadUpNext(),
+      staleTime: 0,
+    });
+    library = queryClient.getQueryData(queryKeys.library());
+  });
+  const actions = useSnackbar.getState().snack?.actions ?? [];
+  expect(actions.map((action) => action.label)).not.toContain("Undo");
+  expect(queryClient.getQueryData(queryKeys.library())).toBe(library);
 }
 
 /** The Sign out button. */
@@ -473,31 +538,50 @@ it("keeps every preference changeable after a sign-in clears the last account's"
 });
 
 it("offers the next session no Undo for a hide Trakt answers after its session ended", async () => {
-  answerAfterAbort();
-  const release = fake.hold({ method: "POST", path: /^\/users\/hidden\/progress_watched$/ });
-  fake.fail({ method: "GET", path: /^\/users\/settings$/ }, 401);
-  const device = await install(doomed());
-  const first = launch(device);
-  const runtime = await first.runtime();
+  const hide = /^\/users\/hidden\/progress_watched$/;
+  const session = await doomedSessionHolding(hide);
   const queryClient = createQueryClient();
-  const shows = renderHook(() => useHideShow(), { wrapper: withRuntime(runtime, queryClient) });
-  const hiding = shows.result.current.hide(8801, { trakt: 8801 }, "A show");
-  await vi.waitFor(() =>
-    expect(sent("POST", /^\/users\/hidden\/progress_watched$/)).toHaveLength(1),
-  );
-  await runtime.loadUserProfile().catch(() => null);
-  await vi.waitFor(() => expect(device.auth.getState().phase).toBe("onboarding"));
-  first.hook.unmount();
-  await signIn(device);
-  const next = await launch(device).runtime();
-  await queryClient.fetchQuery({ queryKey: queryKeys.library(), queryFn: () => next.loadUpNext() });
-  const library = queryClient.getQueryData(queryKeys.library());
+  const shows = renderHook(() => useHideShow(), {
+    wrapper: withRuntime(session.runtime, queryClient),
+  });
+  void shows.result.current.hide(8801, { trakt: 8801 }, "A show");
+  await vi.waitFor(() => expect(sent("POST", hide)).toHaveLength(1));
 
-  release();
-  await hiding;
+  await expectNextLibraryUntouched(session, queryClient);
+});
 
-  expect(useSnackbar.getState().snack?.actions?.map((action) => action.label) ?? []).not.toContain(
-    "Undo",
+it("offers the next session no Undo when a move to Watchlist ends with its session while resuming the show", async () => {
+  const resume = /^\/users\/hidden\/progress_watched\/remove$/;
+  const session = await doomedSessionHolding(resume);
+  const queryClient = createQueryClient();
+  const [listed] = (await session.runtime.loadUpNext()).entries;
+  if (listed === undefined) throw new Error("the fake account has no shows");
+  const stopped = { ...listed, completed: 0, inWatchlist: false, hidden: true };
+  queryClient.setQueryData(queryKeys.library(), { entries: [stopped] });
+  const move = renderHook(() => useMoveToWatchlist(), {
+    wrapper: withRuntime(session.runtime, queryClient),
+  });
+  void move.result.current(stopped);
+  await vi.waitFor(() => expect(sent("POST", resume)).toHaveLength(1), { timeout: 3000 });
+
+  await expectNextLibraryUntouched(session, queryClient);
+});
+
+it("leaves the next session's season marks alone when the last one's season unmark ends with it", async () => {
+  const removal = /^\/sync\/history\/remove$/;
+  const session = await doomedSessionHolding(removal);
+  const season = (await session.runtime.loadShowSeasons(8801)).find((s) => s.number === 1);
+  if (season === undefined) throw new Error("the fake show has no first season");
+  const seasons = renderHook(() => useMarkSeason(), {
+    wrapper: withRuntime(session.runtime, createQueryClient()),
+  });
+  void seasons.result.current.unmarkSeason(
+    { showId: 8801, ids: { trakt: 8801 }, includeSpecials: false },
+    season,
   );
-  expect(queryClient.getQueryData(queryKeys.library())).toBe(library);
+  await vi.waitFor(() => expect(sent("POST", removal)).toHaveLength(1));
+
+  await session.answerAfterNextSignIn(() => rememberSeasonMark(8801, 1, [3, 4]));
+
+  expect(getSeasonMarkDelta(8801, 1)).toEqual(new Set([3, 4]));
 });

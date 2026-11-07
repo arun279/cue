@@ -145,14 +145,6 @@ describe("applyOptimisticWrite: the shared write seam", () => {
     expect((await exerciseKept("failed")).order).toEqual(["rollback"]);
   });
 
-  it('does nothing at all when the write\'s session "ended", whatever else the batch did', async () => {
-    expect(await exerciseKept("ended")).toEqual({ order: [], outcome: "ended" });
-    const batch = await exercise(["done", "ended", "failed"]);
-    expect(batch.outcome).toBe("ended");
-    expect(batch.rollback).not.toHaveBeenCalled();
-    expect(batch.revalidate).not.toHaveBeenCalled();
-  });
-
   it('holds off revalidate when the follow-up is still "deferred", even on a landed batch', async () => {
     const { order, outcome } = await exerciseKept("done", "deferred");
     expect(order).toEqual(["onKept"]);

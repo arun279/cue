@@ -11,7 +11,6 @@ import {
 } from "@/core/domain/write-queue/ops";
 import { replacedPlays } from "@/core/domain/write-queue/receipt";
 import type { QueuedOp } from "@/core/domain/write-queue/types";
-import { isKept } from "@/core/hooks/optimistic-write";
 import { REPLACED_COPY } from "@/core/hooks/replaced-copy";
 import { planLandedUndo, resolveMovieUnmark } from "@/core/hooks/resolve-unmark";
 import { useOptimisticWrite } from "@/core/hooks/useOptimisticWrite";
@@ -151,7 +150,7 @@ export function useMovieActions(header: MovieHeader) {
       { watched: true, watchedAt },
       { watched: false, watchedAt: null },
     );
-    if (!isKept(outcome)) return;
+    if (outcome === "failed") return;
     if (outcome === "done" && replacedPlays(runtime.writeReceipt(op.id)) > 0) {
       showSnack({ message: REPLACED_COPY.mark(header.title) });
       return;
@@ -178,13 +177,11 @@ export function useMovieActions(header: MovieHeader) {
       patch({ watched: false, watchedAt: null });
       revalidate();
     } else if (
-      isKept(
-        await write(
-          remove(resolution.historyId, resolution.watchedAt),
-          { watched: false, watchedAt: null },
-          { watched: true, watchedAt: entry.watchedAt },
-        ),
-      )
+      (await write(
+        remove(resolution.historyId, resolution.watchedAt),
+        { watched: false, watchedAt: null },
+        { watched: true, watchedAt: entry.watchedAt },
+      )) !== "failed"
     ) {
       showUndoable("Removed play", () => void guard(() => mark(resolution.watchedAt, false)));
     }
@@ -194,8 +191,10 @@ export function useMovieActions(header: MovieHeader) {
       { type: "movie", traktId: header.movieId, ...header },
       listed,
     );
-    if (outcome === "failed") error();
-    if (!isKept(outcome)) return;
+    if (outcome === "failed") {
+      error();
+      return;
+    }
     if (undoable)
       showUndoable(
         `${header.title} ${listed ? "added to" : "removed from"} Watchlist`,

@@ -40,8 +40,7 @@ export interface HistoryPageData {
   readonly pageCount: number;
 }
 
-/** "ended": the session ended before the write settled, so nothing should follow from it. */
-export type SubmitOutcome = "done" | "failed" | "deferred" | "ended";
+export type SubmitOutcome = "done" | "failed" | "deferred";
 
 export interface ActivitiesReconcile {
   readonly keys: readonly InvalidationKey[];
@@ -74,7 +73,8 @@ export interface CueRuntime {
   loadBrowse(): Promise<BrowseData>;
   loadGenreNames(): Promise<Readonly<Record<string, string>>>;
   loadUserProfile(): Promise<UserProfile>;
-  submit(op: QueuedOp): Promise<SubmitOutcome>;
+  /** "ended": the session ended before the write settled. */
+  submit(op: QueuedOp): Promise<SubmitOutcome | "ended">;
   writeReceipt(opId: string): WriteReceipt | null;
   readsPausedUntil(): number;
   subscribeReadPause(listener: () => void): () => void;
