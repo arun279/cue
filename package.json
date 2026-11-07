@@ -18,7 +18,7 @@
     "test:watch": "vitest",
     "check:spell": "cspell --no-progress --no-summary",
     "check:arch": "depcruise . --config .dependency-cruiser.cjs",
-    "check:deps": "expo install --check",
+    "check:deps": "EXPO_OFFLINE=1 expo install --check",
     "check:bundle": "EXPO_ATLAS=true expo export --platform ios --platform android --output-dir dist && node scripts/check-store-bundle.mjs",
     "check": "biome check --error-on-warnings . && oxlint && dprint check && pnpm check:spell && pnpm typecheck && pnpm check:deps && pnpm check:arch && knip && jscpd && pnpm check:bundle && vitest run && pnpm test:native",
     "prepare": "lefthook install",
