@@ -30,6 +30,11 @@ async function dragTo(points: number): Promise<void> {
     if (translation === null || drag.start === null) throw new Error("no swipeable rendered");
     drag.start(points > 0 ? "right" : "left");
   });
+  await slideTo(points);
+}
+
+/** Move the row with no finger on it, the way the library's spring does. */
+async function slideTo(points: number): Promise<void> {
   await act(async () => {
     const translation = drag.translation;
     if (translation === null) throw new Error("no swipeable rendered");
@@ -150,6 +155,20 @@ describe("the reveal's threshold", () => {
 
     await dragTo(SWIPE_COMMIT - 10);
     expect(reveal("Watched")).toBeNull();
+    expect(haptics.thresholdDeactivate).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays quiet while a committed row springs closed, and ticks again on the next drag", async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    await renderRow(jest.fn(), jest.fn());
+    await dragTo(SWIPE_COMMIT + 20);
+
+    await user.press(screen.getByTestId("row-drag-right"));
+    await slideTo(0);
+    expect(haptics.thresholdDeactivate).not.toHaveBeenCalled();
+
+    await dragTo(SWIPE_COMMIT + 20);
+    await dragTo(SWIPE_COMMIT - 10);
     expect(haptics.thresholdDeactivate).toHaveBeenCalledTimes(1);
   });
 
