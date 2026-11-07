@@ -354,6 +354,19 @@ describe("WriteQueue taking back an add that may be on Trakt", () => {
     expect(states(q, "a", "undo")).toEqual(["done", "done"]);
   });
 
+  it("fails at once only the take-backs of an add that replaced an earlier play", async () => {
+    const h = harness(ok, () => Promise.resolve([12]));
+    const settle = (op: QueuedOp): Settlement => (op.id === "replacing" ? "replaced" : "applied");
+    const replacing = mark("replacing", 1);
+    const adding = mark("adding", 2);
+    const q = new WriteQueue({ ...h.deps, settle }, [replacing, adding]);
+    q.enqueue(buildUndoAddOp("undo-replacing", replacing));
+    q.enqueue(buildUndoAddOp("undo-adding", adding));
+    await q.flush();
+    expect(states(q, "undo-replacing", "undo-adding")).toEqual(["failed", "done"]);
+    expect(h.dispatch).toHaveBeenCalledTimes(3);
+  });
+
   it("sends nothing when the add left no play to remove", async () => {
     const h = harness(ok);
     const added = mark("a", 1);
