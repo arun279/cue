@@ -52,6 +52,7 @@ export function accountFixture(overrides: Partial<CueRuntime> = {}) {
     clientId: "test",
     redirectUri: "cue://auth/callback",
     traktBaseUrl: undefined,
+    clearAccount: () => Promise.resolve(),
   });
   auth.setState({ disconnect });
   const runtime = {
@@ -64,6 +65,7 @@ export function accountFixture(overrides: Partial<CueRuntime> = {}) {
         username: "jo",
         avatar: "https://example.com/avatar.png",
       }),
+    endLocalSession: jest.fn<Promise<void>, []>(() => Promise.resolve()),
     ...overrides,
   };
   function AppearanceBridge(): null {

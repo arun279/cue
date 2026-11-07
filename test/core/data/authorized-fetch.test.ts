@@ -37,20 +37,23 @@ const stale = (): Token => session({ access_token: "stale-access" });
 /** A session whose refresh token Trakt does not know either. */
 const dead = (): Token => session({ access_token: "stale-access", refresh_token: "never-issued" });
 
+/** The fetch of one session, which ends the way the runtime ends it: by aborting. */
 function build(overrides: Partial<AuthorizedFetchDeps> = {}) {
+  const scope = new AbortController();
   const persist = vi.fn((_t: Token) => Promise.resolve());
-  const endSession = vi.fn(() => Promise.resolve());
+  const endSession = vi.fn(() => scope.abort());
   const authorized = createAuthorizedFetch({
     inner: fake.fetch,
     token: session(),
     config,
+    signal: scope.signal,
     persist,
     endSession,
     now: () => NOW_MS,
     throttleMs: 60_000,
     ...overrides,
   });
-  return { authorized, persist, endSession };
+  return { authorized, persist, endSession, end: () => scope.abort() };
 }
 
 const sentTo = (path: string) => fake.requests.filter((request) => request.path === path);
@@ -151,7 +154,7 @@ describe("createAuthorizedFetch: dead refresh token", () => {
     expect(second.status).toBe(503);
   });
 
-  it("ends the session once however many reads were waiting on the refresh", async () => {
+  it("ends the session for every read that was waiting on the refresh, and fails them all", async () => {
     const { authorized, endSession } = build({ token: dead() });
     const paths = [
       "users/settings",
@@ -166,7 +169,7 @@ describe("createAuthorizedFetch: dead refresh token", () => {
     );
     await authorized.fetch(READ, { method: "GET" });
 
-    expect(endSession).toHaveBeenCalledTimes(1);
+    expect(endSession).toHaveBeenCalled();
     expect(responses.map((response) => response.status)).toEqual([401, 401, 401, 401, 401]);
   });
 
@@ -268,6 +271,33 @@ describe("createAuthorizedFetch: refresh throttle", () => {
     await authorized.fetch(READ, { method: "GET" });
 
     expect(refreshes()).toBe(1);
+    expect(endSession).not.toHaveBeenCalled();
+  });
+});
+
+describe("createAuthorizedFetch: once its session has ended", () => {
+  /** A read whose refresh Trakt answers only after the session has ended. */
+  async function refreshAnsweredAfterEnd(token: Token) {
+    const release = fake.hold(REFRESH);
+    const built = build({ token });
+    const reading = built.authorized.fetch(READ, { method: "GET" }).catch(() => null);
+    await vi.waitFor(() => expect(refreshes()).toBe(1));
+    built.end();
+    release();
+    await reading;
+    return built;
+  }
+
+  it("ignores a token refreshed afterwards, and never saves it", async () => {
+    const { authorized, persist } = await refreshAnsweredAfterEnd(expired());
+
+    expect(persist).not.toHaveBeenCalled();
+    expect(authorized.accessToken()).toBe(session().access_token);
+  });
+
+  it("ends nothing when a refresh it sent before is refused", async () => {
+    const { endSession } = await refreshAnsweredAfterEnd(dead());
+
     expect(endSession).not.toHaveBeenCalled();
   });
 });

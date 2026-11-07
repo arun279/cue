@@ -1,9 +1,9 @@
-import { type ReactElement, type ReactNode, useEffect } from "react";
+import { type ReactElement, type ReactNode, useEffect, useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { type RuntimeBootDeps, useRuntimeBoot } from "@/core/app/boot";
 import { useAuth } from "@/core/auth/store";
-import { RuntimeProvider } from "@/core/runtime/runtime";
+import { forScreens, RuntimeProvider } from "@/core/runtime/runtime";
 import { useSplashRelease } from "../platform/splash";
 import { Button } from "../ui/Button";
 import { EmptyState } from "../ui/EmptyState";
@@ -17,19 +17,22 @@ export interface RuntimeBootProps {
 
 export function RuntimeBoot({ deps, children }: RuntimeBootProps): ReactElement | null {
   const endSession = useAuth((s) => s.endSession);
-  const { runtime, failure, retry } = useRuntimeBoot({ ...deps, endSession });
+  const { runtime, failure, booting, retry } = useRuntimeBoot({ ...deps, endSession });
+  const screens = useMemo(() => (runtime === null ? null : forScreens(runtime)), [runtime]);
   useSplashRelease(runtime !== null || failure !== null);
 
-  if (runtime !== null) return <RuntimeProvider value={runtime}>{children}</RuntimeProvider>;
-  if (failure !== null) return <BootFailure detail={failure} onRetry={retry} />;
+  if (screens !== null) return <RuntimeProvider value={screens}>{children}</RuntimeProvider>;
+  if (failure !== null) return <BootFailure detail={failure} retrying={booting} onRetry={retry} />;
   return null;
 }
 
 function BootFailure({
   detail,
+  retrying,
   onRetry,
 }: {
   readonly detail: string;
+  readonly retrying: boolean;
   readonly onRetry: () => void;
 }): ReactElement {
   const colors = useColors();
@@ -55,7 +58,7 @@ function BootFailure({
         headline="Couldn't start Cue"
         body="Cue couldn't open what it keeps on this device."
       >
-        <Button label="Retry" onPress={onRetry} />
+        <Button label="Retry" busy={retrying} onPress={onRetry} />
       </EmptyState>
     </View>
   );

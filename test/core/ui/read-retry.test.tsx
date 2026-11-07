@@ -12,7 +12,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type TraktResult, unwrapRead } from "@/core/data/trakt/client";
 import { DEFAULT_TRAKT_POLICY } from "@/core/data/trakt/policy";
-import { resetReadPause, withReadRateRetry } from "@/core/data/trakt/read-budget";
+import { ReadBudget } from "@/core/data/trakt/read-budget";
 import { TraktReadError } from "@/core/domain/read-failure";
 import { backoffMs } from "@/core/domain/write-queue/classify";
 import { useReadRetry } from "@/core/hooks/useReadRetry";
@@ -42,13 +42,11 @@ function mountRead(queryFn: () => Promise<unknown>): { readonly current: Status 
 
 beforeEach(() => {
   vi.useFakeTimers();
-  resetReadPause();
 });
 
 afterEach(() => {
   onlineManager.setOnline(true);
   vi.useRealTimers();
-  resetReadPause();
 });
 
 describe("a read that keeps failing", () => {
@@ -184,14 +182,17 @@ describe("a sustained rate limit", () => {
     // retry the same failure on top of it, or one refetch of an aggregate read
     // costs three times the requests into the window that asked for fewer.
     let requests = 0;
+    const reads = new ReadBudget(DEFAULT_TRAKT_POLICY);
     const queryFn = () =>
-      withReadRateRetry(() => {
-        requests += 1;
-        return Promise.resolve({
-          ok: false,
-          error: { kind: "rate-limited", retryAfterMs: 1000 },
-        } as TraktResult<never>);
-      }).then((read) => unwrapRead(read, "watched shows"));
+      reads
+        .withRateRetry(() => {
+          requests += 1;
+          return Promise.resolve({
+            ok: false,
+            error: { kind: "rate-limited", retryAfterMs: 1000 },
+          } as TraktResult<never>);
+        })
+        .then((read) => unwrapRead(read, "watched shows"));
 
     const seen = mountRead(queryFn);
     await act(async () => {

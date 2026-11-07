@@ -15,6 +15,7 @@ import { AppVersionProvider } from "@/core/ports/app-version";
 import { HapticsProvider } from "@/core/ports/haptics";
 import { RemindersProvider } from "@/core/ports/reminders";
 import { createPrefsStore, PrefsProvider } from "@/core/prefs/prefs-store";
+import { clearAccount } from "@/core/runtime/create-runtime";
 import { PERSIST_MAX_AGE } from "@/core/runtime/query-cache";
 import { NATIVE_REDIRECT_URI, TRAKT_BASE_OVERRIDE, TRAKT_CLIENT_ID } from "../src/config";
 import { nativeCrypto } from "../src/crypto";
@@ -33,12 +34,7 @@ import {
 import { createNativeReminders, useOpenTappedReminder } from "../src/platform/reminders";
 import { trackScreenReader } from "../src/platform/screen-reader";
 import { useSplashRelease } from "../src/platform/splash";
-import {
-  bulkStore,
-  clearLocalPreferences,
-  preferenceStorage,
-  secureStore,
-} from "../src/platform/stores";
+import { bulkStore, preferenceStorage, secureStore } from "../src/platform/stores";
 import { RootStack } from "../src/RootStack";
 import { useAppearance } from "../src/screens/account/ThemeControl";
 import { Onboarding } from "../src/screens/Onboarding";
@@ -70,7 +66,8 @@ const sessionDeps = {
   clearPersistedCaches: async () => {
     await Promise.all([clearPersistedCaches(), legacyStore.clear()]);
   },
-  clearLocalPreferences: () => clearLocalPreferences(prefsStore),
+  clearLocalPreferences: () => prefsStore.getState().clearPreferences(),
+  reminders,
 };
 
 interface NativeSession {
@@ -108,6 +105,7 @@ function useNativeSession(): NativeSession | null {
           clientId: TRAKT_CLIENT_ID,
           redirectUri: NATIVE_REDIRECT_URI,
           traktBaseUrl: TRAKT_BASE_OVERRIDE,
+          clearAccount: () => clearAccount(sessionDeps),
         });
         if (bootFailure !== null) store.setState({ errorMessage: bootFailure });
         setSession({ authStore: store, runtimeDeps: { ...sessionDeps, tokenStore } });

@@ -48,6 +48,8 @@ export interface ActivitiesReconcile {
 }
 
 export interface CueRuntime {
+  /** Aborts when this session ends. */
+  readonly session: AbortSignal;
   newId(): string;
   loadUpNext(): Promise<UpNextData>;
   loadShowInfo(showId: number): Promise<ShowInfo>;
@@ -84,7 +86,58 @@ export interface CueRuntime {
   inFlightOpId(): string | null;
   flushWrites(): Promise<number>;
   pollActivities(): Promise<ActivitiesReconcile | null>;
-  endLocalSession(options?: { readonly force?: boolean }): Promise<void>;
+  endLocalSession(): Promise<void>;
+}
+
+/**
+ * The runtime as screens see it. Once its session has ended nothing it answers reaches them,
+ * reads included: those screens belonged to that session and are unmounted with it.
+ */
+export function forScreens(runtime: CueRuntime): CueRuntime {
+  const quiet =
+    <A extends unknown[], T>(call: (...args: A) => Promise<T>) =>
+    (...args: A): Promise<T> =>
+      call(...args).then(
+        (value) => (runtime.session.aborted ? new Promise<T>(() => {}) : value),
+        (error: unknown) =>
+          runtime.session.aborted ? new Promise<T>(() => {}) : Promise.reject(error),
+      );
+  return {
+    session: runtime.session,
+    newId: runtime.newId,
+    loadUpNext: quiet(runtime.loadUpNext),
+    loadShowInfo: quiet(runtime.loadShowInfo),
+    loadShowRelated: quiet(runtime.loadShowRelated),
+    loadMovieLibrary: quiet(runtime.loadMovieLibrary),
+    loadMovieHeader: quiet(runtime.loadMovieHeader),
+    loadMovieRelated: quiet(runtime.loadMovieRelated),
+    loadShowProgress: quiet(runtime.loadShowProgress),
+    loadShowSeasons: quiet(runtime.loadShowSeasons),
+    loadEpisode: quiet(runtime.loadEpisode),
+    loadMovieWatchlist: quiet(runtime.loadMovieWatchlist),
+    loadCalendar: quiet(runtime.loadCalendar),
+    loadHistory: quiet(runtime.loadHistory),
+    loadFirstPlayAt: quiet(runtime.loadFirstPlayAt),
+    loadShowPlays: quiet(runtime.loadShowPlays),
+    loadEpisodePlays: quiet(runtime.loadEpisodePlays),
+    loadMoviePlays: quiet(runtime.loadMoviePlays),
+    search: quiet(runtime.search),
+    loadBrowse: quiet(runtime.loadBrowse),
+    loadGenreNames: quiet(runtime.loadGenreNames),
+    loadUserProfile: quiet(runtime.loadUserProfile),
+    submit: quiet(runtime.submit),
+    writeReceipt: runtime.writeReceipt,
+    readsPausedUntil: runtime.readsPausedUntil,
+    subscribeReadPause: runtime.subscribeReadPause,
+    readRetryFailure: runtime.readRetryFailure,
+    subscribeReadRetry: runtime.subscribeReadRetry,
+    pendingWrites: runtime.pendingWrites,
+    pendingOps: runtime.pendingOps,
+    inFlightOpId: runtime.inFlightOpId,
+    flushWrites: quiet(runtime.flushWrites),
+    pollActivities: quiet(runtime.pollActivities),
+    endLocalSession: runtime.endLocalSession,
+  };
 }
 
 const RuntimeContext = createContext<CueRuntime | null>(null);

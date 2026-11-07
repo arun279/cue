@@ -42,6 +42,40 @@
     {
       "files": ["test/core/trakt-fake/**"],
       "rules": { "no-restricted-imports": "off" }
+    },
+    {
+      // React Native 0.86 polyfills AbortController with abort-controller 3.0.0, which
+      // predates these (facebook/react-native#55247). Node has them, so tests pass and
+      // the app throws.
+      "files": ["app/**", "modules/**", "src/**"],
+      "rules": {
+        "no-restricted-properties": [
+          "error",
+          {
+            "object": "AbortSignal",
+            "property": "timeout",
+            "message": "Not in React Native 0.86. Use withDeadline from src/core/domain/abortable.ts."
+          },
+          {
+            "object": "AbortSignal",
+            "property": "any",
+            "message": "Not in React Native 0.86. Forward the abort event to one AbortController."
+          },
+          {
+            "object": "AbortSignal",
+            "property": "abort",
+            "message": "Not in React Native 0.86. Call abort() on an AbortController."
+          },
+          {
+            "property": "throwIfAborted",
+            "message": "Not in React Native 0.86. Check signal.aborted."
+          },
+          {
+            "property": "reason",
+            "message": "AbortSignal has no reason in React Native 0.86, so it reads as undefined."
+          }
+        ]
+      }
     }
   ]
 }

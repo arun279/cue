@@ -29,6 +29,7 @@ export function buildRuntime(overrides: Partial<RuntimeDeps> = {}): Promise<CueR
     endSession: async () => undefined,
     clearPersistedCaches: async () => undefined,
     clearLocalPreferences: () => undefined,
+    reminders: { cancelAll: () => Promise.resolve() },
     ...overrides,
   });
 }

@@ -8,10 +8,10 @@ import {
   revokeToken,
 } from "../data/auth/oauth";
 import { createPkcePair } from "../data/auth/pkce";
+import { sleep } from "../domain/abortable";
 import type { Token } from "../domain/model/token";
 import type { CryptoPort } from "../ports/crypto";
 import type { TokenStore } from "../ports/token-store";
-import { sessionTeardown } from "../runtime/session";
 import type { AuthActions, AuthState, AuthStore } from "./store";
 
 export interface AuthDeps {
@@ -20,11 +20,13 @@ export interface AuthDeps {
   readonly clientId: string;
   readonly redirectUri: string;
   readonly traktBaseUrl: string | undefined;
+  /** Removes what the device keeps for an account; a sign-in runs it before saving its token. */
+  readonly clearAccount: () => Promise<void>;
 }
 
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
-
 const SESSION_UNREADABLE = "Cue could not read your saved sign-in. Connect again to continue.";
+const ACCOUNT_NOT_CLEARED =
+  "Cue couldn't remove the previous account's data from this device. Try again.";
 
 export function createAuthStore(deps: AuthDeps): AuthStore {
   const config: OAuthConfig = {
@@ -34,6 +36,9 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
   };
 
   let activeAttempt = 0;
+  // A sign-out or a dead token ends the session it started in, never a later one.
+  let session = 0;
+  let disconnecting: { readonly session: number; readonly done: Promise<void> } | null = null;
 
   const store = createStore<AuthState & AuthActions>((set) => {
     const toOnboarding = (): void => {
@@ -45,7 +50,29 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
       });
     };
 
-    function connect(token: Token): void {
+    function endSessionFrom(started: number): void {
+      if (started !== session) return;
+      session += 1;
+      activeAttempt += 1;
+      void deps.tokenStore.clear();
+      toOnboarding();
+    }
+
+    async function revokeStoredToken(): Promise<void> {
+      const token = await deps.tokenStore.read();
+      if (token !== null) await revokeToken(config, token.access_token).catch(() => undefined);
+    }
+
+    async function connect(token: Token, attempt: number): Promise<void> {
+      try {
+        await deps.clearAccount();
+      } catch {
+        if (activeAttempt === attempt) {
+          set({ connectStatus: "error", deviceCode: null, errorMessage: ACCOUNT_NOT_CLEARED });
+        }
+        return;
+      }
+      if (activeAttempt !== attempt) return;
       void deps.tokenStore.write(token);
       set({
         phase: "connected",
@@ -55,10 +82,13 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
       });
     }
 
-    function applyDevicePoll(result: DeviceTokenResult): "pending" | "slow-down" | "done" {
+    async function applyDevicePoll(
+      result: DeviceTokenResult,
+      attempt: number,
+    ): Promise<"pending" | "slow-down" | "done"> {
       if (result.status === "pending" || result.status === "slow-down") return result.status;
       if (result.status === "success") {
-        connect(result.token);
+        await connect(result.token, attempt);
         return "done";
       }
       const messages = {
@@ -83,7 +113,7 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
       if (activeAttempt !== attempt) return "cancelled";
       const result = await poll();
       if (activeAttempt !== attempt) return "cancelled";
-      return applyDevicePoll(result);
+      return applyDevicePoll(result, attempt);
     }
 
     async function pollLoop(code: DeviceCode, verifier: string, attempt: number): Promise<void> {
@@ -129,21 +159,24 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
         }
       },
 
-      async disconnect() {
-        activeAttempt += 1;
-        await sessionTeardown.run();
-        const token = await deps.tokenStore.read();
-        if (token !== null) await revokeToken(config, token.access_token).catch(() => undefined);
-        void deps.tokenStore.clear();
-        toOnboarding();
+      disconnect() {
+        if (disconnecting?.session !== session) {
+          const started = session;
+          disconnecting = {
+            session: started,
+            done: revokeStoredToken().then(
+              () => endSessionFrom(started),
+              (error: unknown) => {
+                disconnecting = null;
+                throw error;
+              },
+            ),
+          };
+        }
+        return disconnecting.done;
       },
 
-      async endSession() {
-        activeAttempt += 1;
-        await sessionTeardown.run({ force: true }).catch(() => undefined);
-        void deps.tokenStore.clear();
-        toOnboarding();
-      },
+      endSession: () => endSessionFrom(session),
 
       cancelConnect() {
         activeAttempt += 1;

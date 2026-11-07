@@ -3,12 +3,7 @@ import { bulkBacking, secureStoreModule } from "./support/native-stores";
 
 jest.mock("expo-secure-store", () => require("./support/native-stores").secureStoreModule);
 
-import {
-  bulkStore,
-  clearLocalPreferences,
-  preferenceStorage,
-  secureStore,
-} from "../src/platform/stores";
+import { bulkStore, preferenceStorage, secureStore } from "../src/platform/stores";
 
 it("keeps the token in a Keychain item that never moves to another device through a backup", async () => {
   const save = jest.spyOn(secureStoreModule, "setItemAsync");
@@ -40,12 +35,22 @@ describe("what sign-out's preference clear can reach", () => {
 
     const prefs = createPrefsStore(preferenceStorage);
     prefs.getState().setMoviesEnabled(false);
-    clearLocalPreferences(prefs);
+    prefs.getState().clearPreferences();
 
     expect(preferenceStorage.getItem("cue.theme")).toBeNull();
     expect(prefs.getState()).toMatchObject({ theme: "system", moviesEnabled: true });
     expect(await bulkStore.read("cue.write-queue")).toBe('[{"id":"op-1"}]');
     expect(await bulkStore.read("cue.install-id")).toBe("an-install");
+  });
+
+  it("leaves every preference changeable after the clear", () => {
+    const prefs = createPrefsStore(preferenceStorage);
+    prefs.getState().clearPreferences();
+
+    prefs.getState().setRemindersEnabled(true);
+    prefs.getState().setTheme("dark");
+
+    expect(prefs.getState()).toMatchObject({ remindersEnabled: true, theme: "dark" });
   });
 
   it("keeps a preference out of a `cue.` prefix scan of the bulk store", () => {

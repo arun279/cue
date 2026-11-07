@@ -18,7 +18,7 @@ export interface AuthState {
 export interface AuthActions {
   connectWithDeviceCode(): Promise<void>;
   disconnect(): Promise<void>;
-  endSession(): Promise<void>;
+  endSession(): void;
   cancelConnect(): void;
 }
 

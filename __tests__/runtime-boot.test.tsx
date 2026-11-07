@@ -1,9 +1,11 @@
-import { act, fireEvent, render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { hide } from "expo-splash-screen";
+import type { ReactElement, ReactNode } from "react";
 import { Text } from "react-native";
 import type { KeyValueStore } from "@/core/ports/kv";
 import { TOKEN_KEY } from "@/core/ports/storage-keys";
 import { createTokenStore } from "@/core/ports/token-store";
+import { type CueRuntime, useRuntime } from "@/core/runtime/runtime";
 import { useStartFailure } from "@/core/stores/start-failure-store";
 import { RuntimeBoot } from "../src/screens/RuntimeBoot";
 import { TARGET_MIN } from "../src/ui/tokens";
@@ -42,7 +44,7 @@ function deviceStore(entries: Readonly<Record<string, string>> = {}) {
   return { kv, read, values };
 }
 
-async function launch(kv: KeyValueStore): Promise<void> {
+async function launch(kv: KeyValueStore, app: ReactNode = <Text>queue</Text>): Promise<void> {
   await render(
     <RuntimeBoot
       deps={{
@@ -53,9 +55,10 @@ async function launch(kv: KeyValueStore): Promise<void> {
         clientId: "client",
         clearPersistedCaches: () => Promise.resolve(),
         clearLocalPreferences: () => {},
+        reminders: { cancelAll: () => Promise.resolve() },
       }}
     >
-      <Text>queue</Text>
+      {app}
     </RuntimeBoot>,
   );
 }
@@ -95,7 +98,7 @@ it("fails onto a retry rather than holding the splash when no token is stored", 
   expect(hide).toHaveBeenCalledTimes(1);
 });
 
-it("lets the splash go onto a retry that clears the system bars, and again once the retry settles", async () => {
+it("lets the splash go onto a retry that clears the system bars, and keeps it up while the retry runs", async () => {
   const store = deviceStore({ [TOKEN_KEY]: TOKEN });
   store.read.mockRejectedValueOnce(new Error("Keychain locked"));
   await launch(store.kv);
@@ -111,13 +114,25 @@ it("lets the splash go onto a retry that clears the system bars, and again once 
   const read = Promise.withResolvers<string | null>();
   store.read.mockReturnValueOnce(read.promise);
   await fireEvent.press(retryButton);
-  expect(screen.queryByText(/./)).toBeNull();
-  expect(hide).toHaveBeenCalledTimes(1);
+  expect(screen.getByText("Couldn't start Cue")).toBeOnTheScreen();
+  expect(screen.getByRole("button", { name: "Retry" })).toBeDisabled();
 
   await act(async () => read.resolve(TOKEN));
 
   expect(await screen.findByText("queue")).toBeOnTheScreen();
-  expect(hide).toHaveBeenCalledTimes(2);
+  expect(hide).toHaveBeenCalledTimes(1);
+});
+
+it("lets the retry be tried again when it fails too", async () => {
+  const store = deviceStore({ [TOKEN_KEY]: TOKEN });
+  store.read.mockRejectedValueOnce(new Error("Keychain locked"));
+  await launch(store.kv);
+
+  store.read.mockRejectedValueOnce(new Error("Keychain locked"));
+  await fireEvent.press(await screen.findByRole("button", { name: "Retry" }));
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled());
+  expect(screen.getByText("Couldn't start Cue")).toBeOnTheScreen();
 });
 
 it("shows the failure, logs the error a failed start hit, and keeps it for Diagnostics", async () => {
@@ -131,4 +146,22 @@ it("shows the failure, logs the error a failed start hit, and keeps it for Diagn
     at: expect.any(Number),
     detail: "Error: database is locked",
   });
+});
+
+it("gives its screens a runtime that stops answering once its session has ended", async () => {
+  const seen: CueRuntime[] = [];
+  function Screen(): ReactElement {
+    seen.push(useRuntime());
+    return <Text>queue</Text>;
+  }
+  await launch(deviceStore({ [TOKEN_KEY]: TOKEN }).kv, <Screen />);
+  const [runtime] = seen;
+  if (runtime === undefined) throw new Error("no screen got a runtime");
+  await act(() => runtime.endLocalSession());
+
+  const answered = jest.fn();
+  void runtime.loadUserProfile().then(answered, answered);
+  await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+
+  expect(answered).not.toHaveBeenCalled();
 });

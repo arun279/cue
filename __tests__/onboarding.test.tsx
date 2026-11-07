@@ -21,6 +21,7 @@ async function paint(state: Partial<AuthState> = {}) {
     clientId: "test-client",
     redirectUri: "cue://auth/callback",
     traktBaseUrl: undefined,
+    clearAccount: () => Promise.resolve(),
   });
   store.setState({
     phase: "onboarding",

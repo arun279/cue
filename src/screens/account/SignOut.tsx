@@ -1,6 +1,7 @@
 import { type ReactElement, useState } from "react";
 import { Alert, Platform, Pressable, View } from "react-native";
 import { useAuth } from "@/core/auth/store";
+import { useRuntime } from "@/core/runtime/runtime";
 import { PendingWritesError } from "@/core/runtime/session";
 import { useLiveRegion } from "../../ui/live-region";
 import { ROW_MIN_HEIGHT, useColors } from "../../ui/tokens";
@@ -11,6 +12,7 @@ export interface SignOutProps {
 }
 
 export function SignOut({ testID }: SignOutProps): ReactElement {
+  const runtime = useRuntime();
   const disconnect = useAuth((state) => state.disconnect);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,6 +22,7 @@ export function SignOut({ testID }: SignOutProps): ReactElement {
     setBusy(true);
     setError(null);
     try {
+      await runtime.endLocalSession();
       await disconnect();
     } catch (failure) {
       setError(

@@ -130,15 +130,16 @@ module.exports = {
       name: "trakt-reads-stay-pooled",
       severity: "error",
       comment:
-        "data/trakt/endpoints.ts issues raw, unpooled GETs. Only read-budget.ts " +
-        "(the pool primitive) and pooled-endpoints.ts (its wrapper for every other " +
-        "caller) may import it directly: every other read must go through a pooled " +
-        "wrapper, so a read reachable from the runtime without withReadRateRetry " +
+        "data/trakt/endpoints.ts issues raw, unpooled GETs. Only up-next.ts (the " +
+        "library load, which retries each read through the client's read budget) and " +
+        "pooled-endpoints.ts (the wrapper for every other caller) may import it " +
+        "directly: every other read must go through a pooled wrapper, so a read " +
+        "reachable from the runtime without the read budget " +
         "fails here by naming the unpooled importer, instead of only an instance test " +
         "that a mutation can dodge by pooling one caller and leaving the rest raw.",
       from: {
         path: "^src/",
-        pathNot: "^src/core/data/trakt/(read-budget|pooled-endpoints)\\.ts$",
+        pathNot: "^src/core/data/trakt/(up-next|pooled-endpoints)\\.ts$",
       },
       to: { path: "^src/core/data/trakt/endpoints\\.ts$" },
     },

@@ -15,13 +15,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { queryKeys } from "@/core/data/query-keys";
 import { TraktClient } from "@/core/data/trakt/client";
 import { DEFAULT_TRAKT_POLICY } from "@/core/data/trakt/policy";
-import {
-  loadUpNextEntries,
-  readRetryFailure,
-  readsPausedUntil,
-  resetReadPause,
-  subscribeReadRetry,
-} from "@/core/data/trakt/read-budget";
+import { loadUpNextEntries } from "@/core/data/trakt/up-next";
 import {
   CALENDAR_WINDOW_DAYS,
   RECENT_CALENDAR_WINDOW_DAYS,
@@ -366,7 +360,6 @@ interface Session {
 async function boot(size: AccountSize, saved?: Saved, cacheAgeMs = 0): Promise<Session> {
   const trakt = createTraktFake({ account: () => sized(size, NOW) });
   vi.stubGlobal("fetch", trakt.fetch);
-  resetReadPause();
   const kv = memoryKeyValueStore(Object.fromEntries(saved?.kv ?? []));
   const qc = createQueryClient();
   if (saved !== undefined) {
@@ -390,9 +383,10 @@ async function boot(size: AccountSize, saved?: Saved, cacheAgeMs = 0): Promise<S
     },
     redirectUri: "cue://oauth",
     clientId: "client",
-    endSession: async () => undefined,
+    endSession: () => undefined,
     clearPersistedCaches: async () => undefined,
     clearLocalPreferences: () => undefined,
+    reminders: { cancelAll: () => Promise.resolve() },
   });
   return {
     trakt,
@@ -425,7 +419,7 @@ async function settle({ trakt, qc, runtime }: Session): Promise<void> {
   for (let step = 0; step < 200 && quiet < 3; step += 1) {
     const before = trakt.requests.length;
     // A read Trakt's rate limit refused waits out the pause, as the user would.
-    const paused = readsPausedUntil() - Date.now();
+    const paused = runtime.readsPausedUntil() - Date.now();
     await act(() => vi.advanceTimersByTimeAsync(Math.max(ART_SETTLE_MS, paused)));
     const busy = qc.isFetching() + qc.isMutating() + runtime.pendingWrites();
     quiet = busy === 0 && trakt.requests.length === before ? quiet + 1 : 0;
@@ -743,7 +737,6 @@ describe("what a cold sync reads from Trakt", () => {
   const HIDDEN = /^\/users\/hidden\/progress_watched$/;
 
   afterEach(() => {
-    resetReadPause();
     vi.unstubAllGlobals();
   });
 
@@ -858,11 +851,13 @@ describe("what a cold sync reads from Trakt", () => {
     const { client, trakt } = reading({ inProgress: 3 }, fastRetry);
     trakt.fail({ path: HIDDEN }, 503);
     const seen: unknown[] = [];
-    const unsubscribe = subscribeReadRetry(() => seen.push(readRetryFailure()));
+    const unsubscribe = client.reads.subscribeReadRetry(() =>
+      seen.push(client.reads.readRetryFailure()),
+    );
     await loadUpNextEntries(client);
     unsubscribe();
     expect(seen).toEqual([{ kind: "server", status: 503 }, null]);
-    expect(readRetryFailure()).toBeNull();
+    expect(client.reads.readRetryFailure()).toBeNull();
   });
 
   it("stops and settles the fan-out once a read has spent its retries, before it throws", async () => {

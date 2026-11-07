@@ -3,7 +3,6 @@
 import { onlineManager } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resetReadPause } from "@/core/data/trakt/read-budget";
 import { useSyncBanner } from "@/core/hooks/useSyncBanner";
 import type { QueryStatus } from "@/core/queries/freshness";
 import { type CueRuntime, RuntimeProvider } from "@/core/runtime/runtime";
@@ -43,7 +42,6 @@ beforeEach(() => {
 
 afterEach(() => {
   onlineManager.setOnline(true);
-  resetReadPause();
   vi.unstubAllGlobals();
   vi.useRealTimers();
 });

@@ -18,6 +18,7 @@ const config: OAuthConfig = {
   redirectUri: "https://app.example/auth/callback",
   fetch: fake.fetch,
 };
+const session = new AbortController().signal;
 
 beforeEach(() => {
   now = Date.parse("2026-10-15T00:00:00.000Z");
@@ -29,7 +30,7 @@ const sentTo = (path: string) =>
 
 describe("refreshAccessToken", () => {
   it("posts the refresh grant with the client id and no secret, and parses the rotated token", async () => {
-    const rotated = await refreshAccessToken(config, SESSION.refresh_token);
+    const rotated = await refreshAccessToken(config, SESSION.refresh_token, session);
     expect(rotated).toMatchObject({ expires_in: 604_800, token_type: "bearer" });
     expect(rotated.access_token).not.toBe(SESSION.access_token);
     expect(rotated.refresh_token).not.toBe(SESSION.refresh_token);
@@ -48,19 +49,19 @@ describe("refreshAccessToken", () => {
 
   it("throws on a non-2xx", async () => {
     fake.fail({ path: /^\/oauth\/token$/ }, 500);
-    await expect(refreshAccessToken(config, SESSION.refresh_token)).rejects.toThrow(/500/);
+    await expect(refreshAccessToken(config, SESSION.refresh_token, session)).rejects.toThrow(/500/);
   });
 
   it("reads a refresh token Trakt no longer knows as invalid_grant", async () => {
-    await refreshAccessToken(config, SESSION.refresh_token);
-    await expect(refreshAccessToken(config, SESSION.refresh_token)).rejects.toMatchObject({
+    await refreshAccessToken(config, SESSION.refresh_token, session);
+    await expect(refreshAccessToken(config, SESSION.refresh_token, session)).rejects.toMatchObject({
       status: 400,
       code: "invalid_grant",
     });
   });
 
   it("single-flights concurrent refreshes through one /oauth/token call (refresher)", async () => {
-    const refresher = new TokenRefresher((rt) => refreshAccessToken(config, rt));
+    const refresher = new TokenRefresher((rt) => refreshAccessToken(config, rt, session));
     const token = fake.session();
     const [a, b] = await Promise.all([refresher.refresh(token), refresher.refresh(token)]);
     expect(sentTo("/oauth/token")).toHaveLength(1);
