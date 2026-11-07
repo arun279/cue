@@ -236,8 +236,8 @@
       "plugins": ["./biome/unpooled-read.grit"]
     },
     {
-      "includes": ["src/**", "app/**", "!src/core/hooks/useTrackedSubmit.ts"],
-      "plugins": ["./biome/untracked-submit.grit"]
+      "includes": ["src/**", "app/**", "!src/screens/RuntimeBoot.tsx"],
+      "plugins": ["./biome/quiet-runtime.grit"]
     }
   ],
   "plugins": ["./biome/effect-query-writes.grit"],
