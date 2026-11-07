@@ -7,7 +7,12 @@ export interface OptimisticEffects {
   revalidate(): void;
 }
 
+/** Whether a write still stands, so offering to undo it makes sense. */
+export const isKept = (outcome: SubmitOutcome): boolean =>
+  outcome === "done" || outcome === "deferred";
+
 function settle(a: SubmitOutcome, b: SubmitOutcome): SubmitOutcome {
+  if (a === "ended" || b === "ended") return "ended";
   if (a === "failed" || b === "failed") return "failed";
   if (a === "deferred" || b === "deferred") return "deferred";
   return "done";
@@ -28,6 +33,7 @@ export async function applyOptimisticWrite(
   effects: OptimisticEffects,
 ): Promise<SubmitOutcome> {
   const outcome = await submitAll(submit, ops);
+  if (outcome === "ended") return outcome;
   if (outcome === "failed") {
     effects.rollback();
     return outcome;

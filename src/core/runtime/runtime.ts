@@ -40,7 +40,8 @@ export interface HistoryPageData {
   readonly pageCount: number;
 }
 
-export type SubmitOutcome = "done" | "failed" | "deferred";
+/** "ended": the session ended before the write settled, so nothing should follow from it. */
+export type SubmitOutcome = "done" | "failed" | "deferred" | "ended";
 
 export interface ActivitiesReconcile {
   readonly keys: readonly InvalidationKey[];

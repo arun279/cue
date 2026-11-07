@@ -441,6 +441,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       await persistLog();
       const result = await queue.flush();
       await persistLog();
+      if (signal.aborted) return "ended";
       if (result.completed.some((done) => done.id === op.id)) return "done";
       if (result.failed.some((failure) => failure.op.id === op.id)) return "failed";
       return "deferred";

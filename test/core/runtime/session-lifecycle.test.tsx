@@ -10,16 +10,21 @@ import { renderHook } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { useRuntimeBoot } from "@/core/app/boot";
 import { createAuthStore } from "@/core/auth/create-auth-store";
+import { queryKeys } from "@/core/data/query-keys";
 import type { Token } from "@/core/domain/model/token";
 import { buildHideShowOp, buildMarkEpisodeOp } from "@/core/domain/write-queue/ops";
+import { useHideShow } from "@/core/hooks/useHideShow";
 import type { KeyValueStore } from "@/core/ports/kv";
 import { INCIDENTS_KEY, OP_LOG_KEY, PLAY_POLICY_KEY } from "@/core/ports/storage-keys";
 import { createTokenStore } from "@/core/ports/token-store";
 import { createPrefsStore } from "@/core/prefs/prefs-store";
 import { clearAccount } from "@/core/runtime/create-runtime";
+import { createQueryClient } from "@/core/runtime/query-cache";
 import type { CueRuntime } from "@/core/runtime/runtime";
 import { usePlayPolicy } from "@/core/stores/play-policy-store";
 import { useReadIncidents } from "@/core/stores/read-incidents-store";
+import { useSnackbar } from "@/core/stores/snackbar-store";
+import { withRuntime } from "../support/runtime";
 import {
   type MemoryKeyValueStore,
   memoryKeyValueStore,
@@ -461,4 +466,34 @@ it("keeps every preference changeable after a sign-in clears the last account's"
   prefs.getState().setTheme("dark");
 
   expect(prefs.getState()).toMatchObject({ remindersEnabled: true, theme: "dark" });
+});
+
+it("offers the next session no Undo for a hide Trakt answers after its session ended", async () => {
+  answerAfterAbort();
+  const release = fake.hold({ method: "POST", path: /^\/users\/hidden\/progress_watched$/ });
+  fake.fail({ method: "GET", path: /^\/users\/settings$/ }, 401);
+  const device = await install(doomed());
+  const first = launch(device);
+  const runtime = await first.runtime();
+  const queryClient = createQueryClient();
+  const shows = renderHook(() => useHideShow(), { wrapper: withRuntime(runtime, queryClient) });
+  const hiding = shows.result.current.hide(8801, { trakt: 8801 }, "A show");
+  await vi.waitFor(() =>
+    expect(sent("POST", /^\/users\/hidden\/progress_watched$/)).toHaveLength(1),
+  );
+  await runtime.loadUserProfile().catch(() => null);
+  await vi.waitFor(() => expect(device.auth.getState().phase).toBe("onboarding"));
+  first.hook.unmount();
+  await signIn(device);
+  const next = await launch(device).runtime();
+  await queryClient.fetchQuery({ queryKey: queryKeys.library(), queryFn: () => next.loadUpNext() });
+  const library = queryClient.getQueryData(queryKeys.library());
+
+  release();
+  await hiding;
+
+  expect(useSnackbar.getState().snack?.actions?.map((action) => action.label) ?? []).not.toContain(
+    "Undo",
+  );
+  expect(queryClient.getQueryData(queryKeys.library())).toBe(library);
 });

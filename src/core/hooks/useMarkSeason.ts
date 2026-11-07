@@ -15,7 +15,7 @@ import {
 } from "../domain/write-queue/ops";
 import { replacedPlays } from "../domain/write-queue/receipt";
 import type { QueuedOp } from "../domain/write-queue/types";
-import { type CueRuntime, useRuntime } from "../runtime/runtime";
+import { type CueRuntime, type SubmitOutcome, useRuntime } from "../runtime/runtime";
 import {
   forgetSeasonMark,
   getSeasonMarkDelta,
@@ -215,7 +215,7 @@ export function useMarkSeason(): MarkSeasonController {
   );
   const settleWrite = useCallback(
     (
-      outcome: "done" | "failed" | "deferred",
+      outcome: SubmitOutcome,
       ops: readonly QueuedOp[],
       undoOps: readonly QueuedOp[] | null,
       failure: string,
@@ -272,7 +272,7 @@ export function useMarkSeason(): MarkSeasonController {
       target: MarkContextTarget,
       before: readonly SeasonView[] | undefined,
       ops: readonly QueuedOp[],
-    ): Promise<"done" | "failed" | "deferred"> =>
+    ): Promise<SubmitOutcome> =>
       submit(ops, {
         rollback: () => queryClient.setQueryData(queryKeys.showSeasons(target.showId), before),
         onKept: () => resume.resumeIfStopped(target.showId, target.ids),
@@ -297,7 +297,7 @@ export function useMarkSeason(): MarkSeasonController {
       label: string,
       reversibleSeason: number | null = null,
       absorb: UndoState | null = null,
-    ): Promise<"done" | "failed" | "deferred"> => {
+    ): Promise<SubmitOutcome> => {
       if (ops.length === 0) return "done";
       const before = queryClient.getQueryData<readonly SeasonView[]>(
         queryKeys.showSeasons(target.showId),
