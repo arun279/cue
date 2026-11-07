@@ -47,13 +47,6 @@ import {
   searchTrakt,
 } from "../data/trakt/pooled-endpoints";
 import {
-  loadUpNextEntries,
-  readRetryFailure,
-  readsPausedUntil,
-  subscribeReadPause,
-  subscribeReadRetry,
-} from "../data/trakt/read-budget";
-import {
   assembleMovieHits,
   assembleSearchHits,
   assembleShowHits,
@@ -61,7 +54,9 @@ import {
 } from "../data/trakt/search";
 import { assembleSeasons, assembleShowInfo, assembleShowProgress } from "../data/trakt/show-detail";
 import { createTraktTransport } from "../data/trakt/transport";
+import { loadUpNextEntries } from "../data/trakt/up-next";
 import { assembleUserProfile } from "../data/trakt/user-profile";
+import { sleep } from "../domain/abortable";
 import { parseIncidents, type ReadIncident, recordIncident } from "../domain/diagnostics";
 import type { Token } from "../domain/model/token";
 import type { UserProfile } from "../domain/model/user";
@@ -85,7 +80,7 @@ import type {
   SubmitOutcome,
   UpNextData,
 } from "./runtime";
-import { PendingWritesError, type TeardownOptions } from "./session";
+import { PendingWritesError } from "./session";
 import { createWriteReceipts } from "./write-receipts";
 
 const ACTIVITIES_KEY = "cue.last-activities";
@@ -112,12 +107,11 @@ export interface RuntimeDeps {
   readonly apiBaseUrl?: string | undefined;
   readonly userAgent?: string;
   readonly policy?: TraktPolicy;
-  readonly endSession: () => Promise<void>;
+  /** The session ended on its own, because Trakt no longer knows its refresh token. */
+  readonly endSession: () => void;
   readonly clearPersistedCaches: () => Promise<void>;
   readonly clearLocalPreferences: () => void;
 }
-
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function reconcileHidden(
   client: TraktClient,
@@ -198,11 +192,15 @@ function createReconcile(client: TraktClient): (op: QueuedOp) => Promise<boolean
 }
 
 export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
-  const incidentStore = createJsonStore<readonly ReadIncident[]>(
-    deps.kv,
-    INCIDENTS_KEY,
-    parseIncidents,
-  );
+  const session = new AbortController();
+  const { signal } = session;
+  const kv: KeyValueStore = {
+    read: (key) => deps.kv.read(key),
+    write: (key, value) => (signal.aborted ? Promise.resolve() : deps.kv.write(key, value)),
+    remove: (key) => deps.kv.remove(key),
+  };
+
+  const incidentStore = createJsonStore<readonly ReadIncident[]>(kv, INCIDENTS_KEY, parseIncidents);
   useReadIncidents.setState({ incidents: (await incidentStore.read()) ?? [] });
   const report: ReadReporter = (endpoint, problem) => {
     const { incidents } = useReadIncidents.getState();
@@ -210,6 +208,32 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     useReadIncidents.setState({ incidents: next });
     void incidentStore.write(next);
   };
+  const opLogStore = createJsonStore<QueuedOp[]>(kv, OP_LOG_KEY, (value) =>
+    Array.isArray(value) ? (value as QueuedOp[]) : [],
+  );
+  const activitiesStore = createJsonStore<LastActivities>(kv, ACTIVITIES_KEY);
+  const receipts = await createWriteReceipts(kv);
+
+  async function clearAccount(): Promise<void> {
+    await opLogStore.clear();
+    await activitiesStore.clear();
+    await incidentStore.clear();
+    await receipts.clear();
+    useReadIncidents.setState({ incidents: [] });
+    resetOwnMarks();
+    await deps.clearPersistedCaches();
+    deps.clearLocalPreferences();
+  }
+
+  let ending: Promise<void> | null = null;
+  function end(): Promise<void> {
+    session.abort();
+    ending ??= clearAccount().catch((error: unknown) => {
+      ending = null;
+      throw error;
+    });
+    return ending;
+  }
 
   const authorized = createAuthorizedFetch({
     inner: fetchWithoutCookies,
@@ -219,8 +243,12 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       redirectUri: deps.redirectUri,
       apiBaseUrl: deps.apiBaseUrl,
     },
+    signal,
     persist: (token) => void deps.tokenStore.write(token),
-    endSession: deps.endSession,
+    endSession: () =>
+      void end()
+        .catch(() => undefined)
+        .then(deps.endSession),
   });
   const client = new TraktClient({
     clientId: deps.clientId,
@@ -230,18 +258,13 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     userAgent: deps.userAgent,
     policy: deps.policy,
     report,
+    signal,
   });
-
-  const opLogStore = createJsonStore<QueuedOp[]>(deps.kv, OP_LOG_KEY, (value) =>
-    Array.isArray(value) ? (value as QueuedOp[]) : [],
-  );
-  const activitiesStore = createJsonStore<LastActivities>(deps.kv, ACTIVITIES_KEY);
-  const receipts = await createWriteReceipts(deps.kv);
 
   const queue = new WriteQueue(
     {
       dispatch: createTraktTransport(client),
-      sleep,
+      sleep: (ms) => sleep(ms, signal),
       now: Date.now,
       reconcile: createReconcile(client),
       settle: receipts.settle,
@@ -255,7 +278,8 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
   await persistLog();
   void queue.flush().then(persistLog);
 
-  let tearingDown = false;
+  const { readsPausedUntil, subscribeReadPause, readRetryFailure, subscribeReadRetry } =
+    client.reads;
 
   return {
     newId: deps.newId,
@@ -448,24 +472,13 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       };
     },
 
-    async endLocalSession(options: TeardownOptions = {}): Promise<void> {
-      if (tearingDown) return;
-      tearingDown = true;
-      try {
-        await queue.flush().catch(() => undefined);
+    async endLocalSession(): Promise<void> {
+      if (!signal.aborted) {
+        await queue.flush();
         await persistLog();
-        if (options.force !== true && queue.size > 0) throw new PendingWritesError();
-        await opLogStore.clear();
-        await activitiesStore.clear();
-        await incidentStore.clear();
-        await receipts.clear();
-        useReadIncidents.setState({ incidents: [] });
-        resetOwnMarks();
-        await deps.clearPersistedCaches();
-        deps.clearLocalPreferences();
-      } finally {
-        tearingDown = false;
+        if (!signal.aborted && queue.size > 0) throw new PendingWritesError();
       }
+      return end();
     },
   };
 }

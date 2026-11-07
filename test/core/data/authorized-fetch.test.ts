@@ -37,20 +37,23 @@ const stale = (): Token => session({ access_token: "stale-access" });
 /** A session whose refresh token Trakt does not know either. */
 const dead = (): Token => session({ access_token: "stale-access", refresh_token: "never-issued" });
 
+/** The fetch of one session, which ends the way the runtime ends it: by aborting. */
 function build(overrides: Partial<AuthorizedFetchDeps> = {}) {
+  const scope = new AbortController();
   const persist = vi.fn((_t: Token) => Promise.resolve());
-  const endSession = vi.fn(() => Promise.resolve());
+  const endSession = vi.fn(() => scope.abort());
   const authorized = createAuthorizedFetch({
     inner: fake.fetch,
     token: session(),
     config,
+    signal: scope.signal,
     persist,
     endSession,
     now: () => NOW_MS,
     throttleMs: 60_000,
     ...overrides,
   });
-  return { authorized, persist, endSession };
+  return { authorized, persist, endSession, end: () => scope.abort() };
 }
 
 const sentTo = (path: string) => fake.requests.filter((request) => request.path === path);
@@ -269,5 +272,44 @@ describe("createAuthorizedFetch: refresh throttle", () => {
 
     expect(refreshes()).toBe(1);
     expect(endSession).not.toHaveBeenCalled();
+  });
+});
+
+describe("createAuthorizedFetch: once its session has ended", () => {
+  it("keeps a refresh that lands afterwards, and never saves it", async () => {
+    const release = fake.hold(REFRESH);
+    const { authorized, persist, end } = build({ token: expired() });
+
+    const reading = authorized.fetch(READ, { method: "GET" }).catch(() => null);
+    await vi.waitFor(() => expect(refreshes()).toBe(1));
+    end();
+    release();
+    await reading;
+
+    expect(persist).not.toHaveBeenCalled();
+    expect(authorized.accessToken()).toBe(session().access_token);
+  });
+
+  it("ends nothing when a refresh it sent before is refused", async () => {
+    const release = fake.hold(REFRESH);
+    const { authorized, endSession, end } = build({ token: dead() });
+
+    const reading = authorized.fetch(READ, { method: "GET" }).catch(() => null);
+    await vi.waitFor(() => expect(refreshes()).toBe(1));
+    end();
+    release();
+    await reading;
+
+    expect(endSession).not.toHaveBeenCalled();
+  });
+
+  it("refreshes nothing more", async () => {
+    const { authorized, end } = build({ token: expired() });
+    end();
+
+    const res = await authorized.fetch(READ, { method: "GET" });
+
+    expect(refreshes()).toBe(0);
+    expect(res.status).toBe(401);
   });
 });

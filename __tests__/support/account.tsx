@@ -64,6 +64,7 @@ export function accountFixture(overrides: Partial<CueRuntime> = {}) {
         username: "jo",
         avatar: "https://example.com/avatar.png",
       }),
+    endLocalSession: jest.fn<Promise<void>, []>(() => Promise.resolve()),
     ...overrides,
   };
   function AppearanceBridge(): null {

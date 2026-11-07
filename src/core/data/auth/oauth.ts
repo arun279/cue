@@ -1,7 +1,9 @@
 import { z } from "zod";
+import { withDeadline } from "../../domain/abortable";
 import { type Token, tokenSchema } from "../../domain/model/token";
 import { parseRetryAfterMs } from "../../domain/write-queue/classify";
 import { type FetchLike, fetchWithoutCookies } from "../trakt/client";
+import { DEFAULT_TRAKT_POLICY } from "../trakt/policy";
 
 const TRAKT_API_BASE = "https://api.trakt.tv";
 
@@ -44,23 +46,27 @@ function apiBase(config: OAuthConfig): string {
   return (config.apiBaseUrl ?? TRAKT_API_BASE).replace(/\/+$/, "");
 }
 
-async function postJson(
+function postJson(
   config: OAuthConfig,
   path: string,
   body: Record<string, string>,
+  scope?: AbortSignal,
 ): Promise<{ status: number; data: unknown; headers: Headers }> {
-  const response = await fetchFn(config)(`${apiBase(config)}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+  return withDeadline(DEFAULT_TRAKT_POLICY.timeoutMs.write, scope, async (signal) => {
+    const response = await fetchFn(config)(`${apiBase(config)}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal,
+    });
+    let data: unknown = null;
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
+    return { status: response.status, data, headers: response.headers };
   });
-  let data: unknown = null;
-  try {
-    data = await response.json();
-  } catch {
-    data = null;
-  }
-  return { status: response.status, data, headers: response.headers };
 }
 
 export class TokenRefreshError extends Error {
@@ -80,13 +86,19 @@ export class TokenRefreshError extends Error {
 export async function refreshAccessToken(
   config: OAuthConfig,
   refreshToken: string,
+  session: AbortSignal,
 ): Promise<Token> {
-  const { status, data, headers } = await postJson(config, "/oauth/token", {
-    refresh_token: refreshToken,
-    client_id: config.clientId,
-    redirect_uri: config.redirectUri,
-    grant_type: "refresh_token",
-  });
+  const { status, data, headers } = await postJson(
+    config,
+    "/oauth/token",
+    {
+      refresh_token: refreshToken,
+      client_id: config.clientId,
+      redirect_uri: config.redirectUri,
+      grant_type: "refresh_token",
+    },
+    session,
+  );
   if (status < 200 || status >= 300) {
     const retryAfterMs = parseRetryAfterMs(headerRecord(headers), Date.now());
     throw new TokenRefreshError(status, retryAfterMs, oauthErrorCode(data));

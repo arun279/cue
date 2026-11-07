@@ -8,10 +8,10 @@ import {
   revokeToken,
 } from "../data/auth/oauth";
 import { createPkcePair } from "../data/auth/pkce";
+import { sleep } from "../domain/abortable";
 import type { Token } from "../domain/model/token";
 import type { CryptoPort } from "../ports/crypto";
 import type { TokenStore } from "../ports/token-store";
-import { sessionTeardown } from "../runtime/session";
 import type { AuthActions, AuthState, AuthStore } from "./store";
 
 export interface AuthDeps {
@@ -21,8 +21,6 @@ export interface AuthDeps {
   readonly redirectUri: string;
   readonly traktBaseUrl: string | undefined;
 }
-
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 const SESSION_UNREADABLE = "Cue could not read your saved sign-in. Connect again to continue.";
 
@@ -44,6 +42,12 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
         deviceCode: null,
       });
     };
+
+    function endSession(): void {
+      activeAttempt += 1;
+      void deps.tokenStore.clear();
+      toOnboarding();
+    }
 
     function connect(token: Token): void {
       void deps.tokenStore.write(token);
@@ -130,20 +134,12 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
       },
 
       async disconnect() {
-        activeAttempt += 1;
-        await sessionTeardown.run();
         const token = await deps.tokenStore.read();
         if (token !== null) await revokeToken(config, token.access_token).catch(() => undefined);
-        void deps.tokenStore.clear();
-        toOnboarding();
+        endSession();
       },
 
-      async endSession() {
-        activeAttempt += 1;
-        await sessionTeardown.run({ force: true }).catch(() => undefined);
-        void deps.tokenStore.clear();
-        toOnboarding();
-      },
+      endSession,
 
       cancelConnect() {
         activeAttempt += 1;

@@ -8,7 +8,6 @@ import { AccessibilityInfo, AppState, Text } from "react-native";
 import * as runtimeBoot from "@/core/app/boot";
 import { queryKeys } from "@/core/data/query-keys";
 import { useActivitiesPoll } from "@/core/hooks/useActivitiesPoll";
-import { sessionTeardown } from "@/core/runtime/session";
 import { bootNativeStores } from "../src/boot";
 import { persistBuster, queryClient, shouldDehydrateQuery } from "../src/platform/query-persister";
 import { useScreenReader } from "../src/platform/screen-reader";
@@ -265,11 +264,14 @@ describe("the native composition root", () => {
   it("deletes anything left in the legacy store when the session ends", async () => {
     bulkBacking.values.set("cue.install-id", "an-earlier-install");
     secureBacking.set("cue.trakt.token", TOKEN);
+    const boot = jest.spyOn(runtimeBoot, "useRuntimeBoot");
     await render(<RootLayout />);
     await screen.findByTestId("router-stack");
     legacyBacking.set("cue.trakt.token", TOKEN);
+    const runtime = boot.mock.results.at(-1)?.value.runtime;
+    if (!runtime) throw new Error("the runtime never booted");
 
-    await act(() => sessionTeardown.run());
+    await act(() => runtime.endLocalSession());
 
     expect(legacyBacking.size).toBe(0);
   });

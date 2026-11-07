@@ -1,14 +1,12 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { TraktClient } from "@/core/data/trakt/client";
 import { getShow } from "@/core/data/trakt/pooled-endpoints";
-import { resetReadPause } from "@/core/data/trakt/read-budget";
 import { createTraktFake } from "../trakt-fake/fake.ts";
 
 const fake = createTraktFake();
 
 afterEach(() => {
   fake.reset();
-  resetReadPause();
 });
 
 const client = (): TraktClient =>

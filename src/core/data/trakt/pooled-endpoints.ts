@@ -1,6 +1,5 @@
 import type { TraktClient, TraktResult } from "./client";
 import * as raw from "./endpoints";
-import { withReadRateRetry } from "./read-budget";
 
 // Identical reads share one pooled read, so a caller still waiting for a slot joins the read in flight.
 function pool<Args extends unknown[], T>(
@@ -13,9 +12,9 @@ function pool<Args extends unknown[], T>(
     const key = JSON.stringify(rest);
     const existing = reads.get(key);
     if (existing !== undefined) return existing;
-    const read = withReadRateRetry(() => fn(client, ...rest), client.policy).finally(() =>
-      reads.delete(key),
-    );
+    const read = client.reads
+      .withRateRetry(() => fn(client, ...rest))
+      .finally(() => reads.delete(key));
     reads.set(key, read);
     return read;
   };

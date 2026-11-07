@@ -84,7 +84,7 @@ export interface CueRuntime {
   inFlightOpId(): string | null;
   flushWrites(): Promise<number>;
   pollActivities(): Promise<ActivitiesReconcile | null>;
-  endLocalSession(options?: { readonly force?: boolean }): Promise<void>;
+  endLocalSession(): Promise<void>;
 }
 
 const RuntimeContext = createContext<CueRuntime | null>(null);

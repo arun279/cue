@@ -9,7 +9,7 @@ import {
   getWatchedMovies,
   getWatchedShows,
 } from "@/core/data/trakt/endpoints";
-import { loadUpNextEntries } from "@/core/data/trakt/read-budget";
+import { loadUpNextEntries } from "@/core/data/trakt/up-next";
 import { parseIncidents } from "@/core/domain/diagnostics";
 import { type ReadProblem, TraktReadError } from "@/core/domain/read-failure";
 import { INCIDENTS_KEY } from "@/core/ports/storage-keys";

@@ -4,12 +4,6 @@ import { queryKeys } from "@/core/data/query-keys";
 import { createAuthorizedFetch } from "@/core/data/trakt/authorized-fetch";
 import { TraktClient } from "@/core/data/trakt/client";
 import { getShowProgress, getUserSettings } from "@/core/data/trakt/endpoints";
-import {
-  readsPausedUntil,
-  resetReadPause,
-  subscribeReadPause,
-  withReadRateRetry,
-} from "@/core/data/trakt/read-budget";
 import { markedAt, ownPlays } from "@/core/domain/reversal";
 import { buildBulkMarkOps } from "@/core/domain/write-queue/bulk";
 import {
@@ -36,7 +30,6 @@ const fake = startTraktFake();
 afterEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
-  resetReadPause();
 });
 
 const since = (start: number) => fake.requests.slice(start);
@@ -46,9 +39,9 @@ const posted = (path: string) =>
       true,
     ),
   );
-function nextReadPause(): Promise<void> {
+function nextReadPause(subscribe: (listener: () => void) => () => void): Promise<void> {
   return new Promise((resolve) => {
-    const unsubscribe = subscribeReadPause(() => {
+    const unsubscribe = subscribe(() => {
       unsubscribe();
       resolve();
     });
@@ -75,8 +68,9 @@ function authorizedClient(): TraktClient {
     inner: (input, init) => fetch(input, init),
     token: fake.session(),
     config: { clientId: "mock-client", redirectUri: "cue://oauth" },
+    signal: new AbortController().signal,
     persist: async () => undefined,
-    endSession: async () => undefined,
+    endSession: () => undefined,
   });
   return new TraktClient({
     clientId: "mock-client",
@@ -91,12 +85,13 @@ describe("read failures", () => {
     vi.setSystemTime(new Date("2026-09-10T12:00:00.000Z"));
     fake.fail({ method: "GET", path: /^\/shows\/8801\/progress\/watched$/ }, 429, 301);
     const start = fake.requests.length;
-    const paused = nextReadPause();
-    const read = withReadRateRetry(() => getShowProgress(authorizedClient(), 8801));
+    const client = authorizedClient();
+    const paused = nextReadPause(client.reads.subscribeReadPause);
+    const read = client.reads.withRateRetry(() => getShowProgress(client, 8801));
     await paused;
-    expect(readsPausedUntil() - Date.now()).toBe(300_500);
+    expect(client.reads.readsPausedUntil() - Date.now()).toBe(300_500);
 
-    const sibling = withReadRateRetry(() => getUserSettings(authorizedClient()));
+    const sibling = client.reads.withRateRetry(() => getUserSettings(client));
     await vi.advanceTimersByTimeAsync(300_499);
     expect(since(start)).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(1);
@@ -133,17 +128,17 @@ describe("read failures", () => {
     fake.fail({ method: "GET", path: /^\/sync\/last_activities$/, times: 4 }, 429, 0);
     const cue = await buildRuntime();
     const start = fake.requests.length;
-    let paused = nextReadPause();
+    let paused = nextReadPause(cue.subscribeReadPause);
     const poll = cue.pollActivities();
     for (let attempt = 1; attempt < 4; attempt += 1) {
       await paused;
       expect(since(start)).toHaveLength(attempt);
-      paused = nextReadPause();
+      paused = nextReadPause(cue.subscribeReadPause);
       await vi.advanceTimersByTimeAsync(500);
     }
     await expect(poll).resolves.toBeNull();
     expect(since(start)).toHaveLength(4);
-    expect(readsPausedUntil()).toBeGreaterThan(Date.now());
+    expect(cue.readsPausedUntil()).toBeGreaterThan(Date.now());
   });
 });
 

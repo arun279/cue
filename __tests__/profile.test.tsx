@@ -177,6 +177,7 @@ it.each([
     },
   ]);
   await act(() => alert.mock.calls.at(-1)?.[2]?.[1]?.onPress?.());
+  expect(fixture.runtime.endLocalSession).toHaveBeenCalledTimes(1);
   expect(fixture.disconnect).toHaveBeenCalledTimes(1);
 });
 
@@ -186,22 +187,21 @@ it.each([
     "Some changes haven't synced yet. Reconnect to the internet, then try signing out again.",
   ],
   [new Error("storage unavailable"), "Couldn't finish signing out. Please try again."],
-])("shows an announced refusal and enables retry after %s", async (failure, message) => {
+])("keeps the session, announces the refusal and enables retry after %s", async (failure, message) => {
   jest.replaceProperty(Platform, "OS", "android");
   const alert = jest.spyOn(Alert, "alert");
-  const fixture = accountFixture();
-  fixture.disconnect.mockRejectedValueOnce(failure);
+  const fixture = accountFixture({ endLocalSession: () => Promise.reject(failure) });
   await fixture.paint(<Profile />);
   await userEvent.press(screen.getByRole("button", { name: "Sign out" }));
   await act(() => alert.mock.calls.at(-1)?.[2]?.[1]?.onPress?.());
   expect(screen.getByText(String(message))).toHaveProp("accessibilityLiveRegion", "assertive");
+  expect(fixture.disconnect).not.toHaveBeenCalled();
   expect(screen.getByRole("button", { name: "Sign out" })).toBeEnabled();
 });
 
 it("disables sign-out while the teardown is outstanding", async () => {
   const alert = jest.spyOn(Alert, "alert");
-  const fixture = accountFixture();
-  fixture.disconnect.mockImplementation(() => new Promise(() => {}));
+  const fixture = accountFixture({ endLocalSession: () => new Promise(() => {}) });
   await fixture.paint(<Profile />);
   await userEvent.press(screen.getByRole("button", { name: "Sign out" }));
   await act(() => alert.mock.calls.at(-1)?.[2]?.[1]?.onPress?.());

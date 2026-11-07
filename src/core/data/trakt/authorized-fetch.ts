@@ -9,8 +9,11 @@ export interface AuthorizedFetchDeps {
   readonly inner: FetchLike;
   readonly token: Token;
   readonly config: OAuthConfig;
+  /** The token's session: once it aborts, refresh results are ignored. */
+  readonly signal: AbortSignal;
   readonly persist: (token: Token) => void;
-  readonly endSession: () => Promise<void>;
+  /** Ends the session, aborting `signal`, once Trakt no longer knows the refresh token. */
+  readonly endSession: () => void;
   readonly now?: () => number;
   readonly throttleMs?: number;
 }
@@ -28,20 +31,18 @@ export function createAuthorizedFetch(deps: AuthorizedFetchDeps): AuthorizedFetc
   let current = deps.token;
   let nextRefreshAllowedAt = 0;
   let lastRefreshError: unknown = null;
-  let ending: Promise<void> | null = null;
 
   const refresher = new TokenRefresher(async (refreshToken) => {
-    const next = await refreshAccessToken(deps.config, refreshToken);
-    current = next;
-    deps.persist(next);
+    const next = await refreshAccessToken(deps.config, refreshToken, deps.signal);
+    if (!deps.signal.aborted) {
+      current = next;
+      deps.persist(next);
+    }
     return next;
   });
 
   async function refresh(): Promise<RefreshOutcome> {
-    if (ending !== null) {
-      await ending;
-      return "cleared";
-    }
+    if (deps.signal.aborted) return "cleared";
     if (now() < nextRefreshAllowedAt) return lastRefreshError === null ? "throttled" : "failed";
     try {
       await refresher.refresh(current);
@@ -53,15 +54,15 @@ export function createAuthorizedFetch(deps: AuthorizedFetchDeps): AuthorizedFetc
     }
   }
 
-  async function refreshFailed(error: unknown): Promise<RefreshOutcome> {
+  function refreshFailed(error: unknown): RefreshOutcome {
     const backoff = error instanceof TokenRefreshError ? error.retryAfterMs : null;
     nextRefreshAllowedAt = now() + Math.max(throttleMs, backoff ?? 0);
+    if (deps.signal.aborted) return "cleared";
     if (!isDeadRefreshToken(error)) {
       lastRefreshError = error;
       return "failed";
     }
-    ending ??= deps.endSession();
-    await ending;
+    deps.endSession();
     return "cleared";
   }
 

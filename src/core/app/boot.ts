@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createCueRuntime, type RuntimeDeps } from "../runtime/create-runtime";
 import type { CueRuntime } from "../runtime/runtime";
-import { sessionTeardown } from "../runtime/session";
 import { useStartFailure } from "../stores/start-failure-store";
 
 export type RuntimeBootDeps = Omit<RuntimeDeps, "token">;
@@ -32,7 +31,6 @@ export function useRuntimeBoot(deps: RuntimeBootDeps): RuntimeBootState {
     alive.current = true;
     return () => {
       alive.current = false;
-      sessionTeardown.run = () => Promise.resolve();
     };
   }, []);
 
@@ -54,10 +52,7 @@ export function useRuntimeBoot(deps: RuntimeBootDeps): RuntimeBootState {
           clearPersistedCaches,
           clearLocalPreferences,
         });
-        if (alive.current) {
-          sessionTeardown.run = (options) => built.endLocalSession(options);
-          setRuntime(built);
-        }
+        if (alive.current) setRuntime(built);
       } catch (error) {
         const detail = String(error);
         useStartFailure.setState({ failure: { at: Date.now(), detail } });

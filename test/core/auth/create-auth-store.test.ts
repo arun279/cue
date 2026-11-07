@@ -4,7 +4,6 @@ import { type AuthDeps, createAuthStore } from "@/core/auth/create-auth-store";
 import { pollDeviceToken, requestDeviceCode, revokeToken } from "@/core/data/auth/oauth";
 import { createPkcePair } from "@/core/data/auth/pkce";
 import { createTokenStore, type TokenStore } from "@/core/ports/token-store";
-import { PendingWritesError, sessionTeardown } from "@/core/runtime/session";
 import { memoryKeyValueStore } from "../support/stores";
 
 vi.mock("@/core/data/auth/oauth", () => ({
@@ -42,39 +41,23 @@ async function connectedSession() {
   return { token, tokens, store };
 }
 
-describe("sign-out teardown", () => {
+describe("leaving a session", () => {
   afterEach(() => {
-    vi.restoreAllMocks();
     vi.clearAllMocks();
   });
 
-  it.each([
-    new PendingWritesError(),
-    new Error("cache unavailable"),
-  ])("preserves the session when teardown rejects with %s", async (failure) => {
+  it("revokes and forgets the token on sign-out, even when the revoke fails", async () => {
     const { token, tokens, store } = await connectedSession();
-    vi.spyOn(sessionTeardown, "run").mockRejectedValue(failure);
-    await expect(store.getState().disconnect()).rejects.toBe(failure);
-    expect(store.getState().phase).toBe("connected");
-    expect(await tokens.read()).toEqual(token);
-  });
-
-  it("clears the token only after teardown succeeds, even if revocation fails", async () => {
-    const { token, tokens, store } = await connectedSession();
-    vi.spyOn(sessionTeardown, "run").mockImplementation(async () => {
-      expect(await tokens.read()).toEqual(token);
-    });
     vi.mocked(revokeToken).mockRejectedValue(new Error("offline"));
     await store.getState().disconnect();
+    expect(revokeToken).toHaveBeenCalledWith(expect.anything(), token.access_token);
     expect(await tokens.read()).toBeNull();
     expect(store.getState().phase).toBe("onboarding");
   });
 
-  it("ends a dead session without revoking, even when teardown refuses", async () => {
+  it("forgets a dead session's token without revoking it", async () => {
     const { tokens, store } = await connectedSession();
-    const run = vi.spyOn(sessionTeardown, "run").mockRejectedValue(new PendingWritesError());
-    await store.getState().endSession();
-    expect(run).toHaveBeenCalledWith({ force: true });
+    store.getState().endSession();
     expect(revokeToken).not.toHaveBeenCalled();
     expect(await tokens.read()).toBeNull();
     expect(store.getState().phase).toBe("onboarding");

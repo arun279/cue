@@ -5,16 +5,11 @@
  * retries instead of inferring an outage from a read that happens to be failing.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TraktClient, type TraktResult, unwrapRead } from "@/core/data/trakt/client";
 import { DEFAULT_TRAKT_POLICY } from "@/core/data/trakt/policy";
-import {
-  loadUpNextEntries,
-  readsPausedUntil,
-  resetReadPause,
-  subscribeReadPause,
-  withReadRateRetry,
-} from "@/core/data/trakt/read-budget";
+import { ReadBudget } from "@/core/data/trakt/read-budget";
+import { loadUpNextEntries } from "@/core/data/trakt/up-next";
 import { TraktReadError } from "@/core/domain/read-failure";
 import { emptyAccount, libraryShow, type ShowSpec } from "../trakt-fake/account.ts";
 import { createTraktFake } from "../trakt-fake/fake.ts";
@@ -24,8 +19,13 @@ const rateLimited = (retryAfterMs: number | null): TraktResult<never> => ({
   error: { kind: "rate-limited", retryAfterMs },
 });
 
+let budget: ReadBudget;
+
+beforeEach(() => {
+  budget = new ReadBudget(DEFAULT_TRAKT_POLICY);
+});
+
 afterEach(() => {
-  resetReadPause();
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -49,36 +49,64 @@ describe("unwrapRead", () => {
   });
 });
 
-describe("withReadRateRetry", () => {
+describe("withRateRetry", () => {
   it("publishes the pause even for the 429 that spends the retry budget", async () => {
     vi.useFakeTimers();
     const seen: number[] = [];
-    subscribeReadPause(() => seen.push(readsPausedUntil()));
+    budget.subscribeReadPause(() => seen.push(budget.readsPausedUntil()));
     // Every attempt is rate limited, so the read gives up: the window is still
     // closed, and every OTHER read has to know that.
     const read = vi.fn(() => Promise.resolve(rateLimited(5000)));
-    const settled = withReadRateRetry(read);
+    const settled = budget.withRateRetry(read);
     await vi.runAllTimersAsync();
     const result = await settled;
 
     expect(result.ok).toBe(false);
     expect(seen.length).toBeGreaterThan(0);
-    expect(readsPausedUntil()).toBeGreaterThan(Date.now());
+    expect(budget.readsPausedUntil()).toBeGreaterThan(Date.now());
   });
 
   it("never shortens a pause another read has already opened", async () => {
     vi.useFakeTimers();
     const startedAt = Date.now();
-    const far = withReadRateRetry(() => Promise.resolve(rateLimited(30_000)));
-    const near = withReadRateRetry(() => Promise.resolve(rateLimited(1000)));
+    const far = budget.withRateRetry(() => Promise.resolve(rateLimited(30_000)));
+    const near = budget.withRateRetry(() => Promise.resolve(rateLimited(1000)));
     // Both first attempts answer in the same instant; the shorter wait must not
     // reopen a window the longer one closed, or the fan-out fires straight back
     // into it and every read burns its budget on the same limit.
     await vi.advanceTimersByTimeAsync(0);
-    expect(readsPausedUntil()).toBe(startedAt + 30_000);
+    expect(budget.readsPausedUntil()).toBe(startedAt + 30_000);
 
     await vi.runAllTimersAsync();
     await Promise.all([far, near]);
+  });
+
+  it("waits out a pause that a read already in flight extends while it waits", async () => {
+    vi.useFakeTimers();
+    const startedAt = Date.now();
+    const ok: TraktResult<number> = { ok: true, data: 1, pagination: null };
+    const first = budget.withRateRetry(
+      vi.fn().mockResolvedValueOnce(rateLimited(1000)).mockResolvedValue(ok),
+    );
+    const inFlight = budget.withRateRetry(
+      vi
+        .fn()
+        .mockReturnValueOnce(
+          new Promise((resolve) => setTimeout(() => resolve(rateLimited(5000)), 500)),
+        )
+        .mockResolvedValue(ok),
+    );
+    await vi.advanceTimersByTimeAsync(100);
+    const sentAt: number[] = [];
+    const waiting = budget.withRateRetry(() => {
+      sentAt.push(Date.now() - startedAt);
+      return Promise.resolve(ok);
+    });
+
+    await vi.runAllTimersAsync();
+    await Promise.all([first, inFlight, waiting]);
+
+    expect(sentAt).toEqual([5500]);
   });
 
   it("backs off with full jitter and pauses no other read when a 429 names no Retry-After", async () => {
@@ -89,9 +117,9 @@ describe("withReadRateRetry", () => {
       .mockResolvedValueOnce(rateLimited(null))
       .mockResolvedValueOnce(rateLimited(null))
       .mockResolvedValue({ ok: true, data: 1, pagination: null });
-    const settled = withReadRateRetry(read);
+    const settled = budget.withRateRetry(read);
     await vi.advanceTimersByTimeAsync(0);
-    expect(readsPausedUntil()).toBe(0);
+    expect(budget.readsPausedUntil()).toBe(0);
 
     await vi.advanceTimersByTimeAsync(499);
     expect(read).toHaveBeenCalledTimes(1);
@@ -119,7 +147,7 @@ describe("withReadRateRetry", () => {
       };
     };
     const startedAt = Date.now();
-    const both = Promise.all([withReadRateRetry(reader()), withReadRateRetry(reader())]);
+    const both = Promise.all([budget.withRateRetry(reader()), budget.withRateRetry(reader())]);
     await vi.runAllTimersAsync();
     await both;
 
@@ -127,19 +155,19 @@ describe("withReadRateRetry", () => {
   });
 
   it("opens no pause at all for a read that works", async () => {
-    const result = await withReadRateRetry(() =>
+    const result = await budget.withRateRetry(() =>
       Promise.resolve({ ok: true, data: 1, pagination: null } as TraktResult<number>),
     );
     expect(result.ok).toBe(true);
-    expect(readsPausedUntil()).toBe(0);
+    expect(budget.readsPausedUntil()).toBe(0);
   });
 
   it("leaves a non-rate-limit failure to the caller without pausing anything", async () => {
-    const result = await withReadRateRetry(() =>
+    const result = await budget.withRateRetry(() =>
       Promise.resolve({ ok: false, error: { kind: "server", status: 503 } } as TraktResult<never>),
     );
     expect(result.ok).toBe(false);
-    expect(readsPausedUntil()).toBe(0);
+    expect(budget.readsPausedUntil()).toBe(0);
   });
 });
 
@@ -157,7 +185,7 @@ it("caps concurrent reads across independent callers, not per fan-out", async ()
     return { ok: true, data: 1, pagination: null };
   };
 
-  await Promise.all(Array.from({ length: 300 }, () => withReadRateRetry(read)));
+  await Promise.all(Array.from({ length: 300 }, () => budget.withRateRetry(read)));
 
   expect(peak).toBe(DEFAULT_TRAKT_POLICY.readConcurrency);
 });

@@ -1,6 +1,8 @@
+import { withDeadline } from "../../domain/abortable";
 import { type ReadProblem, type TraktFailure, TraktReadError } from "../../domain/read-failure";
 import { parseReadRetryAfterMs } from "../../domain/write-queue/classify";
 import { DEFAULT_TRAKT_POLICY, type TimeoutClass, type TraktPolicy } from "./policy";
+import { ReadBudget } from "./read-budget";
 
 const TRAKT_API_BASE = "https://api.trakt.tv";
 const TRAKT_API_VERSION = "2";
@@ -24,6 +26,8 @@ export interface TraktClientConfig {
   readonly baseUrl?: string;
   readonly policy?: TraktPolicy;
   readonly report?: ReadReporter;
+  /** The session the client reads and writes for: once it aborts, every request does too. */
+  readonly signal?: AbortSignal;
 }
 
 interface Pagination {
@@ -67,6 +71,8 @@ const DEFAULT_TIMEOUT_CLASS: Readonly<Record<HttpMethod, TimeoutClass>> = {
 export class TraktClient {
   readonly policy: TraktPolicy;
   readonly report: ReadReporter;
+  readonly reads: ReadBudget;
+  private readonly signal: AbortSignal | undefined;
   private readonly clientId: string;
   private readonly getToken: () => string | null;
   private readonly fetchFn: FetchLike;
@@ -81,6 +87,8 @@ export class TraktClient {
     this.userAgent = config.userAgent;
     this.policy = config.policy ?? DEFAULT_TRAKT_POLICY;
     this.report = config.report ?? (() => undefined);
+    this.signal = config.signal;
+    this.reads = new ReadBudget(this.policy, config.signal);
   }
 
   async send(method: HttpMethod, path: string, options: RequestOptions = {}): Promise<RawResponse> {
@@ -92,21 +100,20 @@ export class TraktClient {
     if (this.userAgent !== undefined) headers["User-Agent"] = this.userAgent;
     const token = this.getToken();
     if (token !== null && token.length > 0) headers["Authorization"] = `Bearer ${token}`;
-    const controller = new AbortController();
-    const timeoutClass = options.timeout ?? DEFAULT_TIMEOUT_CLASS[method];
-    const timeout = setTimeout(() => controller.abort(), this.policy.timeoutMs[timeoutClass]);
-    const init: RequestInit = { method, headers, signal: controller.signal };
+    const init: RequestInit = { method, headers };
     if (options.body !== undefined) init.body = JSON.stringify(options.body);
-    try {
-      const response = await this.fetchFn(`${this.baseUrl}${buildPath(path, options)}`, init);
+    const timeoutClass = options.timeout ?? DEFAULT_TIMEOUT_CLASS[method];
+    return withDeadline(this.policy.timeoutMs[timeoutClass], this.signal, async (signal) => {
+      const response = await this.fetchFn(`${this.baseUrl}${buildPath(path, options)}`, {
+        ...init,
+        signal,
+      });
       return {
         status: response.status,
         headers: headerRecord(response.headers),
         data: await readJson(response),
       };
-    } finally {
-      clearTimeout(timeout);
-    }
+    });
   }
 
   private rejectionFailure(cause: unknown): TraktFailure {
@@ -120,6 +127,7 @@ export class TraktClient {
     try {
       raw = await this.send("GET", path, options);
     } catch (cause) {
+      if (this.signal?.aborted) throw cause;
       return { ok: false, error: this.rejectionFailure(cause) };
     }
     if (raw.status === 204) return { ok: false, error: { kind: "no-content" } };

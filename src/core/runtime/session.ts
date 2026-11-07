@@ -4,11 +4,3 @@ export class PendingWritesError extends Error {
     this.name = "PendingWritesError";
   }
 }
-
-export interface TeardownOptions {
-  readonly force?: boolean;
-}
-
-export const sessionTeardown: { run: (options?: TeardownOptions) => Promise<void> } = {
-  run: () => Promise.resolve(),
-};
