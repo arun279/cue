@@ -11,12 +11,14 @@ import { afterEach, expect, it, vi } from "vitest";
 import { useRuntimeBoot } from "@/core/app/boot";
 import { createAuthStore } from "@/core/auth/create-auth-store";
 import type { Token } from "@/core/domain/model/token";
-import { buildHideShowOp } from "@/core/domain/write-queue/ops";
+import { buildHideShowOp, buildMarkEpisodeOp } from "@/core/domain/write-queue/ops";
 import type { KeyValueStore } from "@/core/ports/kv";
 import { INCIDENTS_KEY, OP_LOG_KEY, PLAY_POLICY_KEY } from "@/core/ports/storage-keys";
 import { createTokenStore } from "@/core/ports/token-store";
 import { clearAccount } from "@/core/runtime/create-runtime";
 import type { CueRuntime } from "@/core/runtime/runtime";
+import { usePlayPolicy } from "@/core/stores/play-policy-store";
+import { useReadIncidents } from "@/core/stores/read-incidents-store";
 import { type MemoryKeyValueStore, memoryKeyValueStore } from "../support/stores";
 import { startTraktFake } from "../trakt-fake/in-process.ts";
 
@@ -24,6 +26,7 @@ const fake = startTraktFake();
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 const DAY_S = 86_400;
@@ -144,6 +147,14 @@ function launch(device: Device) {
   return { hook, runtime };
 }
 
+/**
+ * React Native's fetch can resolve a response that completed just before its signal aborted.
+ * The fake's own fetch never watches the signal, so it stands in for that.
+ */
+function answerAfterAbort(): void {
+  vi.stubGlobal("fetch", fake.fetch);
+}
+
 /** The Sign out button. */
 async function signOut(device: Device, runtime: CueRuntime): Promise<void> {
   await runtime.endLocalSession();
@@ -253,6 +264,7 @@ it("clears the last account when the session dies while the app is still startin
 });
 
 it("keeps a token refreshed after sign-out out of the Keychain", async () => {
+  answerAfterAbort();
   const release = fake.hold({ method: "POST", path: /^\/oauth\/token$/ });
   fake.drop({ method: "POST", path: /^\/oauth\/revoke$/ });
   const device = await install(expired());
@@ -269,6 +281,7 @@ it("keeps a token refreshed after sign-out out of the Keychain", async () => {
 });
 
 it("leaves the next session alone when the last one's refresh comes back refused", async () => {
+  answerAfterAbort();
   const release = fake.hold({ method: "POST", path: /^\/oauth\/token$/ });
   const device = await install(expired());
   const first = launch(device);
@@ -359,4 +372,63 @@ it.each([
 
   expect(sent("POST", HIDDEN)).toHaveLength(posted);
   expect(device.bulk.values.get(OP_LOG_KEY)).toBe("[]");
+});
+
+it("keeps a write Trakt answers after its session ended from teaching the next session", async () => {
+  answerAfterAbort();
+  fake.reset({ multiplePlays: false });
+  const release = fake.hold({ method: "POST", path: /^\/sync\/history$/ });
+  fake.fail({ method: "GET", path: /^\/users\/settings$/ }, 401);
+  const device = await install(doomed());
+  const first = launch(device);
+  const runtime = await first.runtime();
+  const marking = runtime.submit(
+    buildMarkEpisodeOp({ opId: "mark", ids: { trakt: 880100 }, watchedAt: "2026-10-14T12:34:00Z" }),
+  );
+  await vi.waitFor(() => expect(sent("POST", /^\/sync\/history$/)).toHaveLength(1));
+  await runtime.loadUserProfile().catch(() => null);
+  await vi.waitFor(() => expect(device.auth.getState().phase).toBe("onboarding"));
+  first.hook.unmount();
+  await signIn(device);
+  await launch(device).runtime();
+
+  release();
+  await marking;
+
+  expect(usePlayPolicy.getState().policy).toBe("unknown");
+});
+
+it("keeps a read Trakt answers after its session ended out of the next session's incidents", async () => {
+  answerAfterAbort();
+  const release = fake.hold({ method: "GET", path: /^\/shows\/999999$/ });
+  const device = await install(live());
+  const first = launch(device);
+  const runtime = await first.runtime();
+  const reading = runtime.loadShowInfo(999999).catch(() => null);
+  await vi.waitFor(() => expect(sent("GET", /^\/shows\/999999$/)).toHaveLength(1));
+  await signOut(device, runtime);
+  first.hook.unmount();
+  await signIn(device);
+  await launch(device).runtime();
+
+  release();
+  await reading;
+
+  expect(useReadIncidents.getState().incidents).toEqual([]);
+});
+
+it("keeps a read an ended session starts out of the next session's incidents", async () => {
+  const device = await install(expired());
+  const first = launch(device);
+  const runtime = await first.runtime();
+  await signOut(device, runtime);
+  first.hook.unmount();
+  await signIn(device);
+  await launch(device).runtime();
+  const before = fake.requests.length;
+
+  await runtime.loadUserProfile().catch(() => null);
+
+  expect(useReadIncidents.getState().incidents).toEqual([]);
+  expect(fake.requests.slice(before)).toEqual([]);
 });

@@ -9,10 +9,10 @@ export interface AuthorizedFetchDeps {
   readonly inner: FetchLike;
   readonly token: Token;
   readonly config: OAuthConfig;
-  /** The token's session: once it aborts, refresh results are ignored. */
+  /** The token's session, which every refresh is tied to. */
   readonly signal: AbortSignal;
   readonly persist: (token: Token) => void;
-  /** Ends the session, aborting `signal`, once Trakt no longer knows the refresh token. */
+  /** Trakt no longer knows the refresh token. */
   readonly endSession: () => void;
   readonly now?: () => number;
   readonly throttleMs?: number;
@@ -34,15 +34,12 @@ export function createAuthorizedFetch(deps: AuthorizedFetchDeps): AuthorizedFetc
 
   const refresher = new TokenRefresher(async (refreshToken) => {
     const next = await refreshAccessToken(deps.config, refreshToken, deps.signal);
-    if (!deps.signal.aborted) {
-      current = next;
-      deps.persist(next);
-    }
+    current = next;
+    deps.persist(next);
     return next;
   });
 
   async function refresh(): Promise<RefreshOutcome> {
-    if (deps.signal.aborted) return "cleared";
     if (now() < nextRefreshAllowedAt) return lastRefreshError === null ? "throttled" : "failed";
     try {
       await refresher.refresh(current);
@@ -57,7 +54,6 @@ export function createAuthorizedFetch(deps: AuthorizedFetchDeps): AuthorizedFetc
   function refreshFailed(error: unknown): RefreshOutcome {
     const backoff = error instanceof TokenRefreshError ? error.retryAfterMs : null;
     nextRefreshAllowedAt = now() + Math.max(throttleMs, backoff ?? 0);
-    if (deps.signal.aborted) return "cleared";
     if (!isDeadRefreshToken(error)) {
       lastRefreshError = error;
       return "failed";

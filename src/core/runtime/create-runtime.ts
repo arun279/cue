@@ -209,9 +209,11 @@ export async function clearAccount(
 export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
   const session = new AbortController();
   const { signal } = session;
+  const whileLive = (effect: () => Promise<void>): Promise<void> =>
+    signal.aborted ? Promise.resolve() : effect();
   const kv: KeyValueStore = {
     read: (key) => deps.kv.read(key),
-    write: (key, value) => (signal.aborted ? Promise.resolve() : deps.kv.write(key, value)),
+    write: (key, value) => whileLive(() => deps.kv.write(key, value)),
     remove: (key) => deps.kv.remove(key),
   };
 
@@ -250,9 +252,11 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     signal,
     persist: (token) => void deps.tokenStore.write(token),
     endSession: () =>
-      void end()
-        .catch(() => undefined)
-        .then(deps.endSession),
+      void whileLive(() =>
+        end()
+          .catch(() => undefined)
+          .then(deps.endSession),
+      ),
   });
   const client = new TraktClient({
     clientId: deps.clientId,
