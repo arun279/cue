@@ -26,6 +26,7 @@ export function useRuntimeBoot(deps: RuntimeBootDeps): RuntimeBootState {
     endSession,
     clearPersistedCaches,
     clearLocalPreferences,
+    reminders,
   } = deps;
 
   const boot = useCallback(() => {
@@ -46,6 +47,7 @@ export function useRuntimeBoot(deps: RuntimeBootDeps): RuntimeBootState {
             endSession,
             clearPersistedCaches,
             clearLocalPreferences,
+            reminders,
           }),
         );
       } catch (error) {
@@ -65,6 +67,7 @@ export function useRuntimeBoot(deps: RuntimeBootDeps): RuntimeBootState {
     endSession,
     clearPersistedCaches,
     clearLocalPreferences,
+    reminders,
     newId,
   ]);
 

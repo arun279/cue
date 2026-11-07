@@ -28,6 +28,10 @@ const useSeasonReversalStore = create<SeasonReversalState>((set) => ({
     }),
 }));
 
+export function resetSeasonMarks(): void {
+  useSeasonReversalStore.setState({ deltas: new Map() });
+}
+
 export function rememberSeasonMark(
   showId: number,
   season: number,

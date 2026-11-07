@@ -67,6 +67,7 @@ const sessionDeps = {
     await Promise.all([clearPersistedCaches(), legacyStore.clear()]);
   },
   clearLocalPreferences: () => prefsStore.getState().clearPreferences(),
+  reminders,
 };
 
 interface NativeSession {

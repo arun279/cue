@@ -66,11 +66,14 @@ import { WriteQueue } from "../domain/write-queue/queue";
 import type { QueuedOp } from "../domain/write-queue/types";
 import { createJsonStore } from "../ports/json-store";
 import type { KeyValueStore } from "../ports/kv";
+import type { Reminders } from "../ports/reminders";
 import { INCIDENTS_KEY, OP_LOG_KEY, PLAY_POLICY_KEY } from "../ports/storage-keys";
 import type { TokenStore } from "../ports/token-store";
-import { resetOwnMarks } from "../stores/own-marks";
+import { resetMarkStore } from "../stores/mark-store";
 import { usePlayPolicy } from "../stores/play-policy-store";
 import { useReadIncidents } from "../stores/read-incidents-store";
+import { resetSeasonMarks } from "../stores/season-reversal";
+import { dismissSnack } from "../stores/snackbar-store";
 import type {
   ActivitiesReconcile,
   BrowseData,
@@ -112,6 +115,7 @@ export interface RuntimeDeps {
   readonly endSession: () => void;
   readonly clearPersistedCaches: () => Promise<void>;
   readonly clearLocalPreferences: () => void;
+  readonly reminders: Pick<Reminders, "cancelAll">;
 }
 
 async function reconcileHidden(
@@ -192,16 +196,24 @@ function createReconcile(client: TraktClient): (op: QueuedOp) => Promise<boolean
   };
 }
 
+/** Every client store that holds something of one account. */
+const ACCOUNT_STORES: readonly (() => void)[] = [
+  resetMarkStore,
+  resetSeasonMarks,
+  dismissSnack,
+  () => useReadIncidents.setState({ incidents: [] }),
+  () => usePlayPolicy.setState({ policy: "unknown" }),
+];
+
 /** Removes everything the device keeps for an account, so the next one starts without it. */
 export async function clearAccount(
-  deps: Pick<RuntimeDeps, "kv" | "clearPersistedCaches" | "clearLocalPreferences">,
+  deps: Pick<RuntimeDeps, "kv" | "clearPersistedCaches" | "clearLocalPreferences" | "reminders">,
 ): Promise<void> {
   await Promise.all(
     [OP_LOG_KEY, ACTIVITIES_KEY, INCIDENTS_KEY, PLAY_POLICY_KEY].map((key) => deps.kv.remove(key)),
   );
-  useReadIncidents.setState({ incidents: [] });
-  usePlayPolicy.setState({ policy: "unknown" });
-  resetOwnMarks();
+  for (const reset of ACCOUNT_STORES) reset();
+  await deps.reminders.cancelAll();
   await deps.clearPersistedCaches();
   deps.clearLocalPreferences();
 }

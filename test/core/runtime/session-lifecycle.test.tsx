@@ -75,6 +75,7 @@ interface Storage {
   readonly bulk: KeyValueStore & Pick<MemoryKeyValueStore, "values">;
   readonly clearPersistedCaches: ReturnType<typeof vi.fn<() => Promise<void>>>;
   readonly clearLocalPreferences: ReturnType<typeof vi.fn<() => void>>;
+  readonly reminders: { readonly cancelAll: ReturnType<typeof vi.fn<() => Promise<void>>> };
 }
 
 /** The app starting on a device: a token store and the auth store over its storage. */
@@ -127,6 +128,7 @@ async function install(
     bulk,
     clearPersistedCaches: vi.fn(() => Promise.resolve()),
     clearLocalPreferences: vi.fn(clearLocalPreferences),
+    reminders: { cancelAll: vi.fn(() => Promise.resolve()) },
   });
 }
 
@@ -154,6 +156,7 @@ function launch(device: Device) {
     endSession: device.auth.getState().endSession,
     clearPersistedCaches: device.clearPersistedCaches,
     clearLocalPreferences: device.clearLocalPreferences,
+    reminders: device.reminders,
   };
   const hook = renderHook(() => useRuntimeBoot(deps));
   const runtime = (): Promise<CueRuntime> =>
@@ -261,7 +264,7 @@ it("starts the next session with no rate-limit pause from the last one", async (
   void limited;
 });
 
-it("clears the last account when the session dies while the app is still starting", async () => {
+it("clears the last account, and cancels its reminders, when the session dies while the app is still starting", async () => {
   const device = await install(dead(), {
     seed: {
       [OP_LOG_KEY]: JSON.stringify([hideShow(1)]),
@@ -275,6 +278,7 @@ it("clears the last account when the session dies while the app is still startin
   await vi.waitFor(() => expect(device.auth.getState().phase).toBe("onboarding"));
   await vi.waitFor(() => expect(device.clearPersistedCaches).toHaveBeenCalled());
   expect(device.clearLocalPreferences).toHaveBeenCalled();
+  expect(device.reminders.cancelAll).toHaveBeenCalled();
   expect(await device.tokens.read()).toBeNull();
   for (const key of [OP_LOG_KEY, ACTIVITIES_KEY, INCIDENTS_KEY, PLAY_POLICY_KEY]) {
     expect(device.bulk.values.has(key)).toBe(false);

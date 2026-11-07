@@ -53,6 +53,7 @@ async function launch(kv: KeyValueStore): Promise<void> {
         clientId: "client",
         clearPersistedCaches: () => Promise.resolve(),
         clearLocalPreferences: () => {},
+        reminders: { cancelAll: () => Promise.resolve() },
       }}
     >
       <Text>queue</Text>

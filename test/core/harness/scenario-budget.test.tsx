@@ -386,6 +386,7 @@ async function boot(size: AccountSize, saved?: Saved, cacheAgeMs = 0): Promise<S
     endSession: () => undefined,
     clearPersistedCaches: async () => undefined,
     clearLocalPreferences: () => undefined,
+    reminders: { cancelAll: () => Promise.resolve() },
   });
   return {
     trakt,
