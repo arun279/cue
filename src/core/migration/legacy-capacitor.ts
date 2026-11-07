@@ -10,6 +10,7 @@ import { OP_LOG_KEY, TOKEN_KEY } from "../ports/storage-keys";
 import type { TokenStore } from "../ports/token-store";
 
 const ADOPTED_TOKEN_KEY = "cue.legacy-token-adopted";
+const ADOPTED_OPS_KEY = "cue.legacy-ops-adopted";
 const TUTORIAL_KEY = "cue.tutorial-mark-dismissed";
 const WEB_VIEW_CLEARED_KEY = "cue.legacy-web-view-cleared";
 
@@ -83,7 +84,7 @@ async function adoptToken(deps: LegacyMigrationDeps): Promise<boolean> {
   if (rawToken === null) return false;
   const token = tokenSchema.safeParse(tryParse(rawToken));
   if (!token.success) return false;
-  const digest = await digestToken(rawToken, deps.digest);
+  const digest = await digestOf(rawToken, deps.digest);
   if (digest === (await deps.bulk.read(ADOPTED_TOKEN_KEY))) return false;
   await deps.tokenStore.write(token.data);
   const persisted = await createJsonStore<Token>(deps.secure, TOKEN_KEY, (value) =>
@@ -100,18 +101,34 @@ async function adoptToken(deps: LegacyMigrationDeps): Promise<boolean> {
 async function adoptOpLog(deps: LegacyMigrationDeps): Promise<number> {
   const rawOpLog = await deps.legacy.read(OP_LOG_KEY);
   if (rawOpLog === null) return 0;
+  const digest = await digestOf(rawOpLog, deps.digest);
+  const ops = digest === (await deps.bulk.read(ADOPTED_OPS_KEY)) ? [] : parseOpLog(rawOpLog);
+  if (ops.length > 0) await queueOps(deps, ops, digest);
+  await deps.legacy.remove(OP_LOG_KEY);
+  return ops.length;
+}
+
+// A launch that fails after the digest lands still starts the runtime, which sends these ops,
+// so the digest is what keeps a later launch from queueing them again. Until it lands they
+// stay out of the queue, and a relaunch after a crash finds its own copies by id.
+async function queueOps(
+  deps: LegacyMigrationDeps,
+  ops: readonly QueuedOp[],
+  digest: string,
+): Promise<void> {
   const opLog = createJsonStore<QueuedOp[]>(deps.bulk, OP_LOG_KEY, (value) =>
     Array.isArray(value) ? (value as QueuedOp[]) : [],
   );
-  const queued = (await opLog.read()) ?? [];
-  const queuedIds = new Set(queued.map((op) => op.id));
-  const migrated = parseOpLog(rawOpLog).filter((op) => !queuedIds.has(op.id));
-  if (migrated.length > 0) await opLog.write([...migrated, ...queued]);
-  await deps.legacy.remove(OP_LOG_KEY);
-  return migrated.length;
+  const ids = new Set(ops.map((op) => op.id));
+  const own = ((await opLog.read()) ?? []).filter((op) => !ids.has(op.id));
+  await opLog.write([...ops, ...own]);
+  await deps.bulk.write(ADOPTED_OPS_KEY, digest).catch(async (error: unknown) => {
+    await opLog.write(own);
+    throw error;
+  });
 }
 
-async function digestToken(raw: string, digest: CryptoPort["digest"]): Promise<string> {
+async function digestOf(raw: string, digest: CryptoPort["digest"]): Promise<string> {
   const bytes = await digest(new TextEncoder().encode(raw));
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
