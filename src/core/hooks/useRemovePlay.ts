@@ -9,6 +9,7 @@ import {
 } from "../domain/write-queue/ops";
 import { type SubmitOutcome, useRuntime } from "../runtime/runtime";
 import { dismissSnack, showSnack, showUndoable } from "../stores/snackbar-store";
+import { whenNoWritePending } from "../stores/write-locks";
 import { refreshShowProgress } from "./library-cache";
 import { useOptimisticWrite, writeTarget } from "./useOptimisticWrite";
 
@@ -37,7 +38,9 @@ export function useRemovePlay(): RemovePlayController {
     (entry: HistoryEntry) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.historyPrefix() });
       if (entry.type === "movie") {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.movieLibrary() });
+        whenNoWritePending(
+          () => void queryClient.invalidateQueries({ queryKey: queryKeys.movieLibrary() }),
+        );
         return;
       }
       refreshShowProgress(

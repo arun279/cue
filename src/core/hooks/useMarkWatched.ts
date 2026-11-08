@@ -39,9 +39,11 @@ import {
 import {
   claimWriteLock,
   hasPendingMark,
+  latestWrite,
   pendingMarkLock,
   releaseWriteLock,
   showWriteLock,
+  writesBegun,
 } from "../stores/write-locks";
 import { appendToBatch } from "../sync-contract";
 import {
@@ -201,6 +203,7 @@ export function useMarkWatched(): MarkWatched {
 
   const runReversal = useCallback(
     async (record: MarkRecord): Promise<SubmitOutcome | null> => {
+      const pressed = writesBegun();
       const priorPlay = !playsOnlyInProgress(record.beforeMark);
       if (runtime.writeState(record.opId) === "sent" && !canRemoveOwnPlays(priorPlay)) {
         await waitUntilSettled(runtime, [record.opId]);
@@ -212,15 +215,15 @@ export function useMarkWatched(): MarkWatched {
         else showUndoFailed(haptics, record.title);
         return null;
       }
+      const target = writeTarget("show", record.showId);
+      const undoIsLatest = latestWrite(target) <= pressed;
       const reversal =
         mark === null
           ? null
-          : submit(
-              writeTarget("show", record.showId),
-              [{ ops: [mark], revert: () => showKept(record) }],
-              () => revalidate(record.showId, { season: record.season, number: record.number }),
+          : submit(target, [{ ops: [mark], revert: () => showKept(record) }], () =>
+              revalidate(record.showId, { season: record.season, number: record.number }),
             );
-      if (record.stopped !== null) {
+      if (record.stopped !== null && undoIsLatest) {
         resume.stopAgain(
           record.showId,
           { trakt: record.showId },

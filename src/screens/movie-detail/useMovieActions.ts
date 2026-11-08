@@ -18,7 +18,7 @@ import { useSetWatchlisted } from "@/core/hooks/useSetWatchlisted";
 import { movieLibraryQuery } from "@/core/queries/library";
 import { type MovieLibraryData, useRuntime } from "@/core/runtime/runtime";
 import { showSnack, showUndoable, snackText } from "@/core/stores/snackbar-store";
-import { pendingMark } from "@/core/stores/write-locks";
+import { pendingMark, whenNoWritePending } from "@/core/stores/write-locks";
 
 export function useMovieActions(header: MovieHeader) {
   const runtime = useRuntime();
@@ -53,10 +53,11 @@ export function useMovieActions(header: MovieHeader) {
       };
     });
   };
-  const revalidate = () => {
-    for (const queryKey of [key, queryKeys.movieWatchlist(), queryKeys.historyPrefix()])
-      void client.invalidateQueries({ queryKey });
-  };
+  const revalidate = () =>
+    whenNoWritePending(() => {
+      for (const queryKey of [key, queryKeys.movieWatchlist(), queryKeys.historyPrefix()])
+        void client.invalidateQueries({ queryKey });
+    });
   const run = async (action: () => Promise<void>) => {
     running.current += 1;
     setBusy(true);

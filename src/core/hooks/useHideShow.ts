@@ -6,6 +6,7 @@ import type { LibraryEntry, Stopped } from "../domain/model/library";
 import { buildResumeShowOps, buildStopShowOp } from "../domain/write-queue/ops";
 import { useRuntime } from "../runtime/runtime";
 import { showFailure, showUndoable } from "../stores/snackbar-store";
+import { whenNoWritePending } from "../stores/write-locks";
 import { patchStopped, stoppedIn } from "./library-cache";
 import { useOptimisticWrite, writeTarget } from "./useOptimisticWrite";
 
@@ -22,7 +23,9 @@ export function useHideShow(): HideController {
 
   const revalidate = useCallback(
     (showId: number) => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.library() });
+      whenNoWritePending(
+        () => void queryClient.invalidateQueries({ queryKey: queryKeys.library() }),
+      );
       void queryClient.invalidateQueries({ queryKey: queryKeys.showProgress(showId) });
     },
     [queryClient],

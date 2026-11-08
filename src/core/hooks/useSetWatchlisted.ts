@@ -11,6 +11,7 @@ import {
   type UpNextData,
   useRuntime,
 } from "../runtime/runtime";
+import { whenNoWritePending } from "../stores/write-locks";
 import { useOptimisticWrite, writeTarget } from "./useOptimisticWrite";
 
 export type WatchlistTitle = Pick<
@@ -154,7 +155,9 @@ export function useSetWatchlisted(): (
         ids: title.ids,
       });
       return submit(writeTarget(title.type, title.traktId), [{ ops: [op], revert }], () => {
-        for (const queryKey of keys) void client.invalidateQueries({ queryKey });
+        whenNoWritePending(() => {
+          for (const queryKey of keys) void client.invalidateQueries({ queryKey });
+        });
       });
     },
     [client, runtime, submit],

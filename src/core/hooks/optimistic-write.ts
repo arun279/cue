@@ -72,16 +72,23 @@ export async function applyOptimisticWrite(
   revalidate: () => void,
 ): Promise<SubmitOutcome> {
   beginWrite(target);
-  const ops = changes.flatMap((change) => change.ops);
-  const outcomes: Outcomes = new Map(
-    await Promise.all(ops.map(async (op) => [op, await gateway.submit(op)] as const)),
-  );
-  const reverted = new Set<OptimisticChange>();
-  revertRefused(changes, outcomes, reverted);
-  const result = [...outcomes.values()].reduce(worse, "done");
-  const ended = (): void => endWrite(target, answered(outcomes) ? revalidate : null);
-  if ([...outcomes.values()].includes("deferred")) {
-    void settleLater(gateway.settled, changes, outcomes, reverted).then(ended);
-  } else ended();
-  return result;
+  const outcomes: Outcomes = new Map();
+  let later: Promise<void> | null = null;
+  try {
+    const ops = changes.flatMap((change) => change.ops);
+    const answers = await Promise.all(
+      ops.map(async (op) => [op, await gateway.submit(op)] as const),
+    );
+    for (const [op, outcome] of answers) outcomes.set(op, outcome);
+    const reverted = new Set<OptimisticChange>();
+    revertRefused(changes, outcomes, reverted);
+    if ([...outcomes.values()].includes("deferred")) {
+      later = settleLater(gateway.settled, changes, outcomes, reverted);
+    }
+    return [...outcomes.values()].reduce(worse, "done");
+  } finally {
+    const ended = (): void => endWrite(target, answered(outcomes) ? revalidate : null);
+    if (later === null) ended();
+    else void later.finally(ended);
+  }
 }

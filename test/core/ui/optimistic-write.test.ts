@@ -4,7 +4,7 @@ import type { QueuedOp } from "@/core/domain/write-queue/types";
 import { applyOptimisticWrite, type WriteGateway } from "@/core/hooks/optimistic-write";
 import type { SubmitOutcome } from "@/core/runtime/runtime";
 import { dismissSnack, useSnackbar } from "@/core/stores/snackbar-store";
-import { resetWriteLocks } from "@/core/stores/write-locks";
+import { resetWriteLocks, whenNoWritePending } from "@/core/stores/write-locks";
 
 /** A minimal op whose `id` doubles as a label so a fake submit can record order. */
 function op(id: string): QueuedOp {
@@ -182,6 +182,28 @@ describe("applyOptimisticWrite: the shared write seam", () => {
     await end("b", "done");
     expect(reads.first).toHaveBeenCalledTimes(1);
     expect(reads.second).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets the next write to a show read back after a write to it could not be queued", async () => {
+    const failing: WriteGateway = {
+      ...writer([]).gateway,
+      submit: () => Promise.reject(new Error("full")),
+    };
+    const change = [{ ops: [op("a")], revert: vi.fn() }];
+    await expect(applyOptimisticWrite(failing, "show:1", change, vi.fn())).rejects.toThrow("full");
+    const read = vi.fn();
+    await applyOptimisticWrite(writer(["done"]).gateway, "show:1", change, read);
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads a list of many shows only once no write to any show is pending", async () => {
+    const { gateway, end } = writer(["deferred"]);
+    await applyOptimisticWrite(gateway, "show:2", [{ ops: [op("a")], revert: vi.fn() }], vi.fn());
+    const read = vi.fn();
+    whenNoWritePending(read);
+    expect(read).not.toHaveBeenCalled();
+    await end("a", "done");
+    expect(read).toHaveBeenCalledTimes(1);
   });
 
   it("refetches once a kept write lands later", async () => {

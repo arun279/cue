@@ -24,10 +24,12 @@ import {
   claimWriteLock,
   episodeWriteLock,
   hasPendingMark,
+  latestWrite,
   pendingMark,
   pendingMarkLock,
   releaseWriteLock,
   seasonWriteLock,
+  writesBegun,
 } from "../stores/write-locks";
 import {
   mayHavePlaysOutsideProgress,
@@ -291,6 +293,7 @@ export function useMarkSeason(): MarkSeasonController {
 
   const undo = useCallback(
     async (pending: UndoState) => {
+      const pressed = writesBegun();
       const marked = pending.markedEpisode;
       const keepMarked = (): void => {
         if (marked !== undefined)
@@ -311,12 +314,12 @@ export function useMarkSeason(): MarkSeasonController {
         });
         return;
       }
-      const undoing = submit(
-        writeTarget("show", pending.showId),
-        [{ ops: plan, revert: keepMarked }],
-        () => revalidate(pending.showId, marked === undefined ? "all" : undefined),
+      const target = writeTarget("show", pending.showId);
+      const undoIsLatest = latestWrite(target) <= pressed;
+      const undoing = submit(target, [{ ops: plan, revert: keepMarked }], () =>
+        revalidate(pending.showId, marked === undefined ? "all" : undefined),
       );
-      if (pending.stopped !== null) {
+      if (pending.stopped !== null && undoIsLatest) {
         resume.stopAgain(pending.showId, pending.ids, pending.stopped, plan);
       }
       if ((await undoing) === "failed") showError("Couldn't undo that. Please try again.");

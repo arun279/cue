@@ -6,6 +6,7 @@ import type { Stopped } from "../domain/model/library";
 import { buildResumeShowOps, buildStopShowOp } from "../domain/write-queue/ops";
 import type { QueuedOp } from "../domain/write-queue/types";
 import { useRuntime } from "../runtime/runtime";
+import { latestWrite, whenNoWritePending } from "../stores/write-locks";
 import { patchStopped } from "./library-cache";
 import { useOptimisticWrite, writeTarget } from "./useOptimisticWrite";
 
@@ -18,7 +19,8 @@ export interface ResumeOnMark {
   resume(showId: number, ids: ShowIds): void;
   /**
    * Stops a resumed show again the way it was stopped, once Trakt has taken every write in `after`;
-   * at once when there is none. A refused write in `after` leaves the show resumed.
+   * at once when there is none. A refused write in `after`, or a later write to the show, leaves it
+   * resumed.
    */
   stopAgain(showId: number, ids: ShowIds, stopped: Stopped, after: readonly QueuedOp[]): void;
 }
@@ -43,7 +45,11 @@ export function useResumeOnMark(): ResumeOnMark {
           },
         ],
         () => {
-          if (refused) void queryClient.invalidateQueries({ queryKey: queryKeys.library() });
+          if (refused) {
+            whenNoWritePending(
+              () => void queryClient.invalidateQueries({ queryKey: queryKeys.library() }),
+            );
+          }
         },
       );
     },
@@ -52,11 +58,13 @@ export function useResumeOnMark(): ResumeOnMark {
 
   const stopAgain = useCallback(
     (showId: number, ids: ShowIds, stopped: Stopped, after: readonly QueuedOp[]): void => {
+      const target = writeTarget("show", showId);
+      const undo = latestWrite(target);
       void Promise.all(after.map((op) => settled(op.id))).then((outcomes) => {
-        if (outcomes.includes("failed")) return;
+        if (outcomes.includes("failed") || latestWrite(target) !== undo) return;
         patchStopped(queryClient, showId, stopped);
         void submit(
-          writeTarget("show", showId),
+          target,
           [
             {
               ops: [buildStopShowOp(stopped, { opId: newId(), ids })],

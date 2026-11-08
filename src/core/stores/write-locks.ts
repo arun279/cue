@@ -35,26 +35,54 @@ export function hasPendingMark(runtime: CueRuntime, itemKey: string): boolean {
 }
 
 const readBacks = new Map<string, { writes: number; owed: (() => void)[] }>();
+const latestWrites = new Map<string, number>();
+let writesStarted = 0;
+let writesPending = 0;
+let sharedReads: (() => void)[] = [];
 
 /** Counts a write to `target`, so no read back of it runs while this write is still pending. */
 export function beginWrite(target: string): void {
   const pending = readBacks.get(target) ?? { writes: 0, owed: [] };
   pending.writes += 1;
   readBacks.set(target, pending);
+  writesPending += 1;
+  writesStarted += 1;
+  latestWrites.set(target, writesStarted);
 }
+
+/** Which write to `target` began last; a later write gives a higher number. */
+export const latestWrite = (target: string): number => latestWrites.get(target) ?? 0;
+
+/** How many writes have begun; a write to `target` began since `seen` if `latestWrite` exceeds it. */
+export const writesBegun = (): number => writesStarted;
 
 /** Ends a write to `target`; once none is left pending, runs every read back owed to it. */
 export function endWrite(target: string, readBack: (() => void) | null): void {
   const pending = readBacks.get(target);
   if (pending === undefined) return;
+  writesPending -= 1;
   if (readBack !== null) pending.owed.push(readBack);
   pending.writes -= 1;
-  if (pending.writes > 0) return;
-  readBacks.delete(target);
-  for (const owed of pending.owed) owed();
+  if (pending.writes === 0) {
+    readBacks.delete(target);
+    for (const owed of pending.owed) owed();
+  }
+  if (writesPending > 0) return;
+  const reads = sharedReads;
+  sharedReads = [];
+  for (const read of reads) read();
+}
+
+/** Runs a read of a query that holds many shows or movies once no write to any of them is pending. */
+export function whenNoWritePending(read: () => void): void {
+  if (writesPending === 0) read();
+  else sharedReads.push(read);
 }
 
 export function resetWriteLocks(): void {
   locks.clear();
   readBacks.clear();
+  latestWrites.clear();
+  writesPending = 0;
+  sharedReads = [];
 }

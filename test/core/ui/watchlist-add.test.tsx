@@ -2,7 +2,7 @@
 
 import { notifyManager, QueryClient } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
-import { beforeAll, beforeEach, expect, it } from "vitest";
+import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { queryKeys } from "@/core/data/query-keys";
 import type { SearchHit } from "@/core/domain/discover";
 import type { LibraryEntry } from "@/core/domain/model/library";
@@ -168,6 +168,47 @@ it.each([
   expect(client.getQueryData<UpNextData>(queryKeys.library())?.entries).toEqual([
     { ...other, hidden: true },
   ]);
+});
+
+it("keeps a title Trakt has not answered when another title's add lands", async () => {
+  const client = new QueryClient();
+  client.setQueryData<UpNextData>(queryKeys.library(), { entries: [] });
+  const second: SearchHit = {
+    ...show,
+    key: "show:2",
+    traktId: 2,
+    title: "Second",
+    ids: { trakt: 2 },
+  };
+  let land: (outcome: "done") => void = () => {};
+  const loadUpNext = vi.fn(async () => ({ entries: [], isPartial: false }));
+  const runtime = partialRuntime({
+    newId: () => "op",
+    loadUpNext,
+    loadMovieWatchlist: () => new Promise(() => {}),
+    submit: (op: QueuedOp) =>
+      Promise.resolve(
+        op.request.body && JSON.stringify(op.request.body).includes('"trakt":2')
+          ? "deferred"
+          : "done",
+      ),
+    settled: () =>
+      new Promise((resolve) => {
+        land = resolve;
+      }),
+  });
+  await mountAdd(client, runtime);
+  await act(async () => {
+    await Promise.all([view.current.add(show), view.current.add(second)]);
+  });
+  await act(async () => {});
+
+  expect(
+    client.getQueryData<UpNextData>(queryKeys.library())?.entries.map((entry) => entry.showId),
+  ).toContain(2);
+  loadUpNext.mockClear();
+  await act(async () => land("done"));
+  expect(loadUpNext).toHaveBeenCalled();
 });
 
 it("keeps watched titles in the library when they leave the watchlist", async () => {

@@ -4,6 +4,7 @@ import { type LibraryEntry, stoppedOf } from "../domain/model/library";
 import { buildAddWatchlistOp, buildRemoveWatchlistOp } from "../domain/write-queue/ops";
 import { useRuntime } from "../runtime/runtime";
 import { showSnack, showUndoable } from "../stores/snackbar-store";
+import { whenNoWritePending } from "../stores/write-locks";
 import { ensureLibraryEntry, patchLibraryEntry } from "./library-cache";
 import { useOptimisticWrite, writeTarget } from "./useOptimisticWrite";
 import { useResumeOnMark } from "./useResumeOnMark";
@@ -27,7 +28,8 @@ export function useMoveToWatchlist(): (entry: LibraryEntry) => Promise<void> {
             patchLibraryEntry(client, entry.showId, (old) => ({ ...old, inWatchlist: !added })),
         },
       ],
-      () => void client.invalidateQueries({ queryKey: queryKeys.library() }),
+      () =>
+        whenNoWritePending(() => void client.invalidateQueries({ queryKey: queryKeys.library() })),
     );
     const stopped = stoppedOf(entry);
     if (stopped !== null) {

@@ -1808,6 +1808,89 @@ describe("a refused write takes back only its own change", () => {
     expect(entryOf(qc, SHOW)?.hidden).toBe(true);
   });
 
+  it("leaves a show resumed when it is marked again while the Undo of an earlier mark is answered", async () => {
+    let land: (outcome: "done") => void = () => {};
+    const fake = fakeRuntime({
+      submit: (op) =>
+        op.request.path === "/sync/history/remove"
+          ? new Promise((resolve) => {
+              land = resolve;
+            })
+          : Promise.resolve("done"),
+    });
+    const qc = seededClient(
+      [{ ...libraryEntry(), hidden: true }],
+      [seasonView([episodeView(1, true), episodeView(2), episodeView(3)])],
+    );
+    const [a] = mountSurfaces(fake.runtime, qc);
+    await act(async () =>
+      a.current.season.toggleEpisode(TARGET, episodeView(2), { undoLabel: "S1 E2 marked" }),
+    );
+    act(() => void pressUndo());
+    await act(async () => a.current.season.toggleEpisode(TARGET, episodeView(3)));
+    await act(async () => land("done"));
+    await flush();
+
+    expectResumed(qc, fake);
+  });
+
+  it("leaves a show resumed when Up Next marks it again while the Undo of an earlier mark is answered", async () => {
+    let land: (outcome: "done") => void = () => {};
+    const fake = fakeRuntime({
+      submit: (op) =>
+        op.request.path === "/sync/history/remove"
+          ? new Promise((resolve) => {
+              land = resolve;
+            })
+          : Promise.resolve("done"),
+    });
+    const entry = { ...libraryEntry(), hidden: true };
+    const qc = seededClient([entry]);
+    const [a] = mountSurfaces(fake.runtime, qc);
+    await act(async () => a.current.mark.mark(entry));
+    act(() => void a.current.mark.reverse(SHOW));
+    await act(async () => a.current.mark.mark(entryOf(qc, SHOW) ?? entry));
+    await act(async () => land("done"));
+    await flush();
+
+    expectResumed(qc, fake);
+  });
+
+  it("leaves a show resumed when the show screen marks it while an Up Next Undo waits on its mark", async () => {
+    vi.useFakeTimers();
+    try {
+      let delivering = true;
+      let land: (outcome: "done") => void = () => {};
+      const fake = fakeRuntime({
+        sentOpId: () => (delivering ? "op-0" : null),
+        submit: (op) =>
+          fake.submitted.indexOf(op) === 0
+            ? new Promise((resolve) => {
+                land = (outcome) => {
+                  delivering = false;
+                  resolve(outcome);
+                };
+              })
+            : Promise.resolve("done"),
+      });
+      const entry = { ...libraryEntry(), hidden: true };
+      const qc = seededClient(
+        [entry],
+        [seasonView([episodeView(1, true), episodeView(2), episodeView(3)])],
+      );
+      const [a] = mountSurfaces(fake.runtime, qc);
+      act(() => void a.current.mark.mark(entry));
+      act(() => void a.current.mark.reverse(SHOW));
+      await act(async () => a.current.season.toggleEpisode(TARGET, episodeView(3)));
+      await act(async () => land("done"));
+      await act(() => vi.advanceTimersByTimeAsync(400));
+
+      expectResumed(qc, fake);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("reads the library again, and guesses nothing, when Trakt refuses part of a resume", async () => {
     const fake = fakeRuntime({
       submit: (op) =>
