@@ -186,13 +186,8 @@ export function useMarkWatched(): MarkWatched {
 
   /** The write that takes the mark back, none when it never reached Trakt, or why it cannot be. */
   const takeBackMark = useCallback(
-    async (record: MarkRecord): Promise<QueuedOp | null | "replaced" | "unknown"> => {
-      const priorPlay = !playsOnlyInProgress(record.beforeMark);
-      let state = runtime.writeState(record.opId);
-      if (state === "sent" && !canRemoveOwnPlays(priorPlay)) {
-        await waitUntilSettled(runtime, [record.opId]);
-        state = runtime.writeState(record.opId);
-      }
+    (record: MarkRecord, priorPlay: boolean): QueuedOp | null | "replaced" | "unknown" => {
+      const state = runtime.writeState(record.opId);
       const write = { opId: record.opId, ids: record.episodeIds, watchedAt: record.watchedAt };
       if (state === "unsent") return buildUnmarkEpisodeOp({ ...write, opId: runtime.newId() });
       if (state !== "sent" && state !== "done") return null;
@@ -206,7 +201,11 @@ export function useMarkWatched(): MarkWatched {
 
   const runReversal = useCallback(
     async (record: MarkRecord): Promise<SubmitOutcome | null> => {
-      const mark = await takeBackMark(record);
+      const priorPlay = !playsOnlyInProgress(record.beforeMark);
+      if (runtime.writeState(record.opId) === "sent" && !canRemoveOwnPlays(priorPlay)) {
+        await waitUntilSettled(runtime, [record.opId]);
+      }
+      const mark = takeBackMark(record, priorPlay);
       if (mark === "replaced" || mark === "unknown") {
         showKept(record);
         if (mark === "replaced") showReplaced(record, true);
@@ -224,7 +223,7 @@ export function useMarkWatched(): MarkWatched {
       }
       return reversal;
     },
-    [takeBackMark, submit, showKept, reapplyMark, revalidate, haptics, resume],
+    [runtime, takeBackMark, submit, showKept, reapplyMark, revalidate, haptics, resume],
   );
 
   const submitReversal = useCallback(
