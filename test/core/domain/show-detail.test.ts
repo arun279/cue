@@ -145,6 +145,15 @@ describe("season confirmations", () => {
       message: "Removes 8 episodes from your history.",
       primary: "Remove 8 episodes",
     });
+    expect(
+      seasonConfirmation({ number: 1, airedCount: 8, completedCount: 8 }, "unknown", true),
+    ).toEqual({
+      kind: "unmark",
+      title: "Unmark Season 1?",
+      message:
+        "Removes up to 8 episodes from your history. Episodes you've watched more than once keep all their plays.",
+      primary: "Remove up to 8 episodes",
+    });
     expect(seasonConfirmation({ number: 0, airedCount: 2, completedCount: 0 }).title).toBe(
       "Mark Specials watched?",
     );

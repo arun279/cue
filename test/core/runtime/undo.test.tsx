@@ -5,19 +5,22 @@
  */
 
 import { act, renderHook } from "@testing-library/react";
-import { expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { buildStopShowOp } from "@/core/domain/write-queue/ops";
 import { useMarkSeason } from "@/core/hooks/useMarkSeason";
 import { useMarkWatched } from "@/core/hooks/useMarkWatched";
 import { libraryQuery } from "@/core/queries/library";
 import { showSeasonsQuery } from "@/core/queries/shows";
 import { createQueryClient } from "@/core/runtime/query-cache";
+import { resetMarkStore } from "@/core/stores/mark-store";
 import { useSnackbar } from "@/core/stores/snackbar-store";
 import { buildRuntime } from "../data/_runtime";
 import { withRuntime } from "../support/runtime";
 import { startTraktFake } from "../trakt-fake/in-process.ts";
 
 const fake = startTraktFake();
+
+afterEach(resetMarkStore);
 
 const HISTORY = /^\/sync\/history$/;
 // Paper Moon Radio is on Trakt's dropped list; Glasshouse is hidden from progress.

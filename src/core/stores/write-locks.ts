@@ -34,6 +34,27 @@ export function hasPendingMark(runtime: CueRuntime, itemKey: string): boolean {
   return hasWriteLock(pendingMarkLock(itemKey)) || pendingMark(runtime, itemKey) !== undefined;
 }
 
+const readBacks = new Map<string, { writes: number; owed: (() => void)[] }>();
+
+/** Counts a write to `target`, so no read back of it runs while this write is still pending. */
+export function beginWrite(target: string): void {
+  const pending = readBacks.get(target) ?? { writes: 0, owed: [] };
+  pending.writes += 1;
+  readBacks.set(target, pending);
+}
+
+/** Ends a write to `target`; once none is left pending, runs every read back owed to it. */
+export function endWrite(target: string, readBack: (() => void) | null): void {
+  const pending = readBacks.get(target);
+  if (pending === undefined) return;
+  if (readBack !== null) pending.owed.push(readBack);
+  pending.writes -= 1;
+  if (pending.writes > 0) return;
+  readBacks.delete(target);
+  for (const owed of pending.owed) owed();
+}
+
 export function resetWriteLocks(): void {
   locks.clear();
+  readBacks.clear();
 }

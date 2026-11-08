@@ -11,7 +11,7 @@ import {
   type UpNextData,
   useRuntime,
 } from "../runtime/runtime";
-import { useOptimisticWrite } from "./useOptimisticWrite";
+import { useOptimisticWrite, writeTarget } from "./useOptimisticWrite";
 
 export type WatchlistTitle = Pick<
   SearchHit,
@@ -153,7 +153,7 @@ export function useSetWatchlisted(): (
         section: title.type === "movie" ? "movies" : "shows",
         ids: title.ids,
       });
-      return submit([{ ops: [op], revert }], () => {
+      return submit(writeTarget(title.type, title.traktId), [{ ops: [op], revert }], () => {
         for (const queryKey of keys) void client.invalidateQueries({ queryKey });
       });
     },

@@ -1,61 +1,73 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
+import { queryKeys } from "../data/query-keys";
 import type { ShowIds } from "../domain/model/ids";
 import type { Stopped } from "../domain/model/library";
 import { buildResumeShowOps, buildStopShowOp } from "../domain/write-queue/ops";
 import type { QueuedOp } from "../domain/write-queue/types";
 import { useRuntime } from "../runtime/runtime";
 import { patchStopped } from "./library-cache";
-import { useOptimisticWrite } from "./useOptimisticWrite";
+import { useOptimisticWrite, writeTarget } from "./useOptimisticWrite";
 
-/** Both show their change at once, and queue their writes behind every write queued before them. */
+/** Both show their change on screen, and queue their writes behind every write queued before them. */
 export interface ResumeOnMark {
-  /** Resumes a stopped show for the writes in `cause`, and stops it again if Trakt refuses them all. */
-  resume(showId: number, ids: ShowIds, stopped: Stopped, cause: readonly QueuedOp[]): void;
-  /** Stops a resumed show again the way it was stopped before. */
-  stopAgain(showId: number, ids: ShowIds, stopped: Stopped): void;
+  /**
+   * Resumes a stopped show. Trakt keeps the hidden and dropped lists apart, and either removal can
+   * be refused on its own, so after a refusal the library is read again rather than guessed.
+   */
+  resume(showId: number, ids: ShowIds): void;
+  /**
+   * Stops a resumed show again the way it was stopped, once Trakt has taken every write in `after`;
+   * at once when there is none. A refused write in `after` leaves the show resumed.
+   */
+  stopAgain(showId: number, ids: ShowIds, stopped: Stopped, after: readonly QueuedOp[]): void;
 }
-
-const NOTHING_TO_READ = (): void => {};
 
 export function useResumeOnMark(): ResumeOnMark {
   const { newId, settled } = useRuntime();
   const queryClient = useQueryClient();
   const submit = useOptimisticWrite();
 
-  const stopAgain = useCallback(
-    (showId: number, ids: ShowIds, stopped: Stopped): void => {
-      patchStopped(queryClient, showId, stopped);
+  const resume = useCallback(
+    (showId: number, ids: ShowIds): void => {
+      let refused = false;
+      patchStopped(queryClient, showId, null);
       void submit(
+        writeTarget("show", showId),
         [
           {
-            ops: [buildStopShowOp(stopped, { opId: newId(), ids })],
-            revert: () => patchStopped(queryClient, showId, null),
+            ops: buildResumeShowOps({ newId, ids }),
+            revert: () => {
+              refused = true;
+            },
           },
         ],
-        NOTHING_TO_READ,
+        () => {
+          if (refused) void queryClient.invalidateQueries({ queryKey: queryKeys.library() });
+        },
       );
     },
     [queryClient, newId, submit],
   );
 
-  const resume = useCallback(
-    (showId: number, ids: ShowIds, stopped: Stopped, cause: readonly QueuedOp[]): void => {
-      patchStopped(queryClient, showId, null);
-      void submit(
-        [
-          {
-            ops: buildResumeShowOps({ newId, ids }),
-            revert: () => patchStopped(queryClient, showId, stopped),
-          },
-        ],
-        NOTHING_TO_READ,
-      );
-      void Promise.all(cause.map((op) => settled(op.id))).then((outcomes) => {
-        if (outcomes.every((outcome) => outcome === "failed")) stopAgain(showId, ids, stopped);
+  const stopAgain = useCallback(
+    (showId: number, ids: ShowIds, stopped: Stopped, after: readonly QueuedOp[]): void => {
+      void Promise.all(after.map((op) => settled(op.id))).then((outcomes) => {
+        if (outcomes.includes("failed")) return;
+        patchStopped(queryClient, showId, stopped);
+        void submit(
+          writeTarget("show", showId),
+          [
+            {
+              ops: [buildStopShowOp(stopped, { opId: newId(), ids })],
+              revert: () => patchStopped(queryClient, showId, null),
+            },
+          ],
+          () => {},
+        );
       });
     },
-    [queryClient, newId, settled, stopAgain, submit],
+    [queryClient, newId, settled, submit],
   );
 
   return useMemo(() => ({ resume, stopAgain }), [resume, stopAgain]);

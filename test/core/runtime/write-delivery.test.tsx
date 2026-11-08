@@ -25,6 +25,7 @@ import { libraryQuery } from "@/core/queries/library";
 import type { RuntimeDeps } from "@/core/runtime/create-runtime";
 import { createQueryClient } from "@/core/runtime/query-cache";
 import type { CueRuntime } from "@/core/runtime/runtime";
+import { resetMarkStore } from "@/core/stores/mark-store";
 import { usePlayPolicy } from "@/core/stores/play-policy-store";
 import { useSnackbar } from "@/core/stores/snackbar-store";
 import { buildRuntime } from "../data/_runtime";
@@ -36,6 +37,7 @@ const fake = startTraktFake();
 
 afterEach(() => {
   vi.useRealTimers();
+  resetMarkStore();
 });
 
 const AT = "2026-09-10T12:00:00.000Z";

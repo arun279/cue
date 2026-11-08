@@ -45,7 +45,7 @@ import {
   takeBack,
   waitUntilSettled,
 } from "./resolve-unmark";
-import { useOptimisticWrite } from "./useOptimisticWrite";
+import { useOptimisticWrite, writeTarget } from "./useOptimisticWrite";
 import { useResumeOnMark } from "./useResumeOnMark";
 
 interface MarkContextTarget {
@@ -311,10 +311,14 @@ export function useMarkSeason(): MarkSeasonController {
         });
         return;
       }
-      const undoing = submit([{ ops: plan, revert: keepMarked }], () =>
-        revalidate(pending.showId, marked === undefined ? "all" : undefined),
+      const undoing = submit(
+        writeTarget("show", pending.showId),
+        [{ ops: plan, revert: keepMarked }],
+        () => revalidate(pending.showId, marked === undefined ? "all" : undefined),
       );
-      if (pending.stopped !== null) resume.stopAgain(pending.showId, pending.ids, pending.stopped);
+      if (pending.stopped !== null) {
+        resume.stopAgain(pending.showId, pending.ids, pending.stopped, plan);
+      }
       if ((await undoing) === "failed") showError("Couldn't undo that. Please try again.");
     },
     [revalidate, setEpisodeWatched, submit, resume, runtime],
@@ -352,8 +356,10 @@ export function useMarkSeason(): MarkSeasonController {
             ),
         };
       });
-      const writing = submit(changes, () => revalidate(target.showId, "all"));
-      if (stopped !== null) resume.resume(target.showId, target.ids, stopped, ops);
+      const writing = submit(writeTarget("show", target.showId), changes, () =>
+        revalidate(target.showId, "all"),
+      );
+      if (stopped !== null) resume.resume(target.showId, target.ids);
       return writing;
     },
     [submit, queryClient, resume, revalidate],
@@ -480,6 +486,7 @@ export function useMarkSeason(): MarkSeasonController {
       const keptSuffix = kept > 0 ? ` · kept ${kept} rewatched ${plural(kept)}` : "";
       const count = plan.removeIds.length;
       const writing = submit(
+        writeTarget("show", target.showId),
         [
           {
             ops,
@@ -617,6 +624,7 @@ export function useMarkSeason(): MarkSeasonController {
             })
           : buildUndoAddOp(runtime.newId(), queuedMark);
       const outcome = await submit(
+        writeTarget("show", target.showId),
         [
           {
             ops: [takeBack],
@@ -659,6 +667,7 @@ export function useMarkSeason(): MarkSeasonController {
           });
       const ops = [op];
       const writing = submit(
+        writeTarget("show", target.showId),
         [
           {
             ops,
@@ -745,10 +754,11 @@ export function useMarkSeason(): MarkSeasonController {
         const stopped = stoppedIn(queryClient, target.showId);
         setEpisodeWatched(target, episode, true, watchedAt);
         const writing = submit(
+          writeTarget("show", target.showId),
           [{ ops, revert: () => setEpisodeWatched(target, episode, false, null) }],
           () => revalidate(target.showId, episode),
         );
-        if (stopped !== null) resume.resume(target.showId, target.ids, stopped, ops);
+        if (stopped !== null) resume.resume(target.showId, target.ids);
         if (undoLabel !== undefined) {
           offerUndo({
             showId: target.showId,
@@ -796,10 +806,12 @@ export function useMarkSeason(): MarkSeasonController {
           watchedAt: new Date().toISOString(),
         });
         const stopped = stoppedIn(queryClient, target.showId);
-        const writing = submit([{ ops: [op], revert: () => {} }], () =>
-          revalidate(target.showId, { season: episode.season, number: episode.number }),
+        const writing = submit(
+          writeTarget("show", target.showId),
+          [{ ops: [op], revert: () => {} }],
+          () => revalidate(target.showId, { season: episode.season, number: episode.number }),
         );
-        if (stopped !== null) resume.resume(target.showId, target.ids, stopped, [op]);
+        if (stopped !== null) resume.resume(target.showId, target.ids);
         showSnack({ message: "Play added" });
         settleWrite(
           await writing,
@@ -842,6 +854,7 @@ export function useMarkSeason(): MarkSeasonController {
         });
         const ops = [op];
         const writing = submit(
+          writeTarget("show", target.showId),
           [
             {
               ops,

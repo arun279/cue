@@ -5,7 +5,7 @@ import { buildAddWatchlistOp, buildRemoveWatchlistOp } from "../domain/write-que
 import { useRuntime } from "../runtime/runtime";
 import { showSnack, showUndoable } from "../stores/snackbar-store";
 import { ensureLibraryEntry, patchLibraryEntry } from "./library-cache";
-import { useOptimisticWrite } from "./useOptimisticWrite";
+import { useOptimisticWrite, writeTarget } from "./useOptimisticWrite";
 import { useResumeOnMark } from "./useResumeOnMark";
 
 export function useMoveToWatchlist(): (entry: LibraryEntry) => Promise<void> {
@@ -19,6 +19,7 @@ export function useMoveToWatchlist(): (entry: LibraryEntry) => Promise<void> {
     const build = added ? buildAddWatchlistOp : buildRemoveWatchlistOp;
     const op = build({ opId: runtime.newId(), section: "shows", ids: { trakt: entry.showId } });
     const writing = submit(
+      writeTarget("show", entry.showId),
       [
         {
           ops: [op],
@@ -30,8 +31,8 @@ export function useMoveToWatchlist(): (entry: LibraryEntry) => Promise<void> {
     );
     const stopped = stoppedOf(entry);
     if (stopped !== null) {
-      if (added) resume.resume(entry.showId, { trakt: entry.showId }, stopped, [op]);
-      else resume.stopAgain(entry.showId, { trakt: entry.showId }, stopped);
+      if (added) resume.resume(entry.showId, { trakt: entry.showId });
+      else resume.stopAgain(entry.showId, { trakt: entry.showId }, stopped, [op]);
     }
     const outcome = await writing;
     if (outcome === "failed")

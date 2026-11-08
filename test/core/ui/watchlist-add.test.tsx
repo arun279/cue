@@ -2,7 +2,7 @@
 
 import { notifyManager, QueryClient } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
-import { beforeAll, expect, it } from "vitest";
+import { beforeAll, beforeEach, expect, it } from "vitest";
 import { queryKeys } from "@/core/data/query-keys";
 import type { SearchHit } from "@/core/domain/discover";
 import type { LibraryEntry } from "@/core/domain/model/library";
@@ -18,10 +18,12 @@ import type {
   UpNextData,
 } from "@/core/runtime/runtime";
 import { useSnackbar } from "@/core/stores/snackbar-store";
+import { resetWriteLocks } from "@/core/stores/write-locks";
 import { makeShow } from "../domain/_helpers";
 import { partialRuntime, withRuntime } from "../support/runtime";
 
 beforeAll(() => notifyManager.setScheduler((callback) => callback()));
+beforeEach(resetWriteLocks);
 
 const show: SearchHit = {
   key: "show:1",

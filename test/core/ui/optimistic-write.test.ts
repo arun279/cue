@@ -4,6 +4,7 @@ import type { QueuedOp } from "@/core/domain/write-queue/types";
 import { applyOptimisticWrite, type WriteGateway } from "@/core/hooks/optimistic-write";
 import type { SubmitOutcome } from "@/core/runtime/runtime";
 import { dismissSnack, useSnackbar } from "@/core/stores/snackbar-store";
+import { resetWriteLocks } from "@/core/stores/write-locks";
 
 /** A minimal op whose `id` doubles as a label so a fake submit can record order. */
 function op(id: string): QueuedOp {
@@ -50,12 +51,15 @@ async function exercise(outcomes: readonly SubmitOutcome[]) {
   const reverts = outcomes.map(() => vi.fn());
   const revalidate = vi.fn();
   const changes = outcomes.map((_, n) => ({ ops: [op(`op-${n}`)], revert: reverts[n] ?? vi.fn() }));
-  const outcome = await applyOptimisticWrite(gateway, changes, revalidate);
+  const outcome = await applyOptimisticWrite(gateway, "show:1", changes, revalidate);
   const reverted = () => reverts.flatMap((revert, n) => (revert.mock.calls.length > 0 ? [n] : []));
   return { outcome, reverts, reverted, revalidate, seen, end };
 }
 
-beforeEach(dismissSnack);
+beforeEach(() => {
+  dismissSnack();
+  resetWriteLocks();
+});
 
 interface Case {
   readonly name: string;
@@ -149,7 +153,7 @@ describe("applyOptimisticWrite: the shared write seam", () => {
   it("takes a change back once when Trakt refuses more than one of its writes", async () => {
     const { gateway, end } = writer(["failed", "deferred"]);
     const revert = vi.fn();
-    await applyOptimisticWrite(gateway, [{ ops: [op("a"), op("b")], revert }], vi.fn());
+    await applyOptimisticWrite(gateway, "show:1", [{ ops: [op("a"), op("b")], revert }], vi.fn());
     await end("b", "failed");
     expect(revert).toHaveBeenCalledTimes(1);
   });
@@ -163,6 +167,21 @@ describe("applyOptimisticWrite: the shared write seam", () => {
     expect(reverted()).toEqual([1]);
     expect(revalidate).toHaveBeenCalledTimes(1);
     expect(useSnackbar.getState().snack?.message).toBe("Couldn't save an earlier change to Trakt.");
+  });
+
+  it("reads back only once no other write to the same show is pending, and then for all of them", async () => {
+    const { gateway, end } = writer(["done", "deferred", "done"]);
+    const reads = { first: vi.fn(), second: vi.fn(), other: vi.fn() };
+    const change = (id: string) => [{ ops: [op(id)], revert: vi.fn() }];
+    const first = applyOptimisticWrite(gateway, "show:1", change("a"), reads.first);
+    const second = applyOptimisticWrite(gateway, "show:1", change("b"), reads.second);
+    await applyOptimisticWrite(gateway, "show:2", change("c"), reads.other);
+    await Promise.all([first, second]);
+    expect(reads.first).not.toHaveBeenCalled();
+    expect(reads.other).toHaveBeenCalledTimes(1);
+    await end("b", "done");
+    expect(reads.first).toHaveBeenCalledTimes(1);
+    expect(reads.second).toHaveBeenCalledTimes(1);
   });
 
   it("refetches once a kept write lands later", async () => {

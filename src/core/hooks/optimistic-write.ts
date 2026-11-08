@@ -2,6 +2,7 @@ import type { WriteOutcome } from "../domain/write-queue/queue";
 import type { QueuedOp } from "../domain/write-queue/types";
 import type { SubmitOutcome } from "../runtime/runtime";
 import { dismissSnack, showSnack } from "../stores/snackbar-store";
+import { beginWrite, endWrite } from "../stores/write-locks";
 
 /** A change shown at once, with the writes that make it on Trakt. */
 export interface OptimisticChange {
@@ -47,7 +48,6 @@ async function settleLater(
   changes: readonly OptimisticChange[],
   outcomes: Outcomes,
   reverted: Set<OptimisticChange>,
-  revalidate: () => void,
 ): Promise<void> {
   const kept = [...outcomes].filter(([, outcome]) => outcome === "deferred").map(([op]) => op);
   for (const op of kept) outcomes.set(op, await settled(op.id));
@@ -57,19 +57,21 @@ async function settleLater(
       actions: [{ label: "Dismiss", onPress: dismissSnack }],
     });
   }
-  if (answered(outcomes)) revalidate();
 }
 
 /**
  * Queues every write before any is sent, so each is weighed against the queue as it stood. Each
- * change Trakt refuses a write of is taken back, the others stay, and what was written is read back
- * once Trakt has answered every write.
+ * change Trakt refuses a write of is taken back, the others stay. What was written to `target` is
+ * read back once Trakt has answered every write, and no other write to `target` is still pending:
+ * the last to settle reads back for all of them.
  */
 export async function applyOptimisticWrite(
   gateway: WriteGateway,
+  target: string,
   changes: readonly OptimisticChange[],
   revalidate: () => void,
 ): Promise<SubmitOutcome> {
+  beginWrite(target);
   const ops = changes.flatMap((change) => change.ops);
   const outcomes: Outcomes = new Map(
     await Promise.all(ops.map(async (op) => [op, await gateway.submit(op)] as const)),
@@ -77,8 +79,9 @@ export async function applyOptimisticWrite(
   const reverted = new Set<OptimisticChange>();
   revertRefused(changes, outcomes, reverted);
   const result = [...outcomes.values()].reduce(worse, "done");
+  const ended = (): void => endWrite(target, answered(outcomes) ? revalidate : null);
   if ([...outcomes.values()].includes("deferred")) {
-    void settleLater(gateway.settled, changes, outcomes, reverted, revalidate);
-  } else if (answered(outcomes)) revalidate();
+    void settleLater(gateway.settled, changes, outcomes, reverted).then(ended);
+  } else ended();
   return result;
 }

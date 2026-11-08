@@ -10,7 +10,7 @@ import {
 import { type SubmitOutcome, useRuntime } from "../runtime/runtime";
 import { dismissSnack, showSnack, showUndoable } from "../stores/snackbar-store";
 import { refreshShowProgress } from "./library-cache";
-import { useOptimisticWrite } from "./useOptimisticWrite";
+import { useOptimisticWrite, writeTarget } from "./useOptimisticWrite";
 
 export interface RemovePlayController {
   readonly removedIds: ReadonlySet<number>;
@@ -60,6 +60,7 @@ export function useRemovePlay(): RemovePlayController {
         watchedAt: entry.watchedAt,
       });
       const outcome = await submit(
+        writeTarget(entry.type === "movie" ? "movie" : "show", entry.mediaId),
         [
           {
             ops: [op],
@@ -86,6 +87,7 @@ export function useRemovePlay(): RemovePlayController {
         },
       });
       const removal = submit(
+        writeTarget(entry.type === "movie" ? "movie" : "show", entry.mediaId),
         [
           {
             ops: [op],

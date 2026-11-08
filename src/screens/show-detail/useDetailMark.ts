@@ -2,6 +2,7 @@ import { epCode } from "@/core/domain/model/library";
 import {
   type EpisodeView,
   earlierUnwatchedCount,
+  patchEpisodes,
   type SeasonView,
 } from "@/core/domain/show-detail";
 import { useMarkSeason } from "@/core/hooks/useMarkSeason";
@@ -28,9 +29,12 @@ export function useDetailMark(showId: number, seasons: readonly SeasonView[]) {
       addSnackAction({
         label: `+${earlier} earlier`,
         onPress: () =>
-          void controller.markUpToHere({ ...target, includeSpecials: false }, seasons, episode, {
-            absorbUndo: true,
-          }),
+          void controller.markUpToHere(
+            { ...target, includeSpecials: false },
+            patchEpisodes(seasons, (s, n) => s === episode.season && n === episode.number, true),
+            episode,
+            { absorbUndo: true },
+          ),
       });
     },
   };

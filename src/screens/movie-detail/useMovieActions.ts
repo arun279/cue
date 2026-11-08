@@ -13,7 +13,7 @@ import { replacedPlays } from "@/core/domain/write-queue/receipt";
 import type { QueuedOp } from "@/core/domain/write-queue/types";
 import { REPLACED_COPY } from "@/core/hooks/replaced-copy";
 import { resolveMovieUnmark } from "@/core/hooks/resolve-unmark";
-import { useOptimisticWrite } from "@/core/hooks/useOptimisticWrite";
+import { useOptimisticWrite, writeTarget } from "@/core/hooks/useOptimisticWrite";
 import { useSetWatchlisted } from "@/core/hooks/useSetWatchlisted";
 import { movieLibraryQuery } from "@/core/queries/library";
 import { type MovieLibraryData, useRuntime } from "@/core/runtime/runtime";
@@ -78,7 +78,11 @@ export function useMovieActions(header: MovieHeader) {
   const write = async (op: QueuedOp, next: Partial<MovieEntry>, previous: Partial<MovieEntry>) => {
     await client.cancelQueries({ queryKey: key });
     patch(next);
-    const outcome = await submit([{ ops: [op], revert: () => patch(previous) }], revalidate);
+    const outcome = await submit(
+      writeTarget("movie", header.movieId),
+      [{ ops: [op], revert: () => patch(previous) }],
+      revalidate,
+    );
     if (outcome === "failed") error();
     return outcome;
   };

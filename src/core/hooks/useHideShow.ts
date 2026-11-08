@@ -7,7 +7,7 @@ import { buildResumeShowOps, buildStopShowOp } from "../domain/write-queue/ops";
 import { useRuntime } from "../runtime/runtime";
 import { showFailure, showUndoable } from "../stores/snackbar-store";
 import { patchStopped, stoppedIn } from "./library-cache";
-import { useOptimisticWrite } from "./useOptimisticWrite";
+import { useOptimisticWrite, writeTarget } from "./useOptimisticWrite";
 
 export interface HideController {
   hide(showId: number, ids: ShowIds, title: string): Promise<void>;
@@ -38,6 +38,7 @@ export function useHideShow(): HideController {
           ? buildResumeShowOps({ newId: runtime.newId, ids })
           : [buildStopShowOp(stopped, { opId: runtime.newId(), ids })];
       const outcome = await submit(
+        writeTarget("show", showId),
         [{ ops, revert: () => patchStopped(queryClient, showId, before) }],
         () => revalidate(showId),
       );

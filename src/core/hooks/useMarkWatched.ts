@@ -55,7 +55,7 @@ import {
 } from "./library-cache";
 import { REPLACED_COPY } from "./replaced-copy";
 import { canRemoveOwnPlays, takeBack, waitUntilSettled } from "./resolve-unmark";
-import { useOptimisticWrite } from "./useOptimisticWrite";
+import { useOptimisticWrite, writeTarget } from "./useOptimisticWrite";
 import { useResumeOnMark } from "./useResumeOnMark";
 
 export interface MarkWatched {
@@ -215,15 +215,22 @@ export function useMarkWatched(): MarkWatched {
       const reversal =
         mark === null
           ? null
-          : submit([{ ops: [mark], revert: () => reapplyMark(record) }], () =>
-              revalidate(record.showId, { season: record.season, number: record.number }),
+          : submit(
+              writeTarget("show", record.showId),
+              [{ ops: [mark], revert: () => showKept(record) }],
+              () => revalidate(record.showId, { season: record.season, number: record.number }),
             );
       if (record.stopped !== null) {
-        resume.stopAgain(record.showId, { trakt: record.showId }, record.stopped);
+        resume.stopAgain(
+          record.showId,
+          { trakt: record.showId },
+          record.stopped,
+          mark === null ? [] : [mark],
+        );
       }
       return reversal;
     },
-    [runtime, takeBackMark, submit, showKept, reapplyMark, revalidate, haptics, resume],
+    [runtime, takeBackMark, submit, showKept, revalidate, haptics, resume],
   );
 
   const submitReversal = useCallback(
@@ -341,14 +348,16 @@ export function useMarkWatched(): MarkWatched {
 
       let outcome: SubmitOutcome;
       try {
-        const marking = submit([{ ops: [op], revert: () => restorePreMark(record) }], () => {
-          if (isReversalRequested(opId)) return;
-          const at = { season: episode.season, number: episode.number };
-          revalidate(entry.showId, at, runtime.writeState(opId) === "done" ? record : undefined);
-        });
-        if (record.stopped !== null) {
-          resume.resume(entry.showId, { trakt: entry.showId }, record.stopped, [op]);
-        }
+        const marking = submit(
+          writeTarget("show", entry.showId),
+          [{ ops: [op], revert: () => restorePreMark(record) }],
+          () => {
+            if (isReversalRequested(opId)) return;
+            const at = { season: episode.season, number: episode.number };
+            revalidate(entry.showId, at, runtime.writeState(opId) === "done" ? record : undefined);
+          },
+        );
+        if (record.stopped !== null) resume.resume(entry.showId, { trakt: entry.showId });
         outcome = await marking;
       } finally {
         releaseWriteLock(showLock, opId);
