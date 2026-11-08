@@ -14,6 +14,7 @@ export interface LibraryInput {
   readonly watchedShows: readonly WatchedShow[];
   readonly progress: ReadonlyMap<number, Progress>;
   readonly hiddenShowIds: ReadonlySet<number>;
+  readonly droppedShowIds: ReadonlySet<number>;
   readonly watchlistShows: readonly WatchlistItem[];
   readonly collectionShows: readonly CollectionShow[];
 }
@@ -38,10 +39,12 @@ function toEpisodeRef(ep: SchemaEpisode): EpisodeRef {
   };
 }
 
+type StopFlags = Pick<LibraryEntry, "hidden" | "dropped">;
+
 function toWatchedEntry(
   watched: WatchedShow,
   progress: Progress | undefined,
-  hidden: boolean,
+  stop: StopFlags,
   saved: Saved | undefined,
 ): LibraryEntry {
   const { show } = watched;
@@ -50,7 +53,7 @@ function toWatchedEntry(
     title: show.title,
     year: show.year ?? null,
     status: show.status ?? "",
-    hidden,
+    ...stop,
     ...savedFields(saved),
     lastWatchedAt: watched.last_watched_at ?? null,
     plays: watched.plays ?? null,
@@ -95,14 +98,14 @@ function savedFields(
   };
 }
 
-function toNotStartedEntry(saved: Saved, hidden: boolean): LibraryEntry {
+function toNotStartedEntry(saved: Saved, stop: StopFlags): LibraryEntry {
   const { show } = saved;
   return notStartedShow({
     showId: show.ids.trakt,
     title: show.title,
     year: show.year ?? null,
     status: show.status ?? "",
-    hidden,
+    ...stop,
     ...savedFields(saved),
     tmdbId: show.ids.tmdb ?? null,
   });
@@ -127,18 +130,17 @@ function savedShows(input: LibraryInput): Map<number, Saved> {
 export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
   const saved = savedShows(input);
   const watchedIds = new Set(input.watchedShows.map(({ show }) => show.ids.trakt));
+  const stopOf = (trakt: number): StopFlags => ({
+    hidden: input.hiddenShowIds.has(trakt) || input.droppedShowIds.has(trakt),
+    dropped: input.droppedShowIds.has(trakt),
+  });
   const watchedEntries = input.watchedShows.map((watched) => {
     const trakt = watched.show.ids.trakt;
-    return toWatchedEntry(
-      watched,
-      input.progress.get(trakt),
-      input.hiddenShowIds.has(trakt),
-      saved.get(trakt),
-    );
+    return toWatchedEntry(watched, input.progress.get(trakt), stopOf(trakt), saved.get(trakt));
   });
   const notStartedEntries = [...saved]
     .filter(([trakt]) => !watchedIds.has(trakt))
-    .map(([trakt, entry]) => toNotStartedEntry(entry, input.hiddenShowIds.has(trakt)));
+    .map(([trakt, entry]) => toNotStartedEntry(entry, stopOf(trakt)));
   return [...watchedEntries, ...notStartedEntries];
 }
 

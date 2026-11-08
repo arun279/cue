@@ -2,7 +2,12 @@ import type { QueryClient } from "@tanstack/react-query";
 import { invalidateShowProgress } from "../data/query-invalidation";
 import { queryKeys } from "../data/query-keys";
 import type { EpisodeDetail } from "../domain/episode-detail";
-import { type LibraryEntry, playsOnlyInProgress } from "../domain/model/library";
+import {
+  type LibraryEntry,
+  playsOnlyInProgress,
+  type Stopped,
+  stoppedOf,
+} from "../domain/model/library";
 import {
   type EpisodeMatch,
   patchEpisodes,
@@ -68,32 +73,47 @@ export function refreshShowProgress(
     .catch(() => {});
 }
 
-export function patchLibraryHidden(qc: QueryClient, showId: number, hidden: boolean): void {
-  patchLibraryEntry(qc, showId, (e) => ({ ...e, hidden }));
+export function patchStopped(qc: QueryClient, showId: number, stopped: Stopped | null): void {
+  patchLibraryEntry(qc, showId, (e) => ({
+    ...e,
+    hidden: stopped !== null,
+    dropped: stopped === "dropped",
+  }));
 }
+
+const libraryEntryOf = (qc: QueryClient, showId: number): LibraryEntry | undefined =>
+  qc.getQueryData<UpNextData>(queryKeys.library())?.entries.find((e) => e.showId === showId);
 
 /** Whether the show may have a play its progress does not count, as a show watched again from the start has. */
 export function mayHavePlaysOutsideProgress(qc: QueryClient, showId: number): boolean {
-  const entry = qc
-    .getQueryData<UpNextData>(queryKeys.library())
-    ?.entries.find((e) => e.showId === showId);
+  const entry = libraryEntryOf(qc, showId);
   return entry === undefined || !playsOnlyInProgress(entry);
 }
 
-export function isLibraryHidden(qc: QueryClient, showId: number): boolean {
-  const entries = qc.getQueryData<UpNextData>(queryKeys.library())?.entries;
-  return entries?.find((e) => e.showId === showId)?.hidden ?? false;
+export function stoppedIn(qc: QueryClient, showId: number): Stopped | null {
+  const entry = libraryEntryOf(qc, showId);
+  return entry === undefined ? null : stoppedOf(entry);
 }
 
+/** Sets the matching episodes watched or not, and returns the `season:number` of each it changed. */
 export function patchShowSeasons(
   qc: QueryClient,
   showId: number,
   match: EpisodeMatch,
   watched: boolean,
-): void {
-  qc.setQueryData<readonly SeasonView[]>(queryKeys.showSeasons(showId), (old) =>
+): ReadonlySet<string> {
+  const key = queryKeys.showSeasons(showId);
+  const changed = new Set(
+    (qc.getQueryData<readonly SeasonView[]>(key) ?? []).flatMap((season) =>
+      season.episodes
+        .filter((e) => e.watched !== watched && match(season.number, e.number, e.aired))
+        .map((e) => `${season.number}:${e.number}`),
+    ),
+  );
+  qc.setQueryData<readonly SeasonView[]>(key, (old) =>
     old === undefined ? old : patchEpisodes(old, match, watched),
   );
+  return changed;
 }
 
 export function patchEpisodeDetail(

@@ -79,6 +79,7 @@ describe("the library chips partition the library", () => {
           watchedShows,
           progress,
           hiddenShowIds: new Set(input.hidden),
+          droppedShowIds: new Set(),
           watchlistShows,
           collectionShows,
         });

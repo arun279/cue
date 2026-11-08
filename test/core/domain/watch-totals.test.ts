@@ -9,6 +9,7 @@ const show = (showId: number, completed: number, runtime: number | null): Librar
   year: null,
   status: "returning series",
   hidden: false,
+  dropped: false,
   inWatchlist: completed === 0,
   addedAt: null,
   lastWatchedAt: null,

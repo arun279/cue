@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { LibraryEntry } from "../domain/model/library";
+import type { LibraryEntry, Stopped } from "../domain/model/library";
 import { resetOwnMarks } from "./own-marks";
 import { resetWriteLocks } from "./write-locks";
 
@@ -15,6 +15,8 @@ export interface MarkRecord {
   readonly watchedAt: string;
   readonly preCompleted: number;
   readonly beforeMark: LibraryEntry;
+  /** How the show was stopped when this mark resumed it. */
+  readonly stopped: Stopped | null;
 }
 
 interface MarkState {

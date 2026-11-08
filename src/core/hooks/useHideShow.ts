@@ -2,14 +2,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { queryKeys } from "../data/query-keys";
 import type { ShowIds } from "../domain/model/ids";
-import type { LibraryEntry } from "../domain/model/library";
-import { buildHideShowOp, buildResumeShowOps } from "../domain/write-queue/ops";
+import type { LibraryEntry, Stopped } from "../domain/model/library";
+import { buildResumeShowOps, buildStopShowOp } from "../domain/write-queue/ops";
 import { useRuntime } from "../runtime/runtime";
 import { showFailure, showUndoable } from "../stores/snackbar-store";
-import { patchLibraryHidden } from "./library-cache";
-import { useOptimisticWrite } from "./useOptimisticWrite";
-
-type HideKind = "hide" | "unhide";
+import { whenNoWritePending } from "../stores/write-locks";
+import { patchStopped, stoppedIn } from "./library-cache";
+import { useOptimisticWrite, writeTarget } from "./useOptimisticWrite";
 
 export interface HideController {
   hide(showId: number, ids: ShowIds, title: string): Promise<void>;
@@ -22,57 +21,58 @@ export function useHideShow(): HideController {
   const submit = useOptimisticWrite();
   const queryClient = useQueryClient();
 
-  const patchHidden = useCallback(
-    (showId: number, hidden: boolean) => patchLibraryHidden(queryClient, showId, hidden),
-    [queryClient],
-  );
-
   const revalidate = useCallback(
     (showId: number) => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.library() });
+      whenNoWritePending(
+        () => void queryClient.invalidateQueries({ queryKey: queryKeys.library() }),
+      );
       void queryClient.invalidateQueries({ queryKey: queryKeys.showProgress(showId) });
     },
     [queryClient],
   );
 
-  const writeHidden = useCallback(
-    async (showId: number, ids: ShowIds, title: string, kind: HideKind) => {
-      const hidden = kind === "hide";
-      patchHidden(showId, hidden);
-      const ops = hidden
-        ? [buildHideShowOp({ opId: runtime.newId(), ids })]
-        : buildResumeShowOps({ newId: runtime.newId, ids });
-      const outcome = await submit(ops, {
-        rollback: () => patchHidden(showId, !hidden),
-        revalidate: () => revalidate(showId),
-      });
+  /** Stops the show the way `stopped` says, or resumes it when that is null. */
+  const writeStopped = useCallback(
+    async (showId: number, ids: ShowIds, title: string, stopped: Stopped | null) => {
+      const before = stoppedIn(queryClient, showId);
+      patchStopped(queryClient, showId, stopped);
+      const ops =
+        stopped === null
+          ? buildResumeShowOps({ newId: runtime.newId, ids })
+          : [buildStopShowOp(stopped, { opId: runtime.newId(), ids })];
+      const outcome = await submit(
+        writeTarget("show", showId),
+        [{ ops, revert: () => patchStopped(queryClient, showId, before) }],
+        () => revalidate(showId),
+      );
       if (outcome === "failed") {
         showFailure(
-          `Couldn't ${hidden ? "stop watching" : "resume"} ${title}. Please try again.`,
+          `Couldn't ${stopped === null ? "resume" : "stop watching"} ${title}. Please try again.`,
           () => {},
         );
       }
-      return outcome;
+      return { outcome, before };
     },
-    [patchHidden, revalidate, runtime, submit],
+    [queryClient, revalidate, runtime, submit],
   );
 
   const setHidden = useCallback(
-    async (showId: number, ids: ShowIds, title: string, kind: HideKind) => {
-      if ((await writeHidden(showId, ids, title, kind)) === "failed") return;
-      showUndoable(`${title} ${kind === "hide" ? "stopped" : "resumed"}`, () => {
-        void writeHidden(showId, ids, title, kind === "hide" ? "unhide" : "hide");
+    async (showId: number, ids: ShowIds, title: string, stopped: Stopped | null) => {
+      const { outcome, before } = await writeStopped(showId, ids, title, stopped);
+      if (outcome === "failed") return;
+      showUndoable(`${title} ${stopped === null ? "resumed" : "stopped"}`, async () => {
+        await writeStopped(showId, ids, title, before);
       });
     },
-    [writeHidden],
+    [writeStopped],
   );
 
   const hide = useCallback(
-    (showId: number, ids: ShowIds, title: string) => setHidden(showId, ids, title, "hide"),
+    (showId: number, ids: ShowIds, title: string) => setHidden(showId, ids, title, "hidden"),
     [setHidden],
   );
   const unhide = useCallback(
-    (showId: number, ids: ShowIds, title: string) => setHidden(showId, ids, title, "unhide"),
+    (showId: number, ids: ShowIds, title: string) => setHidden(showId, ids, title, null),
     [setHidden],
   );
   const stopWatching = useCallback(

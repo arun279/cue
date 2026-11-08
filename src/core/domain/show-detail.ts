@@ -119,6 +119,7 @@ function rewatchCopy(
   };
 }
 
+/** `rewatches`: whether an episode of the show may have more than one play, which unmarking keeps. */
 export function seasonConfirmation(
   season: {
     readonly number: number;
@@ -126,16 +127,21 @@ export function seasonConfirmation(
     readonly completedCount: number;
   },
   policy: PlayPolicy = "unknown",
+  rewatches = false,
 ): SeasonConfirmation {
   const name = season.number === 0 ? "Specials" : `Season ${season.number}`;
   const remaining = Math.max(0, season.airedCount - season.completedCount);
-  if (remaining === 0)
+  if (remaining === 0) {
+    const count = `${rewatches ? "up to " : ""}${episodeCount(season.completedCount)}`;
     return {
       kind: "unmark",
       title: `Unmark ${name}?`,
-      message: `Removes ${episodeCount(season.completedCount)} from your history.`,
-      primary: `Remove ${episodeCount(season.completedCount)}`,
+      message: rewatches
+        ? `Removes ${count} from your history. Episodes you've watched more than once keep all their plays.`
+        : `Removes ${count} from your history.`,
+      primary: `Remove ${count}`,
     };
+  }
   if (season.completedCount === 0)
     return {
       kind: "mark",

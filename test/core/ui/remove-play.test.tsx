@@ -9,6 +9,7 @@ import type { QueuedOp } from "@/core/domain/write-queue/types";
 import { useRemovePlay } from "@/core/hooks/useRemovePlay";
 import type { CueRuntime, SubmitOutcome } from "@/core/runtime/runtime";
 import { dismissSnack, useSnackbar } from "@/core/stores/snackbar-store";
+import { resetWriteLocks } from "@/core/stores/write-locks";
 import { partialRuntime, withRuntime } from "../support/runtime";
 
 const entry: HistoryEntry = {
@@ -62,7 +63,10 @@ const pressUndo = () =>
     await Promise.resolve();
   });
 
-beforeEach(dismissSnack);
+beforeEach(() => {
+  dismissSnack();
+  resetWriteLocks();
+});
 
 describe("useRemovePlay", () => {
   it("states the loaded remainder and keeps successful undo silent", async () => {

@@ -2,7 +2,6 @@ import { expect, it, vi } from "vitest";
 import { clearAccount } from "@/core/runtime/create-runtime";
 import { isReversalRequested, requestReversal, useMarkStore } from "@/core/stores/mark-store";
 import { isBehindOwnMark, keepOwnMark } from "@/core/stores/own-marks";
-import { getSeasonMarkDelta, rememberSeasonMark } from "@/core/stores/season-reversal";
 import { showUndoable, useSnackbar } from "@/core/stores/snackbar-store";
 import { useSyncActivity } from "@/core/stores/sync-activity-store";
 import { claimWriteLock, showWriteLock } from "@/core/stores/write-locks";
@@ -28,13 +27,13 @@ it("leaves nothing of the last account in the app's own stores, and cancels its 
     watchedAt,
     preCompleted: entry.completed,
     beforeMark: entry,
+    stopped: null,
   };
   useMarkStore.getState().open(record);
   useMarkStore.getState().setBatch([record]);
   requestReversal(record.opId);
   claimWriteLock(showWriteLock(entry.showId), record.opId);
   keepOwnMark(entry.showId, { preCompleted: entry.completed, season: 1, number: 1, watchedAt });
-  rememberSeasonMark(entry.showId, 1, [1, 2]);
   showUndoable("Marked", () => {});
   useSyncActivity.getState().begin();
   useSyncActivity.getState().setChecked(true);
@@ -52,7 +51,6 @@ it("leaves nothing of the last account in the app's own stores, and cancels its 
   expect(isReversalRequested(record.opId)).toBe(false);
   expect(claimWriteLock(showWriteLock(entry.showId), "next")).toBe(true);
   expect(isBehindOwnMark(entry.showId, entry.completed)).toBe(false);
-  expect(getSeasonMarkDelta(entry.showId, 1)).toBeUndefined();
   expect(useSnackbar.getState().snack).toBeNull();
   expect(useSyncActivity.getState()).toMatchObject({ pending: 0, checked: false });
   expect(reminders.cancelAll).toHaveBeenCalledTimes(1);

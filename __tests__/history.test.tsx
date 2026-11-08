@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
 import { historyRange } from "@/core/domain/history";
 import type { CueRuntime, SubmitOutcome } from "@/core/runtime/runtime";
 import { HistoryScreen } from "../src/screens/history/HistoryScreen";
@@ -79,9 +79,10 @@ test.each([
   await paint(runtime({ submit }));
   await screen.findByTestId("history-row-0");
   await fireEvent.press(await removePlay());
-  await fireEvent.press(screen.getByText("Undo"));
+  const undone = fireEvent.press(screen.getByText("Undo"));
   expect(submit).toHaveBeenCalledTimes(1);
-  await act(async () => settle(outcome));
+  settle(outcome);
+  await undone;
   expect(submit).toHaveBeenCalledTimes(outcome === "failed" ? 1 : 2);
   if (outcome === "deferred") expect(screen.queryByTestId("snackbar")).toBeNull();
   expect(screen.getByText("×3", { includeHiddenElements: true })).toBeOnTheScreen();

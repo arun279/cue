@@ -96,7 +96,10 @@ const WRITES: Readonly<Record<Write, () => QueuedOp | readonly QueuedOp[]>> = {
       ids: [1],
       restore: [{ trakt: 1, watchedAt: WATCHED_AT }],
     }),
-  buildHideShowOp: () => ops.buildHideShowOp(show),
+  buildStopShowOp: () => [
+    ops.buildStopShowOp("hidden", show),
+    ops.buildStopShowOp("dropped", show),
+  ],
   buildResumeShowOps: () => ops.buildResumeShowOps({ newId: () => "op", ids: { trakt: 1 } }),
   buildAddWatchlistOp: () => ops.buildAddWatchlistOp({ ...show, section: "shows" }),
   buildRemoveWatchlistOp: () => ops.buildRemoveWatchlistOp({ ...show, section: "movies" }),

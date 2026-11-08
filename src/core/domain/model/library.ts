@@ -40,7 +40,10 @@ export interface LibraryShow {
   readonly title: string;
   readonly year: number | null;
   readonly status: string;
+  /** Hidden from Up Next: hidden from progress on Trakt, or dropped there. */
   readonly hidden: boolean;
+  /** On Trakt's dropped list. */
+  readonly dropped: boolean;
   readonly inWatchlist: boolean;
   readonly addedAt: string | null;
   readonly lastWatchedAt: string | null;
@@ -67,6 +70,7 @@ export type ShowListing = Pick<
   | "year"
   | "status"
   | "hidden"
+  | "dropped"
   | "inWatchlist"
   | "addedAt"
   | "posters"
@@ -76,6 +80,25 @@ export type ShowListing = Pick<
 /** Whether every play of the show is one its progress counts, so an episode it shows unwatched has none. */
 export const playsOnlyInProgress = (show: LibraryShow): boolean =>
   show.plays !== null && show.plays === show.completed;
+
+/** How a stopped show was stopped, so it can be stopped again the same way. */
+export type Stopped = "hidden" | "dropped";
+
+export function stoppedOf(show: LibraryShow): Stopped | null {
+  if (!show.hidden) return null;
+  return show.dropped ? "dropped" : "hidden";
+}
+
+/** The show with what a mark changes taken from `from`, and everything else left as it is. */
+export const withMarkFields = (entry: LibraryEntry, from: LibraryEntry): LibraryEntry => ({
+  ...entry,
+  completed: from.completed,
+  left: from.left,
+  lastWatchedAt: from.lastWatchedAt,
+  plays: from.plays,
+  nextEpisode: from.nextEpisode,
+  pendingAdvance: from.pendingAdvance,
+});
 
 /** A show saved to the watchlist or the collection that has no play yet. */
 export function notStartedShow(listing: ShowListing): LibraryEntry {

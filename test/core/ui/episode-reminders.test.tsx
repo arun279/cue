@@ -43,6 +43,7 @@ const watching = (): LibraryEntry => ({
   year: null,
   status: "returning series",
   hidden: false,
+  dropped: false,
   inWatchlist: false,
   addedAt: null,
   lastWatchedAt: new Date(Date.now() - DAY_MS).toISOString(),

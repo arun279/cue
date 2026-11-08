@@ -288,6 +288,32 @@ it("undoes nothing when the mark Trakt kept for later was refused", async () => 
   expect(screen.queryByText("Couldn't update this movie. Please try again.")).toBeNull();
 });
 
+it("ignores a second change to the movie while the first is still being saved", async () => {
+  const runtime = movieRuntime({ watched: false, watchedAt: null });
+  runtime.submit.mockReturnValue(new Promise(() => {}));
+  await mount(runtime);
+  await chooseHeaderAction(movieHeader.title, "Add to Watchlist");
+  await chooseHeaderAction(movieHeader.title, "Remove from Watchlist");
+  expect(runtime.submit).toHaveBeenCalledTimes(1);
+});
+
+it("undoes a mark while a watchlist change made after it is still being saved", async () => {
+  const runtime = movieRuntime({ watched: false, watchedAt: null });
+  await mount(runtime);
+  await fireEvent.press(await screen.findByTestId(TEST_IDS.movieMark));
+  await screen.findByText("The Lantern Keeper marked watched");
+  const mark = runtime.submit.mock.calls[0]?.[0];
+  runtime.submit.mockReturnValueOnce(new Promise(() => {}));
+  await chooseHeaderAction(movieHeader.title, "Add to Watchlist");
+  await fireEvent.press(screen.getByTestId(TEST_IDS.snackbarUndo));
+  await waitFor(() => expect(runtime.submit).toHaveBeenCalledTimes(3));
+  expect(runtime.submit.mock.calls[2]?.[0]).toMatchObject({
+    itemKey: mark?.itemKey,
+    toState: "absent",
+  });
+  expect(screen.getByTestId(TEST_IDS.movieMark)).not.toBeChecked();
+});
+
 it("removes nothing when an Undo finds that the mark replaced the movie's play", async () => {
   const runtime = movieRuntime({ watched: false, watchedAt: null });
   await mount(runtime);

@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { playsOnlyInProgress } from "@/core/domain/model/library";
 import { defaultSeason, type SeasonView, seasonConfirmation } from "@/core/domain/show-detail";
 import { useMarkWatched } from "@/core/hooks/useMarkWatched";
 import { usePrefs } from "@/core/prefs/prefs-store";
@@ -59,7 +60,11 @@ function ShowContent({ showId }: { readonly showId: number }): ReactElement {
     return <DetailSkeleton testID={TEST_IDS.showDetailSkeleton} />;
   const data = header.data;
   const confirmSeason = (season: SeasonView): void => {
-    const copy = seasonConfirmation(season, usePlayPolicy.getState().policy);
+    const copy = seasonConfirmation(
+      season,
+      usePlayPolicy.getState().policy,
+      !playsOnlyInProgress(entry),
+    );
     confirm({
       ...copy,
       onPrimary: () =>

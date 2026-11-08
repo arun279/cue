@@ -1,8 +1,12 @@
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
-import { act, fireEvent, render, renderHook, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react-native";
 import { Children, isValidElement, type ReactNode } from "react";
 import { ActionSheetIOS, Alert, Platform } from "react-native";
+import { queryKeys } from "@/core/data/query-keys";
 import { seasonConfirmation } from "@/core/domain/show-detail";
+import type { QueuedOp } from "@/core/domain/write-queue/types";
+import { showInfoQuery, showProgressQuery, showSeasonsQuery } from "@/core/queries/shows";
+import type { SubmitOutcome } from "@/core/runtime/runtime";
 import { usePlayPolicy } from "@/core/stores/play-policy-store";
 import { UNDO_WINDOW_MS } from "@/core/sync-contract";
 import { MovieDetail } from "../src/screens/MovieDetail";
@@ -12,7 +16,7 @@ import { confirm } from "../src/ui/confirm";
 import { HEADER_TINT } from "../src/ui/navigation-theme";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { useColors } from "../src/ui/tokens";
-import { DetailHarness, detailRuntime } from "./support/detail";
+import { DetailHarness, detailRuntime, detailSeason, header } from "./support/detail";
 import { movieRuntime } from "./support/movie-detail";
 import { router } from "./support/native-ui";
 import { entry, Harness, resetSharedStores, spyHaptics } from "./support/up-next";
@@ -284,6 +288,70 @@ it("names on the Next card the episode its check describes, through a mark and i
   } finally {
     jest.useRealTimers();
   }
+});
+
+it("undoes an episode mark together with the earlier episodes caught up from its snack", async () => {
+  let made = 0;
+  const submit = jest.fn(async (_op: QueuedOp): Promise<SubmitOutcome> => "deferred");
+  const runtime = { ...detailRuntime, newId: () => `op-${++made}`, submit };
+  await render(
+    <DetailHarness runtime={runtime}>
+      <ShowDetail showId={8803} />
+    </DetailHarness>,
+  );
+  await fireEvent.press(await screen.findByTestId(TEST_IDS.episodeCheck(8803, 2, 4)));
+  await fireEvent.press(screen.getByLabelText("+3 earlier"));
+  await fireEvent.press(screen.getByTestId(TEST_IDS.snackbarUndo));
+  await waitFor(() => expect(submit).toHaveBeenCalledTimes(4));
+
+  const [mark, catchUp, ...undone] = submit.mock.calls.map(([op]) => op);
+  expect(catchUp?.request.body).toMatchObject({
+    shows: [
+      {
+        seasons: [
+          { number: 1, episodes: [{ number: 3 }, { number: 4 }] },
+          { number: 2, episodes: [{ number: 3 }] },
+        ],
+      },
+    ],
+  });
+  expect(undone.map((op) => [op.itemKey, op.toState])).toEqual([
+    [mark?.itemKey, "absent"],
+    [catchUp?.itemKey, "absent"],
+  ]);
+});
+
+it.each([
+  ["may have", undefined, " Episodes you've watched more than once keep all their plays."],
+  ["has no", entry({ showId: 8803, completed: 8, plays: 8 }), ""],
+])("says what unmarking a season keeps when the show %s episodes watched more than once", async (_, cached, note) => {
+  const alert = jest.spyOn(Alert, "alert");
+  const season = detailSeason(2);
+  const watched = {
+    ...season,
+    completedCount: 4,
+    episodes: season.episodes.map((episode) => ({ ...episode, watched: true })),
+  };
+  await render(
+    <Harness
+      runtime={detailRuntime}
+      haptics={spyHaptics()}
+      seed={(client) => {
+        client.setQueryData(showInfoQuery(detailRuntime, 8803).queryKey, header);
+        client.setQueryData(showProgressQuery(detailRuntime, 8803).queryKey, header);
+        client.setQueryData(showSeasonsQuery(detailRuntime, 8803).queryKey, [watched]);
+        if (cached !== undefined) client.setQueryData(queryKeys.library(), { entries: [cached] });
+      }}
+    >
+      <ShowDetail showId={8803} />
+    </Harness>,
+  );
+  await fireEvent.press(await screen.findByTestId(TEST_IDS.seasonCheck(2)));
+  const count = note === "" ? "4 episodes" : "up to 4 episodes";
+  expect(alert.mock.lastCall?.slice(0, 2)).toEqual([
+    "Unmark Season 2?",
+    `Removes ${count} from your history.${note}`,
+  ]);
 });
 
 it("names genres the way Trakt does, from one read that every detail screen shares", async () => {

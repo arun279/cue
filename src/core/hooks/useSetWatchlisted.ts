@@ -11,7 +11,8 @@ import {
   type UpNextData,
   useRuntime,
 } from "../runtime/runtime";
-import { useOptimisticWrite } from "./useOptimisticWrite";
+import { whenNoWritePending } from "../stores/write-locks";
+import { useOptimisticWrite, writeTarget } from "./useOptimisticWrite";
 
 export type WatchlistTitle = Pick<
   SearchHit,
@@ -25,6 +26,7 @@ function listedShow({ ids, title, year, posters, tmdbId }: WatchlistTitle): Libr
     year,
     status: "",
     hidden: false,
+    dropped: false,
     inWatchlist: true,
     addedAt: new Date().toISOString(),
     posters,
@@ -74,6 +76,46 @@ function listMovie(entries: readonly MovieEntry[], title: WatchlistTitle, listed
   ];
 }
 
+/** `entries` with the title's own entry as it was in `before`, and every other entry as it is. */
+function restoreOwn<T extends { readonly inWatchlist: boolean }>(
+  entries: readonly T[],
+  isOwn: (entry: T) => boolean,
+  before: T | undefined,
+): T[] {
+  if (before === undefined) return entries.filter((entry) => !isOwn(entry));
+  if (!entries.some(isOwn)) return [...entries, before];
+  return entries.map((entry) =>
+    isOwn(entry) ? { ...entry, inWatchlist: before.inWatchlist } : entry,
+  );
+}
+
+/** Takes back only what patching the title's membership changed. */
+function membershipRevert(client: QueryClient, title: WatchlistTitle): () => void {
+  if (title.type === "show") {
+    const isOwn = (entry: LibraryEntry) => entry.showId === title.traktId;
+    const before = client.getQueryData<UpNextData>(queryKeys.library())?.entries.find(isOwn);
+    return () =>
+      client.setQueryData<UpNextData>(queryKeys.library(), (old) =>
+        old === undefined ? old : { ...old, entries: restoreOwn(old.entries, isOwn, before) },
+      );
+  }
+  const isOwn = (entry: MovieEntry) => entry.movieId === title.traktId;
+  const listed = client
+    .getQueryData<readonly MovieEntry[]>(queryKeys.movieWatchlist())
+    ?.find(isOwn);
+  const known = client
+    .getQueryData<MovieLibraryData>(queryKeys.movieLibrary())
+    ?.entries.find(isOwn);
+  return () => {
+    client.setQueryData<readonly MovieEntry[]>(queryKeys.movieWatchlist(), (old) =>
+      old === undefined ? old : restoreOwn(old, isOwn, listed),
+    );
+    client.setQueryData<MovieLibraryData>(queryKeys.movieLibrary(), (old) =>
+      old === undefined ? old : { ...old, entries: restoreOwn(old.entries, isOwn, known) },
+    );
+  };
+}
+
 function patchMembership(client: QueryClient, title: WatchlistTitle, listed: boolean): void {
   if (title.type === "show") {
     client.setQueryData<UpNextData>(queryKeys.library(), (old) =>
@@ -105,20 +147,17 @@ export function useSetWatchlisted(): (
     async (title, listed) => {
       const keys = membershipKeys(title.type);
       await Promise.all(keys.map((queryKey) => client.cancelQueries({ queryKey })));
-      const before = keys.map((queryKey) => [queryKey, client.getQueryData(queryKey)] as const);
+      const revert = membershipRevert(client, title);
       patchMembership(client, title, listed);
       const op = (listed ? buildAddWatchlistOp : buildRemoveWatchlistOp)({
         opId: runtime.newId(),
         section: title.type === "movie" ? "movies" : "shows",
         ids: title.ids,
       });
-      return submit([op], {
-        rollback: () => {
-          for (const [queryKey, data] of before) client.setQueryData(queryKey, data);
-        },
-        revalidate: () => {
+      return submit(writeTarget(title.type, title.traktId), [{ ops: [op], revert }], () => {
+        whenNoWritePending(() => {
           for (const queryKey of keys) void client.invalidateQueries({ queryKey });
-        },
+        });
       });
     },
     [client, runtime, submit],

@@ -2,12 +2,14 @@
 
 import { notifyManager, QueryClient } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
-import { beforeAll, expect, it } from "vitest";
+import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { queryKeys } from "@/core/data/query-keys";
 import type { SearchHit } from "@/core/domain/discover";
 import type { LibraryEntry } from "@/core/domain/model/library";
 import type { MovieEntry } from "@/core/domain/model/movie";
 import type { QueuedOp } from "@/core/domain/write-queue/types";
+import { useHideShow } from "@/core/hooks/useHideShow";
+import { useSetWatchlisted } from "@/core/hooks/useSetWatchlisted";
 import { useWatchlistAdd, type WatchlistAddView } from "@/core/hooks/useWatchlistAdd";
 import type {
   CueRuntime,
@@ -16,10 +18,12 @@ import type {
   UpNextData,
 } from "@/core/runtime/runtime";
 import { useSnackbar } from "@/core/stores/snackbar-store";
+import { resetWriteLocks } from "@/core/stores/write-locks";
 import { makeShow } from "../domain/_helpers";
 import { partialRuntime, withRuntime } from "../support/runtime";
 
 beforeAll(() => notifyManager.setScheduler((callback) => callback()));
+beforeEach(resetWriteLocks);
 
 const show: SearchHit = {
   key: "show:1",
@@ -97,6 +101,7 @@ it("lists an added show in the library at once and drops it again when the add i
       year: show.year,
       status: "",
       hidden: false,
+      dropped: false,
       inWatchlist: true,
       addedAt: expect.any(String),
       lastWatchedAt: null,
@@ -133,6 +138,77 @@ it("restores every cache that lists a title after a hard-failed remove", async (
   expect(client.getQueryData(queryKeys.library())).toEqual(shows);
   expect(client.getQueryData(queryKeys.movieLibrary())).toEqual(movies);
   expect(client.getQueryData(queryKeys.movieWatchlist())).toEqual([listedMovie]);
+});
+
+it.each([
+  ["another show", { ...watchedShow, showId: 2, title: "Another Show" }],
+  ["the same show", watchedShow],
+])("keeps a change to %s made while a refused watchlist add was saving", async (_, other) => {
+  const client = new QueryClient();
+  client.setQueryData<UpNextData>(queryKeys.library(), { entries: [other] });
+  let refuse: (outcome: SubmitOutcome) => void = () => {};
+  const runtime = partialRuntime({
+    newId: () => "op",
+    loadUpNext: () => new Promise(() => {}),
+    submit: (op: QueuedOp) =>
+      op.itemKey.startsWith("watchlist:")
+        ? new Promise<SubmitOutcome>((resolve) => {
+            refuse = resolve;
+          })
+        : Promise.resolve("done"),
+  });
+  const wrapper = withRuntime(runtime, client);
+  const list = renderHook(useSetWatchlisted, { wrapper }).result;
+  const stop = renderHook(useHideShow, { wrapper }).result;
+  act(() => void list.current(show, true));
+  await act(async () => {});
+  await act(async () => stop.current.stopWatching(other));
+  await act(async () => refuse("failed"));
+
+  expect(client.getQueryData<UpNextData>(queryKeys.library())?.entries).toEqual([
+    { ...other, hidden: true },
+  ]);
+});
+
+it("keeps a title Trakt has not answered when another title's add lands", async () => {
+  const client = new QueryClient();
+  client.setQueryData<UpNextData>(queryKeys.library(), { entries: [] });
+  const second: SearchHit = {
+    ...show,
+    key: "show:2",
+    traktId: 2,
+    title: "Second",
+    ids: { trakt: 2 },
+  };
+  let land: (outcome: "done") => void = () => {};
+  const loadUpNext = vi.fn(async () => ({ entries: [], isPartial: false }));
+  const runtime = partialRuntime({
+    newId: () => "op",
+    loadUpNext,
+    loadMovieWatchlist: () => new Promise(() => {}),
+    submit: (op: QueuedOp) =>
+      Promise.resolve(
+        op.request.body && JSON.stringify(op.request.body).includes('"trakt":2')
+          ? "deferred"
+          : "done",
+      ),
+    settled: () =>
+      new Promise((resolve) => {
+        land = resolve;
+      }),
+  });
+  await mountAdd(client, runtime);
+  await act(async () => {
+    await Promise.all([view.current.add(show), view.current.add(second)]);
+  });
+  await act(async () => {});
+
+  expect(
+    client.getQueryData<UpNextData>(queryKeys.library())?.entries.map((entry) => entry.showId),
+  ).toContain(2);
+  loadUpNext.mockClear();
+  await act(async () => land("done"));
+  expect(loadUpNext).toHaveBeenCalled();
 });
 
 it("keeps watched titles in the library when they leave the watchlist", async () => {

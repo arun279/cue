@@ -13,12 +13,12 @@ import { replacedPlays } from "@/core/domain/write-queue/receipt";
 import type { QueuedOp } from "@/core/domain/write-queue/types";
 import { REPLACED_COPY } from "@/core/hooks/replaced-copy";
 import { resolveMovieUnmark } from "@/core/hooks/resolve-unmark";
-import { useOptimisticWrite } from "@/core/hooks/useOptimisticWrite";
+import { useOptimisticWrite, writeTarget } from "@/core/hooks/useOptimisticWrite";
 import { useSetWatchlisted } from "@/core/hooks/useSetWatchlisted";
 import { movieLibraryQuery } from "@/core/queries/library";
 import { type MovieLibraryData, useRuntime } from "@/core/runtime/runtime";
 import { showSnack, showUndoable, snackText } from "@/core/stores/snackbar-store";
-import { pendingMark } from "@/core/stores/write-locks";
+import { pendingMark, whenNoWritePending } from "@/core/stores/write-locks";
 
 export function useMovieActions(header: MovieHeader) {
   const runtime = useRuntime();
@@ -27,7 +27,7 @@ export function useMovieActions(header: MovieHeader) {
   const setWatchlisted = useSetWatchlisted();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const locked = useRef(false);
+  const running = useRef(0);
   const library = useQuery(movieLibraryQuery(runtime));
   const entry: MovieEntry = library.data?.entries.find(
     (item) => item.movieId === header.movieId,
@@ -53,27 +53,37 @@ export function useMovieActions(header: MovieHeader) {
       };
     });
   };
-  const revalidate = () => {
-    for (const queryKey of [key, queryKeys.movieWatchlist(), queryKeys.historyPrefix()])
-      void client.invalidateQueries({ queryKey });
-  };
-  const guard = async (action: () => Promise<void>) => {
-    if (locked.current) return;
-    locked.current = true;
+  const revalidate = () =>
+    whenNoWritePending(() => {
+      for (const queryKey of [key, queryKeys.movieWatchlist(), queryKeys.historyPrefix()])
+        void client.invalidateQueries({ queryKey });
+    });
+  const run = async (action: () => Promise<void>) => {
+    running.current += 1;
     setBusy(true);
     try {
       await action();
     } catch {
       error();
     } finally {
-      locked.current = false;
-      setBusy(false);
+      running.current -= 1;
+      setBusy(running.current > 0);
     }
+  };
+  const guard = (action: () => Promise<void>) => {
+    if (running.current === 0) void run(action);
+  };
+  const undoable = (message: string, undo: () => Promise<void>): void => {
+    showUndoable(message, () => run(undo));
   };
   const write = async (op: QueuedOp, next: Partial<MovieEntry>, previous: Partial<MovieEntry>) => {
     await client.cancelQueries({ queryKey: key });
     patch(next);
-    const outcome = await submit([op], { rollback: () => patch(previous), revalidate });
+    const outcome = await submit(
+      writeTarget("movie", header.movieId),
+      [{ ops: [op], revert: () => patch(previous) }],
+      revalidate,
+    );
     if (outcome === "failed") error();
     return outcome;
   };
@@ -110,7 +120,7 @@ export function useMovieActions(header: MovieHeader) {
       { watched: true, watchedAt: op.watchedAt },
     );
   };
-  const mark = async (watchedAt = new Date().toISOString(), undoable = true) => {
+  const mark = async (watchedAt = new Date().toISOString(), offerUndo = true) => {
     const op = buildMarkMovieOp({ opId: runtime.newId(), ids: header.ids, watchedAt });
     const outcome = await write(
       op,
@@ -122,8 +132,7 @@ export function useMovieActions(header: MovieHeader) {
       showSnack({ message: REPLACED_COPY.mark(header.title) });
       return;
     }
-    if (undoable)
-      showUndoable(`${header.title} marked watched`, () => void guard(() => reverseMark(op)));
+    if (offerUndo) undoable(`${header.title} marked watched`, () => reverseMark(op));
   };
   const unmark = async () => {
     const pending = pendingMark(runtime, `movie:${header.movieId}`);
@@ -148,10 +157,10 @@ export function useMovieActions(header: MovieHeader) {
         { watched: true, watchedAt: entry.watchedAt },
       )) !== "failed"
     ) {
-      showUndoable("Removed play", () => void guard(() => mark(resolution.watchedAt, false)));
+      undoable("Removed play", () => mark(resolution.watchedAt, false));
     }
   };
-  const watchlist = async (listed: boolean, undoable = true) => {
+  const watchlist = async (listed: boolean, offerUndo = true) => {
     const outcome = await setWatchlisted(
       { type: "movie", traktId: header.movieId, ...header },
       listed,
@@ -160,16 +169,15 @@ export function useMovieActions(header: MovieHeader) {
       error();
       return;
     }
-    if (undoable)
-      showUndoable(
-        `${header.title} ${listed ? "added to" : "removed from"} Watchlist`,
-        () => void guard(() => watchlist(!listed, false)),
+    if (offerUndo)
+      undoable(`${header.title} ${listed ? "added to" : "removed from"} Watchlist`, () =>
+        watchlist(!listed, false),
       );
   };
   return {
     entry,
     busy,
-    toggleWatched: () => void guard(() => (entry.watched ? unmark() : mark())),
-    toggleWatchlist: () => void guard(() => watchlist(!entry.inWatchlist)),
+    toggleWatched: () => guard(() => (entry.watched ? unmark() : mark())),
+    toggleWatchlist: () => guard(() => watchlist(!entry.inWatchlist)),
   };
 }
