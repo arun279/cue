@@ -46,6 +46,7 @@ export function useShowDetail(showId: number) {
 
 const UNCACHED = {
   hidden: false,
+  dropped: false,
   inWatchlist: false,
   addedAt: null,
   lastWatchedAt: null,
@@ -59,7 +60,8 @@ function entryFor(
   seasons: readonly SeasonView[],
 ): LibraryEntry {
   if (cached?.pendingAdvance) return cached;
-  const { hidden, inWatchlist, addedAt, lastWatchedAt, plays, runtime } = cached ?? UNCACHED;
+  const { hidden, dropped, inWatchlist, addedAt, lastWatchedAt, plays, runtime } =
+    cached ?? UNCACHED;
   const skipsUnaired = header.completed < header.aired && !header.nextEpisode?.aired;
   const next = skipsUnaired ? firstUnwatchedAired(seasons) : header.nextEpisode;
   return {
@@ -78,6 +80,7 @@ function entryFor(
     lastAired: header.lastAired,
     nextEpisode: next === null ? null : toEpisodeRef(next),
     hidden,
+    dropped,
     inWatchlist,
     addedAt,
     lastWatchedAt,

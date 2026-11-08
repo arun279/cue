@@ -97,6 +97,7 @@ it("lists an added show in the library at once and drops it again when the add i
       year: show.year,
       status: "",
       hidden: false,
+      dropped: false,
       inWatchlist: true,
       addedAt: expect.any(String),
       lastWatchedAt: null,

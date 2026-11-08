@@ -89,6 +89,7 @@ describe("assembleLibrary", () => {
       ],
       progress: new Map(),
       hiddenShowIds: new Set(),
+      droppedShowIds: new Set(),
       collectionShows: [],
       watchlistShows: [{ type: "show", show: { title: "Later", ids: { trakt: 3 } } }],
     });
@@ -130,6 +131,7 @@ describe("assembleLibrary", () => {
         ],
       ]),
       hiddenShowIds: new Set([2]),
+      droppedShowIds: new Set(),
       collectionShows: [],
       watchlistShows: [watchlistItem({ trakt: 1, title: "A" })],
     };
@@ -155,6 +157,22 @@ describe("assembleLibrary", () => {
     });
   });
 
+  it("keeps whether a stopped show is hidden from progress or dropped", () => {
+    const entries = assembleLibrary({
+      watchedShows: [watchedShow({ trakt: 1 }), watchedShow({ trakt: 2 })],
+      progress: new Map(),
+      hiddenShowIds: new Set([1]),
+      droppedShowIds: new Set([2]),
+      collectionShows: [],
+      watchlistShows: [watchlistItem({ trakt: 3 })],
+    });
+    expect(entries.map(({ showId, hidden, dropped }) => [showId, hidden, dropped])).toEqual([
+      [1, true, false],
+      [2, true, true],
+      [3, false, false],
+    ]);
+  });
+
   it("gives an un-fetched watched show its real bulk counts, specials excluded, and no aired frontier while episodes are left", () => {
     // Beyond the cold-sync progress budget: no progress entry, so `aired` is the row's
     // `aired_episodes` and `completed` is its watched breakdown with season 0 dropped
@@ -164,6 +182,7 @@ describe("assembleLibrary", () => {
       watchedShows: [watchedShow({ trakt: 12, airedEpisodes: 20, seasons: { 0: 2, 1: 8, 2: 6 } })],
       progress: new Map(),
       hiddenShowIds: new Set(),
+      droppedShowIds: new Set(),
       collectionShows: [],
       watchlistShows: [],
     });
@@ -198,6 +217,7 @@ describe("assembleLibrary", () => {
       ],
       progress: new Map(),
       hiddenShowIds: new Set(),
+      droppedShowIds: new Set(),
       collectionShows: [],
       watchlistShows: [],
     });
@@ -223,6 +243,7 @@ describe("assembleLibrary", () => {
         ],
       ]),
       hiddenShowIds: new Set(),
+      droppedShowIds: new Set(),
       collectionShows: [],
       watchlistShows: [],
     });
@@ -235,6 +256,7 @@ describe("assembleLibrary", () => {
       watchedShows: [watchedShow({ trakt: 3 })],
       progress: new Map([[3, progress({ next: null })]]),
       hiddenShowIds: new Set(),
+      droppedShowIds: new Set(),
       collectionShows: [],
       watchlistShows: [],
     });
@@ -271,6 +293,7 @@ describe("assembleLibrary", () => {
         ],
       ]),
       hiddenShowIds: new Set(),
+      droppedShowIds: new Set(),
       collectionShows: [],
       watchlistShows: [],
     });
@@ -285,6 +308,7 @@ describe("assembleLibrary", () => {
       ],
       progress: new Map([[8, progress({ aired: 10, completed: 3, seasons: undefined })]]),
       hiddenShowIds: new Set(),
+      droppedShowIds: new Set(),
       collectionShows: [],
       watchlistShows: [],
     });
@@ -299,6 +323,7 @@ describe("assembleLibrary", () => {
       watchedShows: [watchedShow({ trakt: 6, seasons: { 1: 3 } })],
       progress: new Map([[6, progress({ seasons: undefined })]]),
       hiddenShowIds: new Set(),
+      droppedShowIds: new Set(),
       collectionShows: [],
       watchlistShows: [],
     });
@@ -310,6 +335,7 @@ describe("assembleLibrary", () => {
       watchedShows: [],
       progress: new Map(),
       hiddenShowIds: new Set(),
+      droppedShowIds: new Set(),
       collectionShows: [],
       watchlistShows: [watchlistItem({ trakt: 9, title: "Queued", tmdb: 77 })],
     });
@@ -333,6 +359,7 @@ describe("assembleLibrary", () => {
       watchedShows: [watchedShow({ trakt: 5, title: "Detailed" })],
       progress: new Map([[5, progress({})]]),
       hiddenShowIds: new Set(),
+      droppedShowIds: new Set(),
       collectionShows: [],
       watchlistShows: [],
     });
@@ -345,6 +372,7 @@ describe("assembleLibrary", () => {
       watchedShows: [],
       progress: new Map(),
       hiddenShowIds: new Set(),
+      droppedShowIds: new Set(),
       watchlistShows: [],
       collectionShows: [
         {
@@ -375,6 +403,7 @@ describe("assembleLibrary", () => {
       watchedShows: [watchedShow({ trakt: 41, seasons: { 1: 2 } })],
       progress: new Map(),
       hiddenShowIds: new Set(),
+      droppedShowIds: new Set(),
       watchlistShows: [{ ...watchlistItem({ trakt: 42 }), listed_at: "2026-01-01T00:00:00.000Z" }],
       collectionShows: [
         { last_collected_at: "2026-03-01T00:00:00.000Z", show: { title: "S", ids: { trakt: 42 } } },
@@ -395,6 +424,7 @@ describe("assembleLibrary", () => {
       watchedShows: [neverStamped],
       progress: new Map([[21, progress({ next: undated })]]),
       hiddenShowIds: new Set(),
+      droppedShowIds: new Set(),
       collectionShows: [],
       watchlistShows: [
         { type: "show", show: { title: "Bare", ids: { trakt: 22 } } },
@@ -413,6 +443,7 @@ describe("assembleLibrary", () => {
       watchedShows: [watchedShow({ trakt: 4, title: "Both" })],
       progress: new Map([[4, progress({})]]),
       hiddenShowIds: new Set(),
+      droppedShowIds: new Set(),
       collectionShows: [],
       watchlistShows: [watchlistItem({ trakt: 4, title: "Both" })],
     });
@@ -436,6 +467,7 @@ describe("watchedEpisodeCount", () => {
       watchedShows: [show],
       progress: new Map(),
       hiddenShowIds: new Set(),
+      droppedShowIds: new Set(),
       collectionShows: [],
       watchlistShows: [],
     });

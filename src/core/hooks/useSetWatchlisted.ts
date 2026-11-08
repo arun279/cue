@@ -25,6 +25,7 @@ function listedShow({ ids, title, year, posters, tmdbId }: WatchlistTitle): Libr
     year,
     status: "",
     hidden: false,
+    dropped: false,
     inWatchlist: true,
     addedAt: new Date().toISOString(),
     posters,

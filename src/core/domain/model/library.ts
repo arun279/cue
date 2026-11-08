@@ -40,7 +40,10 @@ export interface LibraryShow {
   readonly title: string;
   readonly year: number | null;
   readonly status: string;
+  /** Hidden from Up Next: hidden from progress on Trakt, or dropped there. */
   readonly hidden: boolean;
+  /** On Trakt's dropped list. */
+  readonly dropped: boolean;
   readonly inWatchlist: boolean;
   readonly addedAt: string | null;
   readonly lastWatchedAt: string | null;
@@ -67,6 +70,7 @@ export type ShowListing = Pick<
   | "year"
   | "status"
   | "hidden"
+  | "dropped"
   | "inWatchlist"
   | "addedAt"
   | "posters"

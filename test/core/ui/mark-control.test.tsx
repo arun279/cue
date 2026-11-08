@@ -31,6 +31,7 @@ function entry(overrides: Partial<LibraryEntry> = {}): LibraryEntry {
     year: null,
     status: "returning series",
     hidden: false,
+    dropped: false,
     inWatchlist: false,
     addedAt: null,
     lastWatchedAt: "2026-07-01T00:00:00.000Z",

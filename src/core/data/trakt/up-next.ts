@@ -63,10 +63,8 @@ export async function loadUpNextEntries(client: TraktClient): Promise<LibraryEnt
   return assembleLibrary({
     watchedShows: watched,
     progress,
-    hiddenShowIds: showIdSet([
-      ...unwrapRead(hidden, "hidden shows"),
-      ...unwrapRead(dropped, "dropped shows"),
-    ]),
+    hiddenShowIds: showIdSet(unwrapRead(hidden, "hidden shows")),
+    droppedShowIds: showIdSet(unwrapRead(dropped, "dropped shows")),
     watchlistShows: unwrapRead(watchlist, "watchlist"),
     collectionShows: unwrapRead(collection, "show collection"),
   });
