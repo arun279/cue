@@ -10,10 +10,10 @@ import { afterEach, expect, it, vi } from "vitest";
 import type { SeasonView } from "@/core/domain/show-detail";
 import {
   buildAddWatchlistOp,
-  buildHideShowOp,
   buildMarkEpisodeOp,
   buildMarkMovieOp,
   buildRemoveWatchlistOp,
+  buildStopShowOp,
   buildUndoAddOp,
   buildUnmarkEpisodeOp,
 } from "@/core/domain/write-queue/ops";
@@ -28,7 +28,7 @@ import type { CueRuntime } from "@/core/runtime/runtime";
 import { usePlayPolicy } from "@/core/stores/play-policy-store";
 import { useSnackbar } from "@/core/stores/snackbar-store";
 import { buildRuntime } from "../data/_runtime";
-import { withRuntime } from "../support/runtime";
+import { pressUndo, withRuntime } from "../support/runtime";
 import { memoryKeyValueStore } from "../support/stores";
 import { startTraktFake } from "../trakt-fake/in-process.ts";
 
@@ -92,7 +92,7 @@ it("gives up a write Trakt keeps refusing, and sends the writes queued behind it
   vi.setSystemTime(new Date(AT));
   fake.fail({ method: "POST", path: HIDDEN, times: EVERY }, 500);
   const cue = await buildRuntime();
-  void cue.submit(buildHideShowOp({ opId: "stuck", ids: { trakt: 8801 } }));
+  void cue.submit(buildStopShowOp("hidden", { opId: "stuck", ids: { trakt: 8801 } }));
   void cue.submit(buildAddWatchlistOp({ opId: "behind", section: "shows", ids: { trakt: 8901 } }));
 
   for (let minute = 0; minute < 10 && cue.pendingWrites() > 0; minute += 1) {
@@ -250,7 +250,7 @@ it("undoes a show-screen mark whose answer was lost by removing only that mark's
       undoLabel: "S1 E1 marked",
     }),
   );
-  await act(() => show.result.current.undo());
+  await act(() => pressUndo());
 
   expect(await playsOf(cue, FIRST_EPISODE)).toEqual(earlier.map((play) => play.historyId));
 });
@@ -283,7 +283,7 @@ it("undoes a catch-up whose answer was lost by removing only the plays it added"
   fake.drop({ method: "POST", path: HISTORY }, "after");
   const show = renderHook(useMarkSeason, { wrapper });
   await act(() => show.result.current.markUpToHere(TARGET, [season], { season: 1, number: 2 }));
-  await act(() => show.result.current.undo());
+  await act(() => pressUndo());
 
   expect([await playsOf(cue, FIRST_EPISODE), await playsOf(cue, SECOND_EPISODE)]).toEqual(before);
 });
@@ -394,7 +394,7 @@ it("applies a show-screen Undo made offline once Trakt is reachable", async () =
       undoLabel: "S3 E5 marked",
     }),
   );
-  await waited(() => show.result.current.undo());
+  await waited(() => pressUndo());
   await online(cue);
 
   expect(await cue.loadEpisodePlays(NEXT_EPISODE)).toEqual([]);
@@ -437,7 +437,7 @@ it("applies a catch-up Undo made offline once Trakt is reachable", async () => {
   offlineFor(2);
   const show = renderHook(useMarkSeason, { wrapper });
   await waited(() => show.result.current.markUpToHere(TARGET, [season], { season: 3, number: 6 }));
-  await waited(() => show.result.current.undo());
+  await waited(() => pressUndo());
   await online(cue);
 
   expect([
@@ -500,7 +500,7 @@ it("keeps the play a mark replaced when the app is relaunched before that mark's
   const mark = buildMarkEpisodeOp({ opId: "mark", ids: { trakt: NEXT_EPISODE }, watchedAt: AT });
   const marking = cue.submit(mark);
   await vi.waitFor(() => expect(cue.writeState("mark")).toBe("sent"));
-  void cue.submit(buildHideShowOp({ opId: "hide", ids: { trakt: 8802 } }));
+  void cue.submit(buildStopShowOp("hidden", { opId: "hide", ids: { trakt: 8802 } }));
   void cue.submit(buildUndoAddOp("undo", mark));
   fake.drop({ method: "POST", path: HIDDEN });
   release();
@@ -569,7 +569,7 @@ it("cancels every still-queued write of a folded Undo before any is sent, keepin
   const { cue, wrapper } = await restarted();
   const before = [await playsOf(cue, FIRST_EPISODE), await playsOf(cue, SECOND_EPISODE)];
   const release = fake.hold({ method: "POST", path: HIDDEN });
-  void cue.submit(buildHideShowOp({ opId: "slow", ids: { trakt: 8802 } }));
+  void cue.submit(buildStopShowOp("hidden", { opId: "slow", ids: { trakt: 8802 } }));
   await vi.waitFor(() => expect(cue.writeState("slow")).toBe("sent"));
   const show = renderHook(useMarkSeason, { wrapper });
   act(
@@ -597,7 +597,7 @@ it("cancels every still-queued write of a folded Undo before any is sent, keepin
       ),
   );
   await act(async () => {
-    const undone = show.result.current.undo();
+    const undone = pressUndo();
     release();
     await undone;
   });

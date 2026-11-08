@@ -14,7 +14,7 @@ import { createAuthStore } from "@/core/auth/create-auth-store";
 import { queryKeys } from "@/core/data/query-keys";
 import type { Token } from "@/core/domain/model/token";
 import type { SeasonView } from "@/core/domain/show-detail";
-import { buildHideShowOp, buildMarkEpisodeOp } from "@/core/domain/write-queue/ops";
+import { buildMarkEpisodeOp, buildStopShowOp } from "@/core/domain/write-queue/ops";
 import { useHideShow } from "@/core/hooks/useHideShow";
 import { useMarkSeason } from "@/core/hooks/useMarkSeason";
 import { useMoveToWatchlist } from "@/core/hooks/useMoveToWatchlist";
@@ -27,7 +27,6 @@ import { createQueryClient } from "@/core/runtime/query-cache";
 import { type CueRuntime, forScreens } from "@/core/runtime/runtime";
 import { usePlayPolicy } from "@/core/stores/play-policy-store";
 import { useReadIncidents } from "@/core/stores/read-incidents-store";
-import { getSeasonMarkDelta, rememberSeasonMark } from "@/core/stores/season-reversal";
 import { showSnack, useSnackbar } from "@/core/stores/snackbar-store";
 import { withRuntime } from "../support/runtime";
 import {
@@ -67,7 +66,8 @@ function within<T>(promise: Promise<T>, ms: number): Promise<T | typeof PENDING>
   ]);
 }
 
-const hideShow = (trakt: number) => buildHideShowOp({ opId: `hide-${trakt}`, ids: { trakt } });
+const hideShow = (trakt: number) =>
+  buildStopShowOp("hidden", { opId: `hide-${trakt}`, ids: { trakt } });
 
 /** What stays on a device between launches, and what the app clears along with an account. */
 interface Storage {
@@ -551,25 +551,6 @@ it("offers the next session no Undo when a move to Watchlist ends with its sessi
   await vi.waitFor(() => expect(sent("POST", resume)).toHaveLength(1), { timeout: 3000 });
 
   await expectNextLibraryUntouched(session, queryClient);
-});
-
-it("leaves the next session's season marks alone when the last one's season unmark ends with it", async () => {
-  const removal = /^\/sync\/history\/remove$/;
-  const session = await doomedSessionHolding({ method: "POST", path: removal });
-  const season = (await session.runtime.loadShowSeasons(8801)).find((s) => s.number === 1);
-  if (season === undefined) throw new Error("the fake show has no first season");
-  const seasons = renderHook(() => useMarkSeason(), {
-    wrapper: withRuntime(forScreens(session.runtime), createQueryClient()),
-  });
-  void seasons.result.current.unmarkSeason(
-    { showId: 8801, ids: { trakt: 8801 }, includeSpecials: false },
-    season,
-  );
-  await vi.waitFor(() => expect(sent("POST", removal)).toHaveLength(1));
-
-  await session.answerAfterNextSignIn(() => rememberSeasonMark(8801, 1, [3, 4]));
-
-  expect(getSeasonMarkDelta(8801, 1)).toEqual(new Set([3, 4]));
 });
 
 it("leaves the next session's episode alone when the last one's unmark read answers after it ended", async () => {

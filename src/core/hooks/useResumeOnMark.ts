@@ -1,47 +1,62 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 import type { ShowIds } from "../domain/model/ids";
-import { buildHideShowOp, buildResumeShowOps } from "../domain/write-queue/ops";
-import { type SubmitOutcome, useRuntime } from "../runtime/runtime";
-import { isLibraryHidden, patchLibraryHidden } from "./library-cache";
-import { submitAll } from "./optimistic-write";
-import { useTrackedSubmit } from "./useTrackedSubmit";
+import type { Stopped } from "../domain/model/library";
+import { buildResumeShowOps, buildStopShowOp } from "../domain/write-queue/ops";
+import type { QueuedOp } from "../domain/write-queue/types";
+import { useRuntime } from "../runtime/runtime";
+import { patchStopped } from "./library-cache";
+import { useOptimisticWrite } from "./useOptimisticWrite";
 
+/** Both show their change at once, and queue their writes behind every write queued before them. */
 export interface ResumeOnMark {
-  willResume(showId: number): boolean;
-  resumeIfStopped(showId: number, ids: ShowIds): Promise<SubmitOutcome | null>;
-  reStop(showId: number, ids: ShowIds): Promise<SubmitOutcome>;
+  /** Resumes a stopped show for the writes in `cause`, and stops it again if Trakt refuses them all. */
+  resume(showId: number, ids: ShowIds, stopped: Stopped, cause: readonly QueuedOp[]): void;
+  /** Stops a resumed show again the way it was stopped before. */
+  stopAgain(showId: number, ids: ShowIds, stopped: Stopped): void;
 }
 
+const NOTHING_TO_READ = (): void => {};
+
 export function useResumeOnMark(): ResumeOnMark {
-  const runtime = useRuntime();
-  const submit = useTrackedSubmit();
+  const { newId, settled } = useRuntime();
   const queryClient = useQueryClient();
+  const submit = useOptimisticWrite();
 
-  const willResume = useCallback(
-    (showId: number): boolean => isLibraryHidden(queryClient, showId),
-    [queryClient],
-  );
-
-  const resumeIfStopped = useCallback(
-    async (showId: number, ids: ShowIds): Promise<SubmitOutcome | null> => {
-      if (!isLibraryHidden(queryClient, showId)) return null;
-      patchLibraryHidden(queryClient, showId, false);
-      return submitAll(submit, buildResumeShowOps({ newId: runtime.newId, ids }));
+  const stopAgain = useCallback(
+    (showId: number, ids: ShowIds, stopped: Stopped): void => {
+      patchStopped(queryClient, showId, stopped);
+      void submit(
+        [
+          {
+            ops: [buildStopShowOp(stopped, { opId: newId(), ids })],
+            revert: () => patchStopped(queryClient, showId, null),
+          },
+        ],
+        NOTHING_TO_READ,
+      );
     },
-    [queryClient, runtime, submit],
+    [queryClient, newId, submit],
   );
 
-  const reStop = useCallback(
-    (showId: number, ids: ShowIds): Promise<SubmitOutcome> => {
-      patchLibraryHidden(queryClient, showId, true);
-      return submit(buildHideShowOp({ opId: runtime.newId(), ids }));
+  const resume = useCallback(
+    (showId: number, ids: ShowIds, stopped: Stopped, cause: readonly QueuedOp[]): void => {
+      patchStopped(queryClient, showId, null);
+      void submit(
+        [
+          {
+            ops: buildResumeShowOps({ newId, ids }),
+            revert: () => patchStopped(queryClient, showId, stopped),
+          },
+        ],
+        NOTHING_TO_READ,
+      );
+      void Promise.all(cause.map((op) => settled(op.id))).then((outcomes) => {
+        if (outcomes.every((outcome) => outcome === "failed")) stopAgain(showId, ids, stopped);
+      });
     },
-    [queryClient, runtime, submit],
+    [queryClient, newId, settled, stopAgain, submit],
   );
 
-  return useMemo(
-    () => ({ willResume, resumeIfStopped, reStop }),
-    [willResume, resumeIfStopped, reStop],
-  );
+  return useMemo(() => ({ resume, stopAgain }), [resume, stopAgain]);
 }

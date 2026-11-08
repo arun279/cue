@@ -1,13 +1,14 @@
 import type { EpisodeIds, MovieIds, ShowIds } from "../model/ids";
+import type { Stopped } from "../model/library";
 import type { MarkedEpisodes } from "../reversal";
 import type { QueuedOp, RequestDescriptor } from "./types";
 
 const HISTORY = "/sync/history";
 const HISTORY_REMOVE = "/sync/history/remove";
-const HIDDEN_LISTS = {
+const HIDDEN_LISTS: Readonly<Record<Stopped, string>> = {
   hidden: "/users/hidden/progress_watched",
   dropped: "/users/hidden/dropped",
-} as const;
+};
 const WATCHLIST = "/sync/watchlist";
 const WATCHLIST_REMOVE = "/sync/watchlist/remove";
 
@@ -126,11 +127,7 @@ export interface HideOpParams {
   readonly ids: ShowIds;
 }
 
-function hideOp(
-  list: keyof typeof HIDDEN_LISTS,
-  toState: "present" | "absent",
-  params: HideOpParams,
-): QueuedOp {
+function hideOp(list: Stopped, toState: "present" | "absent", params: HideOpParams): QueuedOp {
   const path = HIDDEN_LISTS[list];
   const body = { shows: [{ ids: params.ids }] };
   const add = post(path, body);
@@ -147,8 +144,9 @@ function hideOp(
   };
 }
 
-export function buildHideShowOp(params: HideOpParams): QueuedOp {
-  return hideOp("hidden", "present", params);
+/** Stops a show: hides it from progress, or drops it. */
+export function buildStopShowOp(stopped: Stopped, params: HideOpParams): QueuedOp {
+  return hideOp(stopped, "present", params);
 }
 
 export interface ResumeOpParams {

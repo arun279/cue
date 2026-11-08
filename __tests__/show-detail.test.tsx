@@ -1,8 +1,10 @@
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
-import { act, fireEvent, render, renderHook, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react-native";
 import { Children, isValidElement, type ReactNode } from "react";
 import { ActionSheetIOS, Alert, Platform } from "react-native";
 import { seasonConfirmation } from "@/core/domain/show-detail";
+import type { QueuedOp } from "@/core/domain/write-queue/types";
+import type { SubmitOutcome } from "@/core/runtime/runtime";
 import { usePlayPolicy } from "@/core/stores/play-policy-store";
 import { UNDO_WINDOW_MS } from "@/core/sync-contract";
 import { MovieDetail } from "../src/screens/MovieDetail";
@@ -284,6 +286,27 @@ it("names on the Next card the episode its check describes, through a mark and i
   } finally {
     jest.useRealTimers();
   }
+});
+
+it("undoes an episode mark together with the earlier episodes caught up from its snack", async () => {
+  let made = 0;
+  const submit = jest.fn(async (_op: QueuedOp): Promise<SubmitOutcome> => "deferred");
+  const runtime = { ...detailRuntime, newId: () => `op-${++made}`, submit };
+  await render(
+    <DetailHarness runtime={runtime}>
+      <ShowDetail showId={8803} />
+    </DetailHarness>,
+  );
+  await fireEvent.press(await screen.findByTestId(TEST_IDS.episodeCheck(8803, 2, 4)));
+  await fireEvent.press(screen.getByLabelText("+3 earlier"));
+  await fireEvent.press(screen.getByTestId(TEST_IDS.snackbarUndo));
+  await waitFor(() => expect(submit).toHaveBeenCalledTimes(4));
+
+  const [mark, catchUp, ...undone] = submit.mock.calls.map(([op]) => op);
+  expect(undone.map((op) => [op.itemKey, op.toState])).toEqual([
+    [mark?.itemKey, "absent"],
+    [catchUp?.itemKey, "absent"],
+  ]);
 });
 
 it("names genres the way Trakt does, from one read that every detail screen shares", async () => {

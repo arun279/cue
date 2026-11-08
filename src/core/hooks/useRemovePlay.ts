@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { queryKeys } from "../data/query-keys";
 import type { HistoryEntry } from "../domain/history";
 import {
@@ -32,9 +32,6 @@ export function useRemovePlay(): RemovePlayController {
   const queryClient = useQueryClient();
   const submit = useOptimisticWrite();
   const [removedIds, setRemovedIds] = useState<ReadonlySet<number>>(() => new Set());
-  const removeOutcomes = useRef(new Map<number, Promise<SubmitOutcome>>());
-  const pending = useRef<HistoryEntry | null>(null);
-  const undoAction = useRef<() => void>(() => {});
 
   const revalidate = useCallback(
     (entry: HistoryEntry) => {
@@ -53,6 +50,29 @@ export function useRemovePlay(): RemovePlayController {
     [queryClient, runtime],
   );
 
+  const restore = useCallback(
+    async (entry: HistoryEntry, removal: Promise<SubmitOutcome>) => {
+      setRemovedIds((previous) => withoutId(previous, entry.historyId));
+      if ((await removal) === "failed") return;
+      const op = (entry.type === "movie" ? buildMarkMovieOp : buildMarkEpisodeOp)({
+        opId: runtime.newId(),
+        ids: entry.ids,
+        watchedAt: entry.watchedAt,
+      });
+      const outcome = await submit(
+        [
+          {
+            ops: [op],
+            revert: () => setRemovedIds((previous) => new Set(previous).add(entry.historyId)),
+          },
+        ],
+        () => revalidate(entry),
+      );
+      if (outcome === "failed") showError("Couldn't restore that play. Please try again.");
+    },
+    [submit, revalidate, runtime.newId],
+  );
+
   const removePlay = useCallback(
     async (entry: HistoryEntry, remaining = 0) => {
       setRemovedIds((previous) => new Set(previous).add(entry.historyId));
@@ -65,51 +85,22 @@ export function useRemovePlay(): RemovePlayController {
           watchedAt: entry.watchedAt,
         },
       });
-      const settled = submit([op], {
-        rollback: () => setRemovedIds((previous) => withoutId(previous, entry.historyId)),
-        revalidate: () => revalidate(entry),
-      });
-      removeOutcomes.current.set(entry.historyId, settled);
-      pending.current = entry;
-      showUndoable(remaining > 0 ? `Removed 1 play · ${remaining} remain` : "Removed play", () =>
-        undoAction.current(),
+      const removal = submit(
+        [
+          {
+            ops: [op],
+            revert: () => setRemovedIds((previous) => withoutId(previous, entry.historyId)),
+          },
+        ],
+        () => revalidate(entry),
       );
-      if ((await settled) === "failed") {
-        if (pending.current?.historyId === entry.historyId) pending.current = null;
-        showError("Couldn't remove that play. Please try again.");
-      }
+      showUndoable(remaining > 0 ? `Removed 1 play · ${remaining} remain` : "Removed play", () =>
+        restore(entry, removal),
+      );
+      if ((await removal) === "failed") showError("Couldn't remove that play. Please try again.");
     },
-    [submit, revalidate, runtime.newId],
+    [submit, revalidate, restore, runtime.newId],
   );
 
-  const undo = useCallback(async () => {
-    const entry = pending.current;
-    if (entry === null) return;
-    pending.current = null;
-    if ((await removeOutcomes.current.get(entry.historyId)) === "failed") {
-      setRemovedIds((previous) => withoutId(previous, entry.historyId));
-      return;
-    }
-    setRemovedIds((previous) => withoutId(previous, entry.historyId));
-    const op =
-      entry.type === "movie"
-        ? buildMarkMovieOp({
-            opId: runtime.newId(),
-            ids: entry.ids,
-            watchedAt: entry.watchedAt,
-          })
-        : buildMarkEpisodeOp({
-            opId: runtime.newId(),
-            ids: entry.ids,
-            watchedAt: entry.watchedAt,
-          });
-    const outcome = await submit([op], {
-      rollback: () => setRemovedIds((previous) => new Set(previous).add(entry.historyId)),
-      revalidate: () => revalidate(entry),
-    });
-    if (outcome === "failed") showError("Couldn't restore that play. Please try again.");
-  }, [submit, revalidate, runtime.newId]);
-
-  undoAction.current = () => void undo();
   return { removedIds, removePlay };
 }

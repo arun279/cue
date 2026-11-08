@@ -1,10 +1,10 @@
 import { create } from "zustand";
 import { UNDO_WINDOW_MS } from "../sync-contract";
 
-interface SnackAction {
+export interface SnackAction {
   readonly label: string;
   readonly testId?: string;
-  onPress(): void;
+  onPress(): void | Promise<void>;
 }
 
 interface SnackSentence {
@@ -83,16 +83,27 @@ export function showFailure(message: string, clear: () => void): void {
   });
 }
 
-export function showUndoable(message: SnackMessage, undo: () => void): void {
-  showSnack({
+/** Adds an action in front of those the snack on screen offers; it keeps its place and its time. */
+export function addSnackAction(action: SnackAction): void {
+  useSnackbar.setState(({ snack }) => ({
+    snack: snack === null ? null : { ...snack, actions: [action, ...(snack.actions ?? [])] },
+  }));
+}
+
+/** Offers Undo while the snack is on screen; however often it is pressed, it undoes once. */
+export function showUndoable(message: SnackMessage, undo: () => void | Promise<void>): number {
+  let pressed = false;
+  return showSnack({
     message,
     actions: [
       {
         label: "Undo",
         testId: "snackbar-undo",
         onPress: () => {
+          if (pressed) return;
+          pressed = true;
           dismissSnack();
-          undo();
+          return undo();
         },
       },
     ],

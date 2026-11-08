@@ -6,6 +6,7 @@ import {
   epCode,
   type LibraryEntry,
   playsOnlyInProgress,
+  withMarkFields,
 } from "../domain/model/library";
 import {
   buildMarkEpisodeOp,
@@ -14,6 +15,7 @@ import {
   episodeItemKey,
 } from "../domain/write-queue/ops";
 import { replacedPlays } from "../domain/write-queue/receipt";
+import type { QueuedOp } from "../domain/write-queue/types";
 import { middleTruncate } from "../format";
 import { type Haptics, useHaptics } from "../ports/haptics";
 import { type SubmitOutcome, useRuntime } from "../runtime/runtime";
@@ -47,7 +49,9 @@ import {
   patchEpisodeDetail,
   patchLibraryEntry,
   patchShowSeasons,
+  patchStopped,
   refreshShowProgress,
+  stoppedIn,
 } from "./library-cache";
 import { REPLACED_COPY } from "./replaced-copy";
 import { canRemoveOwnPlays, takeBack, waitUntilSettled } from "./resolve-unmark";
@@ -123,7 +127,7 @@ export function useMarkWatched(): MarkWatched {
   const restorePreMark = useCallback(
     (record: MarkRecord) => {
       forgetOwnMark(record.showId);
-      patch(record.showId, () => record.beforeMark);
+      patch(record.showId, (entry) => withMarkFields(entry, record.beforeMark));
       patchProgress(record.showId, { season: record.season, number: record.number }, false, null);
     },
     [patch, patchProgress],
@@ -132,7 +136,9 @@ export function useMarkWatched(): MarkWatched {
   const reapplyMark = useCallback(
     (record: MarkRecord) => {
       keepOwnMark(record.showId, record);
-      patch(record.showId, () => advancePastNext(record.beforeMark, record.watchedAt));
+      patch(record.showId, (entry) =>
+        withMarkFields(entry, advancePastNext(record.beforeMark, record.watchedAt)),
+      );
       patchProgress(
         record.showId,
         { season: record.season, number: record.number },
@@ -141,6 +147,23 @@ export function useMarkWatched(): MarkWatched {
       );
     },
     [patch, patchProgress],
+  );
+
+  /** Shows the mark undone at once, with the show stopped again if the mark resumed it. */
+  const showUndone = useCallback(
+    (record: MarkRecord) => {
+      restorePreMark(record);
+      if (record.stopped !== null) patchStopped(queryClient, record.showId, record.stopped);
+    },
+    [queryClient, restorePreMark],
+  );
+
+  const showKept = useCallback(
+    (record: MarkRecord) => {
+      reapplyMark(record);
+      if (record.stopped !== null) patchStopped(queryClient, record.showId, null);
+    },
+    [queryClient, reapplyMark],
   );
 
   const revalidate = useCallback(
@@ -161,16 +184,9 @@ export function useMarkWatched(): MarkWatched {
     [queryClient, runtime],
   );
 
-  const runReversal = useCallback(
-    async (record: MarkRecord): Promise<SubmitOutcome | null> => {
-      const effects = {
-        onKept: record.beforeMark.hidden
-          ? () => resume.reStop(record.showId, { trakt: record.showId })
-          : undefined,
-        rollback: () => reapplyMark(record),
-        revalidate: () =>
-          revalidate(record.showId, { season: record.season, number: record.number }),
-      };
+  /** The write that takes the mark back, none when it never reached Trakt, or why it cannot be. */
+  const takeBackMark = useCallback(
+    async (record: MarkRecord): Promise<QueuedOp | null | "replaced" | "unknown"> => {
       const priorPlay = !playsOnlyInProgress(record.beforeMark);
       let state = runtime.writeState(record.opId);
       if (state === "sent" && !canRemoveOwnPlays(priorPlay)) {
@@ -178,20 +194,37 @@ export function useMarkWatched(): MarkWatched {
         state = runtime.writeState(record.opId);
       }
       const write = { opId: record.opId, ids: record.episodeIds, watchedAt: record.watchedAt };
-      if (state === "unsent") {
-        return submit([buildUnmarkEpisodeOp({ ...write, opId: runtime.newId() })], effects);
-      }
+      if (state === "unsent") return buildUnmarkEpisodeOp({ ...write, opId: runtime.newId() });
       if (state !== "sent" && state !== "done") return null;
       const verdict = takeBack(runtime, [record.opId], priorPlay);
-      if (verdict === "plays") {
-        return submit([buildUndoAddOp(runtime.newId(), buildMarkEpisodeOp(write))], effects);
-      }
-      reapplyMark(record);
-      if (verdict === "replaced") showReplaced(record, true);
-      else showUndoFailed(haptics, record.title);
-      return null;
+      return verdict === "plays"
+        ? buildUndoAddOp(runtime.newId(), buildMarkEpisodeOp(write))
+        : verdict;
     },
-    [runtime, submit, reapplyMark, revalidate, haptics, resume],
+    [runtime],
+  );
+
+  const runReversal = useCallback(
+    async (record: MarkRecord): Promise<SubmitOutcome | null> => {
+      const mark = await takeBackMark(record);
+      if (mark === "replaced" || mark === "unknown") {
+        showKept(record);
+        if (mark === "replaced") showReplaced(record, true);
+        else showUndoFailed(haptics, record.title);
+        return null;
+      }
+      const reversal =
+        mark === null
+          ? null
+          : submit([{ ops: [mark], revert: () => reapplyMark(record) }], () =>
+              revalidate(record.showId, { season: record.season, number: record.number }),
+            );
+      if (record.stopped !== null) {
+        resume.stopAgain(record.showId, { trakt: record.showId }, record.stopped);
+      }
+      return reversal;
+    },
+    [takeBackMark, submit, showKept, reapplyMark, revalidate, haptics, resume],
   );
 
   const submitReversal = useCallback(
@@ -219,10 +252,10 @@ export function useMarkWatched(): MarkWatched {
       store.close(record.showId, record.opId);
       releaseWriteLock(showWriteLock(record.showId), record.opId);
       releaseWriteLock(pendingMarkLock(episodeItemKey(record.episodeIds.trakt)), record.opId);
-      restorePreMark(record);
+      showUndone(record);
     }
     await Promise.all(pending.map((record) => submitReversal(record)));
-  }, [haptics, restorePreMark, submitReversal]);
+  }, [haptics, showUndone, submitReversal]);
 
   const presentBatch = useCallback(() => {
     const current = useMarkStore.getState().batch;
@@ -288,6 +321,7 @@ export function useMarkWatched(): MarkWatched {
         watchedAt,
         preCompleted: entry.completed,
         beforeMark: entry,
+        stopped: stoppedIn(queryClient, entry.showId),
       };
 
       ensureLibraryEntry(queryClient, entry);
@@ -308,15 +342,15 @@ export function useMarkWatched(): MarkWatched {
 
       let outcome: SubmitOutcome;
       try {
-        outcome = await submit([op], {
-          rollback: () => restorePreMark(record),
-          onKept: () => resume.resumeIfStopped(entry.showId, { trakt: entry.showId }),
-          revalidate: (landed) => {
-            if (isReversalRequested(opId)) return;
-            const at = { season: episode.season, number: episode.number };
-            revalidate(entry.showId, at, landed ? record : undefined);
-          },
+        const marking = submit([{ ops: [op], revert: () => restorePreMark(record) }], () => {
+          if (isReversalRequested(opId)) return;
+          const at = { season: episode.season, number: episode.number };
+          revalidate(entry.showId, at, runtime.writeState(opId) === "done" ? record : undefined);
         });
+        if (record.stopped !== null) {
+          resume.resume(entry.showId, { trakt: entry.showId }, record.stopped, [op]);
+        }
+        outcome = await marking;
       } finally {
         releaseWriteLock(showLock, opId);
         releaseWriteLock(pendingLock, opId);
@@ -348,11 +382,11 @@ export function useMarkWatched(): MarkWatched {
       releaseWriteLock(pendingMarkLock(episodeItemKey(record.episodeIds.trakt)), record.opId);
       store.setBatch(store.batch.filter((r) => r.opId !== record.opId));
       if (ownsSnack(useSnackbar.getState().snack?.seq)) presentBatch();
-      restorePreMark(record);
+      showUndone(record);
       haptics.success();
       await submitReversal(record);
     },
-    [presentBatch, restorePreMark, haptics, submitReversal],
+    [presentBatch, showUndone, haptics, submitReversal],
   );
 
   return useMemo(() => ({ mark, reverse, reArm, justMarkedAt }), [mark, reverse]);

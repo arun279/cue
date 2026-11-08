@@ -16,8 +16,12 @@ afterEach(dismissSnack);
 
 async function setup(outcome: SubmitOutcome, hidden = false) {
   const runtime = await buildRuntime();
-  const submit = vi.spyOn(runtime, "submit").mockResolvedValue(outcome);
-  vi.spyOn(runtime, "settled").mockReturnValue(new Promise(() => {}));
+  const submit = vi
+    .spyOn(runtime, "submit")
+    .mockImplementation(async (op) => (op.itemKey.startsWith("watchlist:") ? outcome : "done"));
+  vi.spyOn(runtime, "settled").mockReturnValue(
+    outcome === "failed" ? Promise.resolve("failed") : new Promise(() => {}),
+  );
   const client = new QueryClient();
   const entry: LibraryEntry = {
     ...makeShow({ completed: 0, hidden }),
@@ -53,11 +57,16 @@ it("moves a stopped show with no history and restores both memberships on Undo",
   expect(submit).toHaveBeenCalledTimes(5);
 });
 
-it("rolls a failed move back without resuming the stopped show", async () => {
+it("rolls a failed move back and stops the show it resumed again", async () => {
   const { client, entry, submit, move } = await setup("failed", true);
   await move();
   expect(client.getQueryData<UpNextData>(queryKeys.library())?.entries).toEqual([entry]);
-  expect(submit).toHaveBeenCalledTimes(1);
+  expect(submit.mock.calls.map(([op]) => op.request.path)).toEqual([
+    "/sync/watchlist",
+    "/users/hidden/progress_watched/remove",
+    "/users/hidden/dropped/remove",
+    "/users/hidden/progress_watched",
+  ]);
   expect(useSnackbar.getState().snack?.message).toBe(
     "Couldn't update your watchlist. Please try again.",
   );

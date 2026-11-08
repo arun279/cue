@@ -5,7 +5,7 @@ import {
   type SeasonView,
 } from "@/core/domain/show-detail";
 import { useMarkSeason } from "@/core/hooks/useMarkSeason";
-import { showSnack, useSnackbar } from "@/core/stores/snackbar-store";
+import { addSnackAction, useSnackbar } from "@/core/stores/snackbar-store";
 
 export function useDetailMark(showId: number, seasons: readonly SeasonView[]) {
   const controller = useMarkSeason();
@@ -25,21 +25,12 @@ export function useDetailMark(showId: number, seasons: readonly SeasonView[]) {
       });
       const snack = useSnackbar.getState().snack;
       if (earlier === 0 || snack === null || snack === previous) return;
-      showSnack({
-        message: snack.message,
-        actions: [
-          {
-            label: `+${earlier} earlier`,
-            onPress: () =>
-              void controller.markUpToHere(
-                { ...target, includeSpecials: false },
-                seasons,
-                episode,
-                { absorbUndo: true },
-              ),
-          },
-          ...(snack.actions ?? []),
-        ],
+      addSnackAction({
+        label: `+${earlier} earlier`,
+        onPress: () =>
+          void controller.markUpToHere({ ...target, includeSpecials: false }, seasons, episode, {
+            absorbUndo: true,
+          }),
       });
     },
   };

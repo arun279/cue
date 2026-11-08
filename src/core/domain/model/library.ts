@@ -81,6 +81,25 @@ export type ShowListing = Pick<
 export const playsOnlyInProgress = (show: LibraryShow): boolean =>
   show.plays !== null && show.plays === show.completed;
 
+/** How a stopped show was stopped, so it can be stopped again the same way. */
+export type Stopped = "hidden" | "dropped";
+
+export function stoppedOf(show: LibraryShow): Stopped | null {
+  if (!show.hidden) return null;
+  return show.dropped ? "dropped" : "hidden";
+}
+
+/** The show with what a mark changes taken from `from`, and everything else left as it is. */
+export const withMarkFields = (entry: LibraryEntry, from: LibraryEntry): LibraryEntry => ({
+  ...entry,
+  completed: from.completed,
+  left: from.left,
+  lastWatchedAt: from.lastWatchedAt,
+  plays: from.plays,
+  nextEpisode: from.nextEpisode,
+  pendingAdvance: from.pendingAdvance,
+});
+
 /** A show saved to the watchlist or the collection that has no play yet. */
 export function notStartedShow(listing: ShowListing): LibraryEntry {
   return {

@@ -43,37 +43,16 @@ function writer(outcomes: readonly SubmitOutcome[]) {
   return { gateway, seen, end };
 }
 
-/** Drive the seam over one op per queued outcome; report the settled outcome, the
- * effect spies, and the ops actually submitted (in order). */
+/** Drive the seam with one change per queued outcome, each of one op; report the settled outcome,
+ * the spies, and the ops actually submitted (in order). */
 async function exercise(outcomes: readonly SubmitOutcome[]) {
   const { gateway, seen, end } = writer(outcomes);
-  const rollback = vi.fn();
+  const reverts = outcomes.map(() => vi.fn());
   const revalidate = vi.fn();
-  const ops = outcomes.map((_, n) => op(`op-${n}`));
-  const outcome = await applyOptimisticWrite(gateway, ops, { rollback, revalidate });
-  return { outcome, rollback, revalidate, seen, end };
-}
-
-/** Drive the seam with an `onKept` follow-up that itself settles to `keptOutcome`
- * (or does no write when omitted), recording the order the effects fired plus the
- * batch outcome the seam returns to the caller. */
-async function exerciseKept(
-  primary: SubmitOutcome,
-  keptOutcome?: SubmitOutcome,
-): Promise<{ order: string[]; outcome: SubmitOutcome }> {
-  const order: string[] = [];
-  const rollback = vi.fn(() => void order.push("rollback"));
-  const onKept = vi.fn(() => {
-    order.push("onKept");
-    return Promise.resolve(keptOutcome ?? null);
-  });
-  const revalidate = vi.fn(() => void order.push("revalidate"));
-  const outcome = await applyOptimisticWrite(writer([primary]).gateway, [op("a")], {
-    rollback,
-    onKept,
-    revalidate,
-  });
-  return { order, outcome };
+  const changes = outcomes.map((_, n) => ({ ops: [op(`op-${n}`)], revert: reverts[n] ?? vi.fn() }));
+  const outcome = await applyOptimisticWrite(gateway, changes, revalidate);
+  const reverted = () => reverts.flatMap((revert, n) => (revert.mock.calls.length > 0 ? [n] : []));
+  return { outcome, reverts, reverted, revalidate, seen, end };
 }
 
 beforeEach(dismissSnack);
@@ -82,143 +61,121 @@ interface Case {
   readonly name: string;
   readonly outcomes: readonly SubmitOutcome[];
   readonly settled: SubmitOutcome;
-  readonly rolledBack: boolean;
+  readonly reverted: readonly number[];
   readonly revalidated: boolean;
 }
 
-// A batch settles to its worst op (failed > deferred > cancelled > done): roll back iff any op
-// hard-fails, revalidate iff every op lands, keep the optimistic state on deferred.
+// A write settles to its worst op (failed > deferred > cancelled > done). Only the changes Trakt
+// refused a write of are taken back, and what was written is read back once every op is answered.
 const cases: readonly Case[] = [
   {
-    name: 'single "done" revalidates, never rolls back',
+    name: 'single "done" revalidates, takes nothing back',
     outcomes: ["done"],
     settled: "done",
-    rolledBack: false,
+    reverted: [],
     revalidated: true,
   },
   {
-    name: 'single "deferred" keeps optimistic: neither effect',
+    name: 'single "deferred" keeps the change: neither effect yet',
     outcomes: ["deferred"],
     settled: "deferred",
-    rolledBack: false,
+    reverted: [],
     revalidated: false,
   },
   {
-    name: 'single "failed" rolls back, never revalidates',
+    name: 'single "failed" takes its change back and reads back what Trakt has',
     outcomes: ["failed"],
     settled: "failed",
-    rolledBack: true,
-    revalidated: false,
-  },
-  {
-    name: 'batch all "done" revalidates once',
-    outcomes: ["done", "done"],
-    settled: "done",
-    rolledBack: false,
+    reverted: [0],
     revalidated: true,
   },
   {
-    name: 'batch with a "deferred" keeps optimistic (no revalidate)',
+    name: 'all "done" revalidates once',
+    outcomes: ["done", "done"],
+    settled: "done",
+    reverted: [],
+    revalidated: true,
+  },
+  {
+    name: 'a "deferred" write holds off the read back',
     outcomes: ["done", "deferred"],
     settled: "deferred",
-    rolledBack: false,
+    reverted: [],
     revalidated: false,
   },
   {
-    name: 'batch with a "failed" rolls the whole batch back',
+    name: 'a "failed" write takes back only its own change',
     outcomes: ["done", "failed"],
     settled: "failed",
-    rolledBack: true,
-    revalidated: false,
+    reverted: [1],
+    revalidated: true,
   },
   {
-    name: '"failed" beats "deferred" in a batch',
+    name: '"failed" beats "deferred", and the deferred change stays',
     outcomes: ["deferred", "failed"],
     settled: "failed",
-    rolledBack: true,
+    reverted: [1],
     revalidated: false,
   },
   {
     name: 'single "cancelled" leaves the state its opposite set: neither effect',
     outcomes: ["cancelled"],
     settled: "cancelled",
-    rolledBack: false,
+    reverted: [],
     revalidated: false,
   },
   {
-    name: 'a batch with a "cancelled" write is not refetched',
+    name: "a write that landed beside a cancelled one is read back",
     outcomes: ["done", "cancelled"],
     settled: "cancelled",
-    rolledBack: false,
-    revalidated: false,
+    reverted: [],
+    revalidated: true,
   },
 ];
 
 describe("applyOptimisticWrite: the shared write seam", () => {
-  it.each(cases)("$name", async ({ outcomes, settled, rolledBack, revalidated }) => {
-    const { outcome, rollback, revalidate } = await exercise(outcomes);
-    expect(outcome).toBe(settled);
-    expect(rollback).toHaveBeenCalledTimes(rolledBack ? 1 : 0);
-    expect(revalidate).toHaveBeenCalledTimes(revalidated ? 1 : 0);
+  it.each(cases)("$name", async ({ outcomes, settled, reverted, revalidated }) => {
+    const result = await exercise(outcomes);
+    expect(result.outcome).toBe(settled);
+    expect(result.reverted()).toEqual(reverted);
+    expect(result.revalidate).toHaveBeenCalledTimes(revalidated ? 1 : 0);
   });
 
-  it("submits every op in a batch exactly once, in order", async () => {
+  it("submits every op exactly once, in order", async () => {
     const { seen } = await exercise(["done", "done", "done"]);
     expect(seen).toEqual(["op-0", "op-1", "op-2"]);
   });
 
-  it('awaits onKept before revalidate on a landed ("done") write', async () => {
-    expect((await exerciseKept("done")).order).toEqual(["onKept", "revalidate"]);
+  it("takes a change back once when Trakt refuses more than one of its writes", async () => {
+    const { gateway, end } = writer(["failed", "deferred"]);
+    const revert = vi.fn();
+    await applyOptimisticWrite(gateway, [{ ops: [op("a"), op("b")], revert }], vi.fn());
+    await end("b", "failed");
+    expect(revert).toHaveBeenCalledTimes(1);
   });
 
-  it('runs onKept but never revalidate when the write is "deferred"', async () => {
-    expect((await exerciseKept("deferred")).order).toEqual(["onKept"]);
-  });
-
-  it('skips onKept and rolls back when the write "failed"', async () => {
-    expect((await exerciseKept("failed")).order).toEqual(["rollback"]);
-  });
-
-  it('holds off revalidate when the follow-up is still "deferred", even on a landed batch', async () => {
-    const { order, outcome } = await exerciseKept("done", "deferred");
-    expect(order).toEqual(["onKept"]);
-    expect(outcome).toBe("done");
-  });
-
-  it("a failed follow-up holds off revalidate but never fails the landed batch", async () => {
-    const { order, outcome } = await exerciseKept("done", "failed");
-    expect(order).toEqual(["onKept"]);
-    expect(outcome).toBe("done");
-  });
-
-  it('revalidates once both the batch and the follow-up land ("done")', async () => {
-    const { order, outcome } = await exerciseKept("done", "done");
-    expect(order).toEqual(["onKept", "revalidate"]);
-    expect(outcome).toBe("done");
-  });
-
-  it("rolls back, refetches and says so when a kept write is refused later", async () => {
-    const { outcome, rollback, revalidate, end } = await exercise(["done", "deferred"]);
+  it("takes back only the change refused later, reads back once and says so", async () => {
+    const { outcome, reverted, revalidate, end } = await exercise(["deferred", "deferred"]);
     expect(outcome).toBe("deferred");
     await end("op-0", "done");
-    expect(rollback).not.toHaveBeenCalled();
+    expect(reverted()).toEqual([]);
     await end("op-1", "failed");
-    expect(rollback).toHaveBeenCalledTimes(1);
+    expect(reverted()).toEqual([1]);
     expect(revalidate).toHaveBeenCalledTimes(1);
     expect(useSnackbar.getState().snack?.message).toBe("Couldn't save an earlier change to Trakt.");
   });
 
   it("refetches once a kept write lands later", async () => {
-    const { rollback, revalidate, end } = await exercise(["deferred"]);
+    const { reverted, revalidate, end } = await exercise(["deferred"]);
     await end("op-0", "done");
     expect(revalidate).toHaveBeenCalledTimes(1);
-    expect(rollback).not.toHaveBeenCalled();
+    expect(reverted()).toEqual([]);
   });
 
   it("leaves a kept write that an opposite write cancels later alone", async () => {
-    const { rollback, revalidate, end } = await exercise(["deferred"]);
+    const { reverted, revalidate, end } = await exercise(["deferred"]);
     await end("op-0", "cancelled");
-    expect(rollback).not.toHaveBeenCalled();
+    expect(reverted()).toEqual([]);
     expect(revalidate).not.toHaveBeenCalled();
     expect(useSnackbar.getState().snack).toBeNull();
   });

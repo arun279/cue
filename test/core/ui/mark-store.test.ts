@@ -31,6 +31,7 @@ function record(showId: number, opId: string): MarkRecord {
     watchedAt: WATCHED_AT,
     preCompleted: 0,
     beforeMark: {} as MarkRecord["beforeMark"],
+    stopped: null,
   };
 }
 

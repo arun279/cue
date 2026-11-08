@@ -67,8 +67,14 @@ describe("useHideShow", () => {
     expect(submitted[0]?.request.body).toEqual({ shows: [{ ids: { trakt: 7, tmdb: 95396 } }] });
   });
 
-  it("resumes a stopped or dropped show and stops it again on Undo", async () => {
-    const { controls, submitted, hidden } = setup();
+  it.each([
+    ["hidden from progress", false, "/users/hidden/progress_watched"],
+    ["dropped", true, "/users/hidden/dropped"],
+  ])("resumes a show %s and stops it the same way again on Undo", async (_, dropped, list) => {
+    const { controls, submitted, hidden, queryClient } = setup();
+    queryClient.setQueryData<UpNextData>(queryKeys.library(), {
+      entries: [{ ...entry, hidden: true, dropped }],
+    });
     await act(async () => controls.current.unhide(7, { trakt: 7 }, "Severance"));
     expect(hidden()).toBe(false);
     expect(snack()?.message).toBe("Severance resumed");
@@ -79,7 +85,19 @@ describe("useHideShow", () => {
 
     await act(async () => snack()?.actions?.[0]?.onPress());
     expect(hidden()).toBe(true);
-    expect(submitted[2]?.request.path).toBe("/users/hidden/progress_watched");
+    expect(submitted.slice(2).map((op) => op.request.path)).toEqual([list]);
+  });
+
+  it("stops a resumed dropped show from progress the next time, not by dropping it again", async () => {
+    const { controls, submitted, queryClient } = setup();
+    queryClient.setQueryData<UpNextData>(queryKeys.library(), {
+      entries: [{ ...entry, hidden: true, dropped: true }],
+    });
+    await act(async () => controls.current.unhide(7, { trakt: 7 }, "Severance"));
+    await act(async () => controls.current.hide(7, { trakt: 7 }, "Severance"));
+    await act(async () => controls.current.unhide(7, { trakt: 7 }, "Severance"));
+    await act(async () => snack()?.actions?.[0]?.onPress());
+    expect(submitted.at(-1)?.request.path).toBe("/users/hidden/progress_watched");
   });
 
   it("stops a show opened before the library has loaded", async () => {

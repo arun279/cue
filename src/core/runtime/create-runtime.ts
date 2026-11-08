@@ -70,7 +70,6 @@ import type { TokenStore } from "../ports/token-store";
 import { resetMarkStore } from "../stores/mark-store";
 import { usePlayPolicy } from "../stores/play-policy-store";
 import { useReadIncidents } from "../stores/read-incidents-store";
-import { resetSeasonMarks } from "../stores/season-reversal";
 import { dismissSnack } from "../stores/snackbar-store";
 import { useSyncActivity } from "../stores/sync-activity-store";
 import type {
@@ -135,7 +134,6 @@ async function ownPlayIds(
 /** Every client store that holds something of one account. */
 const ACCOUNT_STORES: readonly (() => void)[] = [
   resetMarkStore,
-  resetSeasonMarks,
   dismissSnack,
   () => useReadIncidents.setState({ incidents: [] }),
   () => usePlayPolicy.setState({ policy: "unknown" }),

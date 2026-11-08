@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   buildAddEpisodePlayOp,
   buildAddWatchlistOp,
-  buildHideShowOp,
   buildMarkEpisodeOp,
   buildMarkMovieOp,
   buildRemoveHistoryPlayOp,
   buildRemovePlaysOp,
   buildRemoveWatchlistOp,
   buildResumeShowOps,
+  buildStopShowOp,
   buildUnmarkEpisodeOp,
   buildUnmarkMovieOp,
   episodeItemKey,
@@ -94,7 +94,7 @@ describe("single-item history op builders", () => {
   });
 
   it("hides a show: add to the hidden set, un-hide inverse, no watched_at", () => {
-    const op = buildHideShowOp({ opId: "op-h1", ids: { trakt: 5 } });
+    const op = buildStopShowOp("hidden", { opId: "op-h1", ids: { trakt: 5 } });
     expect(op.request).toEqual({
       method: "POST",
       path: "/users/hidden/progress_watched",
