@@ -1614,6 +1614,20 @@ function firstWriteHeld(): { readonly fake: FakeRuntime; readonly refuse: () => 
   return { fake, refuse: () => refuse("failed") };
 }
 
+/** A fake whose history removals Trakt answers only when `land` lands them; every other write lands. */
+function takeBackHeld(): { readonly fake: FakeRuntime; readonly land: () => void } {
+  let land: (outcome: "done") => void = () => {};
+  const fake = fakeRuntime({
+    submit: (op) =>
+      op.request.path === "/sync/history/remove"
+        ? new Promise((resolve) => {
+            land = resolve;
+          })
+        : Promise.resolve("done"),
+  });
+  return { fake, land: () => land("done") };
+}
+
 /** The show is shown resumed, and nothing was sent to stop it again. */
 function expectResumed(qc: QueryClient, fake: FakeRuntime): void {
   expect(entryOf(qc, SHOW)?.hidden).toBe(false);
@@ -1784,15 +1798,7 @@ describe("a refused write takes back only its own change", () => {
   });
 
   it("stops a show again once Trakt takes the Undo of the mark that resumed it", async () => {
-    let land: (outcome: "done") => void = () => {};
-    const fake = fakeRuntime({
-      submit: (op) =>
-        op.request.path === "/sync/history/remove"
-          ? new Promise((resolve) => {
-              land = resolve;
-            })
-          : Promise.resolve("done"),
-    });
+    const { fake, land } = takeBackHeld();
     const entry = { ...libraryEntry(), hidden: true };
     const qc = seededClient([entry]);
     const [a] = mountSurfaces(fake.runtime, qc);
@@ -1802,22 +1808,14 @@ describe("a refused write takes back only its own change", () => {
     const stops = () =>
       fake.submitted.filter((op) => op.request.path === "/users/hidden/progress_watched");
     expect(stops()).toHaveLength(0);
-    await act(async () => land("done"));
+    await act(async () => land());
     await flush();
     expect(stops()).toHaveLength(1);
     expect(entryOf(qc, SHOW)?.hidden).toBe(true);
   });
 
   it("leaves a show resumed when it is marked again while the Undo of an earlier mark is answered", async () => {
-    let land: (outcome: "done") => void = () => {};
-    const fake = fakeRuntime({
-      submit: (op) =>
-        op.request.path === "/sync/history/remove"
-          ? new Promise((resolve) => {
-              land = resolve;
-            })
-          : Promise.resolve("done"),
-    });
+    const { fake, land } = takeBackHeld();
     const qc = seededClient(
       [{ ...libraryEntry(), hidden: true }],
       [seasonView([episodeView(1, true), episodeView(2), episodeView(3)])],
@@ -1828,29 +1826,21 @@ describe("a refused write takes back only its own change", () => {
     );
     act(() => void pressUndo());
     await act(async () => a.current.season.toggleEpisode(TARGET, episodeView(3)));
-    await act(async () => land("done"));
+    await act(async () => land());
     await flush();
 
     expectResumed(qc, fake);
   });
 
   it("leaves a show resumed when Up Next marks it again while the Undo of an earlier mark is answered", async () => {
-    let land: (outcome: "done") => void = () => {};
-    const fake = fakeRuntime({
-      submit: (op) =>
-        op.request.path === "/sync/history/remove"
-          ? new Promise((resolve) => {
-              land = resolve;
-            })
-          : Promise.resolve("done"),
-    });
+    const { fake, land } = takeBackHeld();
     const entry = { ...libraryEntry(), hidden: true };
     const qc = seededClient([entry]);
     const [a] = mountSurfaces(fake.runtime, qc);
     await act(async () => a.current.mark.mark(entry));
     act(() => void a.current.mark.reverse(SHOW));
     await act(async () => a.current.mark.mark(entryOf(qc, SHOW) ?? entry));
-    await act(async () => land("done"));
+    await act(async () => land());
     await flush();
 
     expectResumed(qc, fake);
