@@ -1,11 +1,12 @@
 import { Image } from "expo-image";
-import { type ReactElement, type ReactNode, useState } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { resolveBackdrop } from "@/core/domain/image-source";
 import { type SeasonView, watchedSummary } from "@/core/domain/show-detail";
 import { useGenreLabels } from "@/core/hooks/useGenreLabels";
 import { SPACE, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
+import { useImageUrl } from "../../ui/useImageUrl";
 import { Overview } from "./Overview";
 import type { ShowHeader } from "./useShowDetail";
 
@@ -35,17 +36,11 @@ export function DetailHero({
   readonly children?: ReactNode;
 }): ReactElement {
   const colors = useColors();
-  const [failed, setFailed] = useState(false);
-  const backdrop = resolveBackdrop(header.backdrops);
+  const [backdrop, onError] = useImageUrl(resolveBackdrop(header.backdrops));
   return (
     <View>
-      {backdrop !== null && !failed && (
-        <Image
-          source={backdrop}
-          contentFit="cover"
-          style={styles.backdrop}
-          onError={() => setFailed(true)}
-        />
+      {backdrop !== null && (
+        <Image source={backdrop} contentFit="cover" style={styles.backdrop} onError={onError} />
       )}
       <View style={styles.body}>
         <CueText variant="detailTitle" accessibilityRole="header" style={{ color: colors.fg }}>

@@ -17,6 +17,7 @@ import {
   type SubmitOutcome,
 } from "@/core/runtime/runtime";
 import { resetMarkStore } from "@/core/stores/mark-store";
+import { useRevealedStills } from "@/core/stores/revealed-stills-store";
 import { dismissSnack } from "@/core/stores/snackbar-store";
 import { createAppQueryClient } from "../../src/platform/query-client";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
@@ -237,6 +238,7 @@ export function Harness({
 export function resetSharedStores(): void {
   resetMarkStore();
   dismissSnack();
+  useRevealedStills.setState(useRevealedStills.getInitialState());
 }
 
 /** The two calendar reads every home surface issues, seeded empty so a test
