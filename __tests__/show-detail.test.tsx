@@ -12,6 +12,7 @@ import { UNDO_WINDOW_MS } from "@/core/sync-contract";
 import { MovieDetail } from "../src/screens/MovieDetail";
 import { ShowDetail } from "../src/screens/ShowDetail";
 import { ContinueBar } from "../src/screens/show-detail/ContinueBar";
+import { DetailHero } from "../src/screens/show-detail/ShowHero";
 import { confirm } from "../src/ui/confirm";
 import { HEADER_TINT } from "../src/ui/navigation-theme";
 import { TEST_IDS } from "../src/ui/test-ids";
@@ -352,6 +353,22 @@ it.each([
     "Unmark Season 2?",
     `Removes ${count} from your history.${note}`,
   ]);
+});
+
+it("draws a replacement backdrop after the one before it failed to load", async () => {
+  const backdrop = () => screen.container.queryAll((node) => node.type === "Image").at(0) ?? null;
+  const hero = (url: string) => (
+    <DetailHero header={{ title: "Midnight Cartography", backdrops: [url] }} facts={[]} />
+  );
+  const view = await render(hero("https://example.com/a.jpg"));
+  const broken = backdrop();
+  if (broken === null) throw new Error("no backdrop rendered");
+  await fireEvent(broken, "error");
+  expect(backdrop()).toBeNull();
+
+  await view.rerender(hero("https://example.com/b.jpg"));
+
+  expect(backdrop()).toHaveProp("source", "https://example.com/b.jpg");
 });
 
 it("names genres the way Trakt does, from one read that every detail screen shares", async () => {

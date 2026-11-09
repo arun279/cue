@@ -1,8 +1,9 @@
-import { type ReactElement, useState } from "react";
+import type { ReactElement } from "react";
 import { Image, StyleSheet, View } from "react-native";
 import { artHue, initialsOf, resolvePoster } from "@/core/domain/image-source";
 import { PALETTE, RADIUS } from "./tokens";
 import { CueText } from "./type";
+import { useImageUrl } from "./useImageUrl";
 
 const POSTER_RATIO = 3 / 2;
 
@@ -16,9 +17,8 @@ export interface PosterProps {
 }
 
 export function Poster({ title, posters, width }: PosterProps): ReactElement {
-  const [failed, setFailed] = useState<string | null>(null);
   const resolved = resolvePoster({ title, traktPosters: posters });
-  const url = resolved.source === "placeholder" || resolved.url === failed ? null : resolved.url;
+  const [url, onError] = useImageUrl(resolved.source === "placeholder" ? null : resolved.url);
 
   return (
     <View
@@ -50,7 +50,7 @@ export function Poster({ title, posters, width }: PosterProps): ReactElement {
           source={{ uri: url }}
           resizeMethod="resize"
           style={StyleSheet.absoluteFill}
-          onError={() => setFailed(url)}
+          onError={onError}
         />
       )}
     </View>

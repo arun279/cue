@@ -70,6 +70,7 @@ import type { TokenStore } from "../ports/token-store";
 import { resetMarkStore } from "../stores/mark-store";
 import { usePlayPolicy } from "../stores/play-policy-store";
 import { useReadIncidents } from "../stores/read-incidents-store";
+import { useRevealedStills } from "../stores/revealed-stills-store";
 import { dismissSnack } from "../stores/snackbar-store";
 import { useSyncActivity } from "../stores/sync-activity-store";
 import type {
@@ -138,6 +139,7 @@ const ACCOUNT_STORES: readonly (() => void)[] = [
   () => useReadIncidents.setState({ incidents: [] }),
   () => usePlayPolicy.setState({ policy: "unknown" }),
   () => useSyncActivity.setState(useSyncActivity.getInitialState()),
+  () => useRevealedStills.setState(useRevealedStills.getInitialState()),
 ];
 
 /** Removes everything the device keeps for an account, so the next one starts without it. */
