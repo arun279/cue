@@ -262,12 +262,13 @@ describe("the native composition root", () => {
     bulkBacking.values.set("cue.install", "an-earlier-install");
     secureBacking.set("cue.trakt.token", SAVED_TOKEN);
     const boot = jest.spyOn(runtimeBoot, "useRuntimeBoot");
-    await render(<RootLayout />);
+    const view = await render(<RootLayout />);
     await screen.findByTestId("router-stack");
     legacyBacking.set("cue.trakt.token", TOKEN);
     const runtime = boot.mock.results.at(-1)?.value.runtime;
     if (!runtime) throw new Error("the runtime never booted");
 
+    await view.unmount();
     await act(() => runtime.endLocalSession());
 
     expect(legacyBacking.size).toBe(0);
