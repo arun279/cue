@@ -198,13 +198,18 @@ it("undoes a mark whose answer was lost by removing only that mark's play", asyn
   expect(await playsOf(cue, FIRST_EPISODE)).toEqual(earlier.map((play) => play.historyId));
 });
 
-it("removes nothing, says so, and shows the show as Trakt has it, when it cannot tell which play a lost mark added", async () => {
-  const { cue, queryClient, entry, wrapper } = await restarted();
+/** Marks the restarted show from Up Next, Trakt's answer is lost, and then Undo is pressed. */
+async function lostMarkUndone() {
+  const show = await restarted();
   fake.drop({ method: "POST", path: HISTORY }, "after");
-  const up = renderHook(useMarkWatched, { wrapper });
-  await act(() => up.result.current.mark(entry));
+  const up = renderHook(useMarkWatched, { wrapper: show.wrapper });
+  await act(() => up.result.current.mark(show.entry));
   await act(() => up.result.current.reverse(SHOW));
+  return show;
+}
 
+it("removes nothing, says so, and shows the show as Trakt has it, when it cannot tell which play a lost mark added", async () => {
+  const { cue, queryClient, entry } = await lostMarkUndone();
   const shown = () =>
     queryClient
       .getQueryData(libraryQuery(cue).queryKey)
@@ -221,11 +226,7 @@ it("removes nothing, says so, and shows the show as Trakt has it, when it cannot
 
 it("keeps the one play a lost mark replaced when the account keeps one play per episode", async () => {
   fake.reset({ multiplePlays: false });
-  const { cue, entry, wrapper } = await restarted();
-  fake.drop({ method: "POST", path: HISTORY }, "after");
-  const up = renderHook(useMarkWatched, { wrapper });
-  await act(() => up.result.current.mark(entry));
-  await act(() => up.result.current.reverse(SHOW));
+  const { cue } = await lostMarkUndone();
 
   expect(await playsOf(cue, FIRST_EPISODE)).toHaveLength(1);
   expect(posts("/sync/history/remove")).toHaveLength(0);
