@@ -26,7 +26,6 @@ export interface TraktClientConfig {
   readonly baseUrl?: string;
   readonly policy?: TraktPolicy;
   readonly report?: ReadReporter;
-  /** The session the client reads and writes for: once it aborts, every request does too. */
   readonly signal?: AbortSignal;
 }
 

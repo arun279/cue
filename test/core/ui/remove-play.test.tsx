@@ -5,6 +5,7 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { queryKeys } from "@/core/data/query-keys";
 import type { HistoryEntry } from "@/core/domain/history";
+import type { WriteOutcome } from "@/core/domain/write-queue/queue";
 import type { QueuedOp } from "@/core/domain/write-queue/types";
 import { useRemovePlay } from "@/core/hooks/useRemovePlay";
 import type { CueRuntime, SubmitOutcome } from "@/core/runtime/runtime";
@@ -31,14 +32,20 @@ function setup(
   submit: (op: QueuedOp) => Promise<SubmitOutcome> = () => Promise.resolve("deferred"),
 ) {
   const submitted: QueuedOp[] = [];
+  const endings = new Map<string, Promise<WriteOutcome>>();
   const loadShowProgress = vi.fn<CueRuntime["loadShowProgress"]>(() => new Promise(() => {}));
   const runtime = partialRuntime({
     newId: () => `op-${submitted.length}`,
     submit: (op: QueuedOp) => {
       submitted.push(op);
-      return submit(op);
+      const outcome = submit(op);
+      endings.set(
+        op.id,
+        outcome.then((answer) => (answer === "deferred" ? new Promise<never>(() => {}) : answer)),
+      );
+      return outcome;
     },
-    settled: () => new Promise(() => {}),
+    settled: (opId: string) => endings.get(opId) ?? new Promise(() => {}),
     loadShowProgress,
   });
   const queryClient = new QueryClient();
@@ -122,13 +129,10 @@ describe("useRemovePlay", () => {
     expect(submitted[1]?.request.body).toMatchObject({ episodes: [{ ids: { trakt: 301 } }] });
   });
 
-  it("brings the play back and says so when Trakt refuses the removal", async () => {
+  it("brings the play back when Trakt refuses the removal", async () => {
     const { controller } = setup(() => Promise.resolve("failed"));
     await act(async () => controller.current.removePlay(entry));
     expect(controller.current.removedIds).toEqual(new Set());
-    expect(useSnackbar.getState().snack?.message).toBe(
-      "Couldn't remove that play. Please try again.",
-    );
   });
 
   it("restores nothing when Undo beat a removal that then failed", async () => {
@@ -144,17 +148,5 @@ describe("useRemovePlay", () => {
     await act(async () => settle("failed"));
     expect(submitted).toHaveLength(1);
     expect(controller.current.removedIds).toEqual(new Set());
-  });
-
-  it("hides the play again and says so when the restore fails", async () => {
-    const { controller } = setup((op) =>
-      Promise.resolve(op.request.path === "/sync/history" ? "failed" : "done"),
-    );
-    await act(async () => controller.current.removePlay(entry));
-    await pressUndo();
-    expect(controller.current.removedIds).toEqual(new Set([44]));
-    expect(useSnackbar.getState().snack?.message).toBe(
-      "Couldn't restore that play. Please try again.",
-    );
   });
 });

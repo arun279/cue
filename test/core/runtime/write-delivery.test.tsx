@@ -17,18 +17,19 @@ import {
   buildUndoAddOp,
   buildUnmarkEpisodeOp,
 } from "@/core/domain/write-queue/ops";
-import { useHideShow } from "@/core/hooks/useHideShow";
 import { useMarkSeason } from "@/core/hooks/useMarkSeason";
 import { useMarkWatched } from "@/core/hooks/useMarkWatched";
 import { OP_LOG_KEY } from "@/core/ports/storage-keys";
 import { libraryQuery } from "@/core/queries/library";
 import type { RuntimeDeps } from "@/core/runtime/create-runtime";
 import { createQueryClient } from "@/core/runtime/query-cache";
+import { REFUSED_MESSAGE } from "@/core/runtime/refusals";
 import type { CueRuntime } from "@/core/runtime/runtime";
 import { resetMarkStore } from "@/core/stores/mark-store";
 import { usePlayPolicy } from "@/core/stores/play-policy-store";
 import { useSnackbar } from "@/core/stores/snackbar-store";
 import { buildRuntime } from "../data/_runtime";
+import { waited } from "../support/queue-time";
 import { pressUndo, withRuntime } from "../support/runtime";
 import { memoryKeyValueStore } from "../support/stores";
 import { startTraktFake } from "../trakt-fake/in-process.ts";
@@ -92,15 +93,14 @@ it("sends a movie mark again when its answer was lost, and Trakt keeps one play"
 it("gives up a write Trakt keeps refusing, and sends the writes queued behind it", async () => {
   vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
   vi.setSystemTime(new Date(AT));
-  fake.fail({ method: "POST", path: HIDDEN, times: EVERY }, 500);
+  fake.fail({ method: "POST", path: HIDDEN, times: EVERY }, 429, 60);
   const cue = await buildRuntime();
   void cue.submit(buildStopShowOp("hidden", { opId: "stuck", ids: { trakt: 8801 } }));
   void cue.submit(buildAddWatchlistOp({ opId: "behind", section: "shows", ids: { trakt: 8901 } }));
 
   for (let minute = 0; minute < 10 && cue.pendingWrites() > 0; minute += 1) {
-    const flushed = cue.flushWrites();
+    void cue.flushWrites();
     await vi.advanceTimersByTimeAsync(60_000);
-    await flushed;
   }
 
   expect(cue.pendingWrites()).toBe(0);
@@ -109,25 +109,20 @@ it("gives up a write Trakt keeps refusing, and sends the writes queued behind it
   await expect(cue.settled("behind")).resolves.toBe("done");
 });
 
-it("rolls a write back and says so when Trakt refuses it after its screen has gone", async () => {
-  const cue = await distinctIds();
-  const queryClient = createQueryClient();
-  await queryClient.fetchQuery(libraryQuery(cue));
-  const hidden = () =>
-    queryClient.getQueryData(libraryQuery(cue).queryKey)?.entries.find((e) => e.showId === 8801)
-      ?.hidden;
-  fake.drop({ method: "POST", path: HIDDEN });
-  fake.drop({ method: "GET", path: /^\/users\/hidden\// });
-  const screen = renderHook(useHideShow, { wrapper: withRuntime(cue, queryClient) });
-  await act(() => screen.result.current.hide(8801, { trakt: 8801 }, "A show"));
-  expect(hidden()).toBe(true);
-  screen.unmount();
+it("gives up a write five minutes after Trakt first refused it, though the app stopped while waiting", async () => {
+  vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+  vi.setSystemTime(new Date(AT));
+  fake.fail({ method: "POST", path: HIDDEN, times: EVERY }, 429, 60);
+  const kv = memoryKeyValueStore();
+  const first = await buildRuntime({ kv });
+  void first.submit(buildStopShowOp("hidden", { opId: "stuck", ids: { trakt: 8801 } }));
+  await vi.advanceTimersByTimeAsync(150_000);
 
-  fake.fail({ method: "POST", path: HIDDEN }, 404);
-  await act(() => cue.flushWrites());
+  const relaunched = await buildRuntime({ kv: memoryKeyValueStore(Object.fromEntries(kv.values)) });
+  void relaunched.flushWrites();
+  await vi.advanceTimersByTimeAsync(180_000);
 
-  expect(hidden()).toBe(false);
-  expect(useSnackbar.getState().snack?.message).toBe("Couldn't save an earlier change to Trakt.");
+  expect(relaunched.writeState("stuck")).toBe("failed");
 });
 
 /** A runtime whose mark is held in flight, so the writes queued behind it are not sent yet. */
@@ -203,13 +198,25 @@ it("undoes a mark whose answer was lost by removing only that mark's play", asyn
   expect(await playsOf(cue, FIRST_EPISODE)).toEqual(earlier.map((play) => play.historyId));
 });
 
-it("removes nothing, and says so, when it cannot tell which play a lost mark added", async () => {
-  const { cue, entry, wrapper } = await restarted();
+/** Marks the restarted show from Up Next, Trakt's answer is lost, and then Undo is pressed. */
+async function lostMarkUndone() {
+  const show = await restarted();
   fake.drop({ method: "POST", path: HISTORY }, "after");
-  const up = renderHook(useMarkWatched, { wrapper });
-  await act(() => up.result.current.mark(entry));
+  const up = renderHook(useMarkWatched, { wrapper: show.wrapper });
+  await act(() => up.result.current.mark(show.entry));
   await act(() => up.result.current.reverse(SHOW));
+  return show;
+}
 
+it("removes nothing, says so, and shows the show as Trakt has it, when it cannot tell which play a lost mark added", async () => {
+  const { cue, queryClient, entry } = await lostMarkUndone();
+  const shown = () =>
+    queryClient
+      .getQueryData(libraryQuery(cue).queryKey)
+      ?.entries.find((candidate) => candidate.showId === SHOW);
+  const onTrakt = (await cue.loadUpNext()).entries.find((candidate) => candidate.showId === SHOW);
+  await vi.waitFor(() => expect(shown()?.pendingAdvance).toBe(false));
+  expect(shown()?.nextEpisode?.ids.trakt).toBe(onTrakt?.nextEpisode?.ids.trakt);
   expect(await playsOf(cue, FIRST_EPISODE)).toHaveLength(2);
   expect(posts("/sync/history/remove")).toHaveLength(0);
   expect(useSnackbar.getState().snack?.message).toBe(
@@ -219,11 +226,7 @@ it("removes nothing, and says so, when it cannot tell which play a lost mark add
 
 it("keeps the one play a lost mark replaced when the account keeps one play per episode", async () => {
   fake.reset({ multiplePlays: false });
-  const { cue, entry, wrapper } = await restarted();
-  fake.drop({ method: "POST", path: HISTORY }, "after");
-  const up = renderHook(useMarkWatched, { wrapper });
-  await act(() => up.result.current.mark(entry));
-  await act(() => up.result.current.reverse(SHOW));
+  const { cue } = await lostMarkUndone();
 
   expect(await playsOf(cue, FIRST_EPISODE)).toHaveLength(1);
   expect(posts("/sync/history/remove")).toHaveLength(0);
@@ -315,15 +318,6 @@ it("shows a mark Trakt refused later as not watched, however the library is read
 /** No connection for the next `posts` history writes: none of them reaches Trakt. */
 const offlineFor = (posts: number) =>
   fake.drop({ method: "POST", path: HISTORY, times: posts }, "before");
-
-/** Runs `action` while the queue's waits and pacing pass, as they would for a person waiting. */
-async function waited(action: () => Promise<unknown>): Promise<void> {
-  await act(async () => {
-    const running = action();
-    await vi.advanceTimersByTimeAsync(15_000);
-    await running;
-  });
-}
 
 async function online(cue: CueRuntime): Promise<void> {
   await waited(() => cue.flushWrites());
@@ -490,7 +484,7 @@ it("keeps the play another app made when an offline mark replaced it and the mar
 
   expect(await cue.loadEpisodePlays(NEXT_EPISODE)).toHaveLength(1);
   expect(posts("/sync/history/remove")).toHaveLength(0);
-  expect(said).toContain("Couldn't save an earlier change to Trakt.");
+  expect(said).toContain(REFUSED_MESSAGE);
 });
 
 it("keeps the play a mark replaced when the app is relaunched before that mark's Undo is sent", async () => {

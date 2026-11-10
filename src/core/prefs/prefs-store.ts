@@ -54,7 +54,6 @@ interface PrefsState {
   setNextEpisodeOrder: (order: NextEpisodeOrder) => void;
   lapsedOrder: LapsedOrder;
   setLapsedOrder: (order: LapsedOrder) => void;
-  /** Forgets every stored preference and puts this store back on the defaults. */
   clearPreferences: () => void;
 }
 

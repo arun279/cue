@@ -27,7 +27,7 @@ describe("classifyStatus", () => {
     expect(classifyStatus(dispatchResult(503), 1, 0)).toEqual({ kind: "retry", delayMs: 2200 });
   });
 
-  it("fails on other 4xx (request did not apply → roll back)", () => {
+  it("fails on other 4xx, which Trakt did not apply", () => {
     expect(classifyStatus(dispatchResult(404), 0, 0).kind).toBe("failed");
     expect(classifyStatus(dispatchResult(400), 0, 0).kind).toBe("failed");
   });

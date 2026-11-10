@@ -1,7 +1,7 @@
 import type { EpisodeIds, MovieIds, ShowIds } from "../model/ids";
 import type { Stopped } from "../model/library";
 import type { MarkedEpisodes } from "../reversal";
-import type { QueuedOp, RequestDescriptor } from "./types";
+import type { QueuedOp, RequestDescriptor, WriteTarget } from "./types";
 
 const HISTORY = "/sync/history";
 const HISTORY_REMOVE = "/sync/history/remove";
@@ -144,7 +144,6 @@ function hideOp(list: Stopped, toState: "present" | "absent", params: HideOpPara
   };
 }
 
-/** Stops a show: hides it from progress, or drops it. */
 export function buildStopShowOp(stopped: Stopped, params: HideOpParams): QueuedOp {
   return hideOp(stopped, "present", params);
 }
@@ -271,4 +270,14 @@ export function historyTargetsOf(op: QueuedOp): {
     shows: bodies.flatMap((body) => (body.shows ?? []).map((show) => show.ids.trakt)),
     episodes: bodies.flatMap((body) => (body.episodes ?? []).map((episode) => episode.ids.trakt)),
   };
+}
+
+/** The show or movie a write names, when it names one: writes saved by earlier builds carry none. */
+export function targetOf(op: QueuedOp): WriteTarget | null {
+  if (op.target !== undefined) return op.target;
+  const bodies = [op.request.body, op.inverse.body] as HistoryBody[];
+  const show = bodies.find((body) => body.shows?.[0] !== undefined)?.shows?.[0]?.ids.trakt;
+  const movie = bodies.find((body) => body.movies?.[0] !== undefined)?.movies?.[0]?.ids.trakt;
+  if (show !== undefined) return { kind: "show", id: show };
+  return movie === undefined ? null : { kind: "movie", id: movie };
 }

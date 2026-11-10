@@ -1,4 +1,4 @@
-import type { QueuedOp } from "../domain/write-queue/types";
+import type { QueuedOp, WriteTarget } from "../domain/write-queue/types";
 import type { CueRuntime } from "../runtime/runtime";
 
 const locks = new Map<string, unknown>();
@@ -34,6 +34,8 @@ export function hasPendingMark(runtime: CueRuntime, itemKey: string): boolean {
   return hasWriteLock(pendingMarkLock(itemKey)) || pendingMark(runtime, itemKey) !== undefined;
 }
 
+const keyOf = ({ kind, id }: WriteTarget): string => `${kind}:${id}`;
+
 const readBacks = new Map<string, { writes: number; owed: (() => void)[] }>();
 const latestWrites = new Map<string, number>();
 let writesStarted = 0;
@@ -41,30 +43,32 @@ let writesPending = 0;
 let sharedReads: (() => void)[] = [];
 
 /** Counts a write to `target`, so no read back of it runs while this write is still pending. */
-export function beginWrite(target: string): void {
-  const pending = readBacks.get(target) ?? { writes: 0, owed: [] };
+export function beginWrite(target: WriteTarget): void {
+  const key = keyOf(target);
+  const pending = readBacks.get(key) ?? { writes: 0, owed: [] };
   pending.writes += 1;
-  readBacks.set(target, pending);
+  readBacks.set(key, pending);
   writesPending += 1;
   writesStarted += 1;
-  latestWrites.set(target, writesStarted);
+  latestWrites.set(key, writesStarted);
 }
 
 /** Which write to `target` began last; a later write gives a higher number. */
-export const latestWrite = (target: string): number => latestWrites.get(target) ?? 0;
+export const latestWrite = (target: WriteTarget): number => latestWrites.get(keyOf(target)) ?? 0;
 
-/** How many writes have begun; a write to `target` began since `seen` if `latestWrite` exceeds it. */
+/** How many writes have begun, to compare with `latestWrite`. */
 export const writesBegun = (): number => writesStarted;
 
 /** Ends a write to `target`; once none is left pending, runs every read back owed to it. */
-export function endWrite(target: string, readBack: (() => void) | null): void {
-  const pending = readBacks.get(target);
+export function endWrite(target: WriteTarget, readBack: (() => void) | null): void {
+  const key = keyOf(target);
+  const pending = readBacks.get(key);
   if (pending === undefined) return;
   writesPending -= 1;
   if (readBack !== null) pending.owed.push(readBack);
   pending.writes -= 1;
   if (pending.writes === 0) {
-    readBacks.delete(target);
+    readBacks.delete(key);
     for (const owed of pending.owed) owed();
   }
   if (writesPending > 0) return;

@@ -85,6 +85,8 @@ export interface CueRuntime {
   settled(opId: string): Promise<WriteOutcome>;
   writeState(opId: string): WriteState;
   writeReceipt(opId: string): WriteReceipt | null;
+  /** Hands `readBack` every write Trakt refused; each is kept on the device until it resolves. */
+  onRefused(readBack: (op: QueuedOp) => Promise<void>): () => void;
   readsPausedUntil(): number;
   subscribeReadPause(listener: () => void): () => void;
   readRetryFailure(): TraktFailure | null;
@@ -136,6 +138,7 @@ export function forScreens(runtime: CueRuntime): CueRuntime {
     settled: quiet(runtime.settled),
     writeState: runtime.writeState,
     writeReceipt: runtime.writeReceipt,
+    onRefused: runtime.onRefused,
     readsPausedUntil: runtime.readsPausedUntil,
     subscribeReadPause: runtime.subscribeReadPause,
     readRetryFailure: runtime.readRetryFailure,

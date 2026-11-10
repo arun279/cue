@@ -1,23 +1,23 @@
 import { useCallback } from "react";
+import type { QueuedOp, WriteTarget } from "../domain/write-queue/types";
 import { type SubmitOutcome, useRuntime } from "../runtime/runtime";
-import { applyOptimisticWrite, type OptimisticChange } from "./optimistic-write";
+import { applyOptimisticWrite } from "./optimistic-write";
 import { useTrackedSubmit } from "./useTrackedSubmit";
 
 /** The show or movie a write changes; its read back waits for every pending write to it. */
-export const writeTarget = (kind: "show" | "movie", id: number): string => `${kind}:${id}`;
+export const writeTarget = (kind: WriteTarget["kind"], id: number): WriteTarget => ({ kind, id });
 
 export type SubmitOptimistic = (
-  target: string,
-  changes: readonly OptimisticChange[],
-  revalidate: () => void,
+  target: WriteTarget,
+  ops: readonly QueuedOp[],
+  revalidate?: () => void,
 ) => Promise<SubmitOutcome>;
 
 export function useOptimisticWrite(): SubmitOptimistic {
   const submit = useTrackedSubmit();
   const { settled } = useRuntime();
   return useCallback(
-    (target, changes, revalidate) =>
-      applyOptimisticWrite({ submit, settled }, target, changes, revalidate),
+    (target, ops, revalidate) => applyOptimisticWrite({ submit, settled }, target, ops, revalidate),
     [submit, settled],
   );
 }

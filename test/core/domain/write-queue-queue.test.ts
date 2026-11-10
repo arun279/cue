@@ -49,6 +49,7 @@ function harness(
       settle: () => "applied",
       ownPlays,
       save: async () => {},
+      refused: () => {},
     },
     dispatch,
     clock,
@@ -117,20 +118,41 @@ describe("WriteQueue failure classification", () => {
     expect(h.slept).toEqual([1100, 2200, 4400, 8800]);
   });
 
-  it("gives up a write refused for five minutes and moves on to the next", async () => {
+  it("gives up a write Trakt has kept waiting through five minutes of attempts, and moves on to the next", async () => {
     const h = harness((req) =>
-      Promise.resolve(dispatchResult(JSON.stringify(req).includes('"trakt":1') ? 503 : 200)),
+      Promise.resolve(
+        JSON.stringify(req).includes('"trakt":1')
+          ? dispatchResult(429, { "retry-after": "60" })
+          : dispatchResult(200),
+      ),
     );
     const q = new WriteQueue(h.deps, [mark("a", 1), mark("b", 2)]);
     await q.flush();
-    await h.clock.sleep(240_000);
-    await q.flush();
     expect(states(q, "a", "b")).toEqual(["sent", "sent"]);
-    await h.clock.sleep(60_000);
     await q.flush();
     expect(states(q, "a", "b")).toEqual(["failed", "done"]);
     await expect(q.settled("a")).resolves.toBe("failed");
     expect(q.size).toBe(0);
+  });
+
+  it("counts only time spent waiting on Trakt toward giving up, not a day with no attempts", async () => {
+    const answers: (DispatchResult | null)[] = [
+      dispatchResult(503),
+      null,
+      dispatchResult(429, { "retry-after": "60" }),
+      null,
+    ];
+    const h = harness(async () => {
+      const answer = answers.shift() ?? null;
+      if (answer === null) throw new Error("offline");
+      return answer;
+    });
+    const q = new WriteQueue(h.deps, [mark("a", 1)]);
+    await q.flush();
+    await h.clock.sleep(86_400_000);
+    await q.flush();
+
+    expect(q.stateOf("a")).toBe("sent");
   });
 
   it("gives up on a write once it has been refused for five minutes, then waits out the pause before the next", async () => {
@@ -260,9 +282,7 @@ describe("WriteQueue concurrency safety", () => {
   it("is single-flight: concurrent flush calls share one drain, never double-dispatching", async () => {
     const h = harness(ok);
     const q = new WriteQueue(h.deps, [mark("a", 1), mark("b", 2)]);
-    const first = q.flush();
-    expect(q.flush()).toBe(first);
-    await first;
+    await Promise.all([q.flush(), q.flush()]);
     expect(h.dispatch).toHaveBeenCalledTimes(2);
   });
 
@@ -273,10 +293,71 @@ describe("WriteQueue concurrency safety", () => {
     q.enqueue(mark("a", 1));
     expect(q.stateOf("a")).toBe("unsent");
     const flushed = q.flush();
+    await vi.waitFor(() => expect(h.dispatch).toHaveBeenCalled());
     expect(q.stateOf("a")).toBe("sent");
     held.release(dispatchResult(200));
     await flushed;
     expect(q.stateOf("a")).toBe("done");
+  });
+});
+
+describe("WriteQueue saving", () => {
+  it("sends a write only once the device has kept it, and fails one it cannot keep", async () => {
+    const h = harness(ok);
+    let full: (error: Error) => void = () => {};
+    let saving = false;
+    const refused: string[] = [];
+    const q = new WriteQueue({
+      ...h.deps,
+      save: () =>
+        saving
+          ? Promise.resolve()
+          : new Promise((_, reject) => {
+              saving = true;
+              full = reject;
+            }),
+      refused: (op) => refused.push(op.id),
+    });
+    q.enqueue(mark("a", 1));
+    const flushed = q.flush();
+    await h.clock.sleep(0);
+    expect(h.dispatch).not.toHaveBeenCalled();
+    full(new Error("storage full"));
+    await flushed;
+
+    expect(q.stateOf("a")).toBe("failed");
+    expect(h.dispatch).not.toHaveBeenCalled();
+    expect(refused).toEqual(["a"]);
+  });
+});
+
+describe("WriteQueue saving a cancelled pair", () => {
+  it("leaves two opposite writes cancelled when saving the first of them fails afterwards", async () => {
+    const h = harness(ok);
+    let full: (error: Error) => void = () => {};
+    let holding = false;
+    const refused: string[] = [];
+    const q = new WriteQueue({
+      ...h.deps,
+      save: () =>
+        holding
+          ? Promise.resolve()
+          : new Promise((_, reject) => {
+              holding = true;
+              full = reject;
+            }),
+      refused: (op) => refused.push(op.id),
+    });
+    q.enqueue(mark("a", 1));
+    await h.clock.sleep(0);
+    q.enqueue(unmark("b", 1));
+    await expect(q.settled("a")).resolves.toBe("cancelled");
+    full(new Error("storage full"));
+    await q.flush();
+
+    expect(states(q, "a", "b")).toEqual(["cancelled", "cancelled"]);
+    expect(refused).toEqual([]);
+    expect(h.dispatch).not.toHaveBeenCalled();
   });
 });
 
@@ -384,11 +465,14 @@ describe("WriteQueue taking back an add that may be on Trakt", () => {
       order.push(`send ${JSON.stringify(req)}`);
       return dispatchResult(200);
     });
-    let saves = 0;
-    const save = async () => {
-      saves += 1;
-      order.push(saves === 1 ? "save refused" : "saved");
-      if (saves === 1) throw new Error("storage full");
+    let full = true;
+    const save = async (ops: readonly QueuedOp[]) => {
+      if (!ops.some((op) => op.id === "undo" && op.undoes === undefined)) return;
+      order.push(full ? "save refused" : "saved");
+      if (full) {
+        full = false;
+        throw new Error("storage full");
+      }
     };
     const added = mark("a", 1);
     const q = new WriteQueue({ ...h.deps, save }, [added]);

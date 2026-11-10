@@ -42,7 +42,7 @@ export function showProgressKeys(
   return keys;
 }
 
-export function invalidateShowProgress(
+function invalidateShowProgress(
   qc: QueryClient,
   showId: number,
   episode?: { readonly season: number; readonly number: number } | "all",

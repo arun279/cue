@@ -12,6 +12,7 @@ import {
   buildUnmarkEpisodeOp,
   buildUnmarkMovieOp,
   episodeItemKey,
+  targetOf,
 } from "@/core/domain/write-queue/ops";
 
 const WATCHED_AT = "2026-07-05T12:00:00.000Z";
@@ -256,5 +257,20 @@ describe("watchlist op builders", () => {
     expect(op.request.body).toEqual({ movies: [{ ids: { trakt: 5 } }] });
     expect(op.inverse.path).toBe("/sync/watchlist");
     expect(op).toMatchObject({ itemKey: "watchlist:movies:5", toState: "absent" });
+  });
+});
+
+describe("targetOf", () => {
+  it("names the show or movie of a write saved before writes carried one, and none for a lone episode", () => {
+    const watchedAt = "2026-07-05T12:00:00.000Z";
+    expect(targetOf(buildStopShowOp("hidden", { opId: "a", ids: { trakt: 7 } }))).toEqual({
+      kind: "show",
+      id: 7,
+    });
+    expect(targetOf(buildMarkMovieOp({ opId: "b", ids: { trakt: 9 }, watchedAt }))).toEqual({
+      kind: "movie",
+      id: 9,
+    });
+    expect(targetOf(buildMarkEpisodeOp({ opId: "c", ids: { trakt: 11 }, watchedAt }))).toBeNull();
   });
 });

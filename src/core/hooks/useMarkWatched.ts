@@ -126,15 +126,6 @@ export function useMarkWatched(): MarkWatched {
     [queryClient],
   );
 
-  const restorePreMark = useCallback(
-    (record: MarkRecord) => {
-      forgetOwnMark(record.showId);
-      patch(record.showId, (entry) => withMarkFields(entry, record.beforeMark));
-      patchProgress(record.showId, { season: record.season, number: record.number }, false, null);
-    },
-    [patch, patchProgress],
-  );
-
   const reapplyMark = useCallback(
     (record: MarkRecord) => {
       keepOwnMark(record.showId, record);
@@ -154,10 +145,12 @@ export function useMarkWatched(): MarkWatched {
   /** Shows the mark undone at once, with the show stopped again if the mark resumed it. */
   const showUndone = useCallback(
     (record: MarkRecord) => {
-      restorePreMark(record);
+      forgetOwnMark(record.showId);
+      patch(record.showId, (entry) => withMarkFields(entry, record.beforeMark));
+      patchProgress(record.showId, { season: record.season, number: record.number }, false, null);
       if (record.stopped !== null) patchStopped(queryClient, record.showId, record.stopped);
     },
-    [queryClient, restorePreMark],
+    [queryClient, patch, patchProgress],
   );
 
   const showKept = useCallback(
@@ -174,13 +167,13 @@ export function useMarkWatched(): MarkWatched {
       episode: { readonly season: number; readonly number: number },
       ownMark?: OwnMark,
     ) => {
-      refreshShowProgress(
+      void refreshShowProgress(
         queryClient,
         showId,
         () => runtime.loadShowProgress(showId),
         episode,
         ownMark,
-      );
+      ).catch(() => undefined);
       void queryClient.invalidateQueries({ queryKey: queryKeys.historyPrefix() });
     },
     [queryClient, runtime],
@@ -201,6 +194,18 @@ export function useMarkWatched(): MarkWatched {
     [runtime],
   );
 
+  /** Keeps a mark its Undo cannot take back, says why, and reads the show back from Trakt. */
+  const keepMark = useCallback(
+    (record: MarkRecord, why: "replaced" | "unknown") => {
+      showKept(record);
+      if (why === "replaced") showReplaced(record, true);
+      else showUndoFailed(haptics, record.title);
+      const at = { season: record.season, number: record.number };
+      revalidate(record.showId, at, why === "unknown" ? record : undefined);
+    },
+    [showKept, haptics, revalidate],
+  );
+
   const runReversal = useCallback(
     async (record: MarkRecord): Promise<SubmitOutcome | null> => {
       const pressed = writesBegun();
@@ -210,9 +215,7 @@ export function useMarkWatched(): MarkWatched {
       }
       const mark = takeBackMark(record, priorPlay);
       if (mark === "replaced" || mark === "unknown") {
-        showKept(record);
-        if (mark === "replaced") showReplaced(record, true);
-        else showUndoFailed(haptics, record.title);
+        keepMark(record, mark);
         return null;
       }
       const target = writeTarget("show", record.showId);
@@ -220,7 +223,7 @@ export function useMarkWatched(): MarkWatched {
       const reversal =
         mark === null
           ? null
-          : submit(target, [{ ops: [mark], revert: () => showKept(record) }], () =>
+          : submit(target, [mark], () =>
               revalidate(record.showId, { season: record.season, number: record.number }),
             );
       if (record.stopped !== null && undoIsLatest) {
@@ -233,21 +236,19 @@ export function useMarkWatched(): MarkWatched {
       }
       return reversal;
     },
-    [runtime, takeBackMark, submit, showKept, revalidate, haptics, resume],
+    [runtime, takeBackMark, submit, keepMark, revalidate, resume],
   );
 
   const submitReversal = useCallback(
     async (record: MarkRecord) => {
       requestReversal(record.opId);
-      let outcome: SubmitOutcome | null;
       try {
-        outcome = await runReversal(record);
+        await runReversal(record);
       } finally {
         settleReversal(record.opId);
       }
-      if (outcome === "failed") showUndoFailed(haptics, record.title);
     },
-    [runReversal, haptics],
+    [runReversal],
   );
 
   const undoBatch = useCallback(async () => {
@@ -288,19 +289,11 @@ export function useMarkWatched(): MarkWatched {
   const settleMark = useCallback(
     (record: MarkRecord, outcome: SubmitOutcome) => {
       const replaced = outcome === "done" && replacedPlays(runtime.writeReceipt(record.opId)) > 0;
-      if (replaced) forgetOwnMark(record.showId);
-      if ((!replaced && outcome !== "failed") || !retire(record)) return;
-      if (replaced) {
+      if ((replaced || outcome === "failed") && retire(record) && replaced) {
         showReplaced(record, false);
-        return;
       }
-      haptics.failure();
-      showSnack({
-        message: `Couldn't mark ${record.title} watched. Please try again.`,
-        actions: [{ label: "Dismiss", onPress: dismissSnack }],
-      });
     },
-    [runtime, haptics],
+    [runtime],
   );
 
   const mark = useCallback(
@@ -351,15 +344,12 @@ export function useMarkWatched(): MarkWatched {
 
       let outcome: SubmitOutcome;
       try {
-        const marking = submit(
-          writeTarget("show", entry.showId),
-          [{ ops: [op], revert: () => restorePreMark(record) }],
-          () => {
-            if (isReversalRequested(opId)) return;
-            const at = { season: episode.season, number: episode.number };
-            revalidate(entry.showId, at, runtime.writeState(opId) === "done" ? record : undefined);
-          },
-        );
+        const marking = submit(writeTarget("show", entry.showId), [op], () => {
+          if (isReversalRequested(opId)) return;
+          const replaced = replacedPlays(runtime.writeReceipt(opId)) > 0;
+          const at = { season: episode.season, number: episode.number };
+          revalidate(entry.showId, at, replaced ? undefined : record);
+        });
         if (record.stopped !== null) resume.resume(entry.showId, { trakt: entry.showId });
         outcome = await marking;
       } finally {
@@ -373,7 +363,6 @@ export function useMarkWatched(): MarkWatched {
       patch,
       patchProgress,
       presentBatch,
-      restorePreMark,
       revalidate,
       submit,
       haptics,

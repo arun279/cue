@@ -23,4 +23,15 @@ export interface QueuedOp {
    * are found once, when this write is first due, and the write then removes exactly those.
    */
   readonly undoes?: string;
+  readonly target?: WriteTarget;
+  /** How long Trakt has kept this write waiting between attempts, across flushes and restarts. */
+  readonly waitedMs?: number;
+  /** Trakt refused it, and what it showed on screen has not been read back from Trakt yet. */
+  readonly refused?: true;
+}
+
+/** The show or movie whose screens show a write. */
+export interface WriteTarget {
+  readonly kind: "show" | "movie";
+  readonly id: number;
 }

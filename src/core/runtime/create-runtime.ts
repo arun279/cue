@@ -73,6 +73,7 @@ import { useReadIncidents } from "../stores/read-incidents-store";
 import { useRevealedStills } from "../stores/revealed-stills-store";
 import { dismissSnack } from "../stores/snackbar-store";
 import { useSyncActivity } from "../stores/sync-activity-store";
+import { createRefusals } from "./refusals";
 import type {
   ActivitiesReconcile,
   BrowseData,
@@ -132,7 +133,6 @@ async function ownPlayIds(
   return rows.flat().map((play) => play.historyId);
 }
 
-/** Every client store that holds something of one account. */
 const ACCOUNT_STORES: readonly (() => void)[] = [
   resetMarkStore,
   dismissSnack,
@@ -142,7 +142,6 @@ const ACCOUNT_STORES: readonly (() => void)[] = [
   () => useRevealedStills.setState(useRevealedStills.getInitialState()),
 ];
 
-/** Removes everything the device keeps for an account, so the next one starts without it. */
 export async function clearAccount(
   deps: Pick<RuntimeDeps, "kv" | "clearPersistedCaches" | "clearLocalPreferences" | "reminders">,
 ): Promise<void> {
@@ -218,7 +217,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     signal,
   });
 
-  const queue = new WriteQueue(
+  const queue: WriteQueue = new WriteQueue(
     {
       dispatch: createTraktTransport(client),
       sleep: (ms) => sleep(ms, signal),
@@ -226,12 +225,12 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       settle: receipts.settle,
       ownPlays: (undo) => ownPlayIds(client, undo),
       save: (ops) => opLogStore.write([...ops]),
+      refused: (op) => refusals.refused(op),
     },
     (await opLogStore.read()) ?? [],
   );
-
-  const persistLog = (): Promise<void> => opLogStore.write(queue.snapshot());
-  void queue.flush().then(persistLog);
+  const refusals = createRefusals(queue);
+  void queue.flush();
 
   const { readsPausedUntil, subscribeReadPause, readRetryFailure, subscribeReadRetry } =
     client.reads;
@@ -386,12 +385,12 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
 
     async submit(op: QueuedOp): Promise<SubmitOutcome> {
       queue.enqueue(op);
-      await persistLog();
       await queue.flush();
-      await persistLog();
       const state = queue.stateOf(op.id);
       return state === "unsent" || state === "sent" ? "deferred" : state;
     },
+
+    onRefused: refusals.onRefused,
 
     settled: (opId) => queue.settled(opId),
     writeState: (opId) => queue.stateOf(opId),
@@ -411,14 +410,14 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
 
     async flushWrites(): Promise<number> {
       await queue.flush();
-      await persistLog();
-      return queue.snapshot().length;
+      return queue.size;
     },
 
     async pollActivities(): Promise<ActivitiesReconcile | null> {
       const stored = await activitiesStore.read();
       const poll = await getLastActivities(client);
       if (!poll.ok) return null;
+      refusals.retry();
       return {
         keys: stored === null ? [] : changedActivityKeys(stored, poll.data),
         commit: () => activitiesStore.write(poll.data),
@@ -428,7 +427,6 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     async endLocalSession(): Promise<void> {
       if (!signal.aborted) {
         await queue.flush();
-        await persistLog();
         if (!signal.aborted && queue.size > 0) throw new PendingWritesError();
       }
       return end();

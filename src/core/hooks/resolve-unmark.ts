@@ -45,18 +45,13 @@ export async function resolveEpisodeUnmark(
   return plan.removeIds.length === 0 ? { kind: "none" } : { kind: "remove", plan };
 }
 
-/**
- * Whether the plays at a mark's own minute can only be the mark's: the item had none before it, or
- * the account keeps every play, so the mark cannot have replaced an earlier one.
- */
+/** Whether a mark cannot have replaced an earlier play: the item had none, or the account keeps all. */
 export const canRemoveOwnPlays = (priorPlay: boolean): boolean =>
   !priorPlay || usePlayPolicy.getState().policy === "multiple";
 
 /**
- * Whether an Undo can take back marks that may be on Trakt. Not when one replaced an earlier play,
- * which taking it back would lose. Otherwise only when the plays at the marks' minute can be theirs
- * alone: the item had none before, the account keeps every play, or Trakt answered each mark's first
- * send saying it added them.
+ * Whether an Undo can take back marks that may be on Trakt: never one that replaced an earlier play,
+ * and otherwise only when the plays at their minute are theirs alone or Trakt said it added them.
  */
 export function takeBack(
   runtime: CueRuntime,
@@ -96,11 +91,7 @@ const SENT_POLL_TRIES = 50;
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-/**
- * Waits, for as long as an Undo can, until none of these writes is sent but not yet answered for
- * good, so Undo knows whether each one landed. Sends the queue first: a write whose answer was lost
- * goes again.
- */
+/** Waits, as long as an Undo can, until Trakt has answered each of these writes for good. */
 export async function waitUntilSettled(
   runtime: CueRuntime,
   opIds: readonly string[],

@@ -1,5 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { invalidateShowProgress } from "../data/query-invalidation";
+import { showProgressKeys } from "../data/query-invalidation";
 import { queryKeys } from "../data/query-keys";
 import type { EpisodeDetail } from "../domain/episode-detail";
 import {
@@ -15,8 +15,11 @@ import {
   type ShowProgress,
   toEpisodeRef,
 } from "../domain/show-detail";
-import type { UpNextData } from "../runtime/runtime";
+import { targetOf } from "../domain/write-queue/ops";
+import type { QueuedOp, WriteTarget } from "../domain/write-queue/types";
+import type { CueRuntime, UpNextData } from "../runtime/runtime";
 import { forgetOwnMark, isBehindOwnMark, keepOwnMark, type OwnMark } from "../stores/own-marks";
+import { whenNoWritePending } from "../stores/write-locks";
 
 export function ensureLibraryEntry(qc: QueryClient, entry: LibraryEntry): void {
   qc.setQueryData<UpNextData>(queryKeys.library(), (old) =>
@@ -55,23 +58,85 @@ function patchLibraryProgress(qc: QueryClient, showId: number, progress: ShowPro
   }));
 }
 
-export function refreshShowProgress(
+/** Reads the show's progress, seasons and episode pages again; fails unless Trakt answered. */
+export async function refreshShowProgress(
   qc: QueryClient,
   showId: number,
   load: () => Promise<ShowProgress>,
   episode?: { readonly season: number; readonly number: number } | "all",
   ownMark?: OwnMark,
-): void {
+): Promise<void> {
   if (ownMark === undefined) forgetOwnMark(showId);
   else keepOwnMark(showId, ownMark);
-  invalidateShowProgress(qc, showId, episode);
-  void qc
-    .fetchQuery({ queryKey: queryKeys.showProgress(showId), queryFn: load })
-    .then((progress) => {
-      if (!isBehindOwnMark(showId, progress.completed)) patchLibraryProgress(qc, showId, progress);
-    })
-    .catch(() => {});
+  const progressKey = queryKeys.showProgress(showId);
+  const views = showProgressKeys(showId, episode).slice(1);
+  await qc.invalidateQueries({ queryKey: progressKey, refetchType: "none" });
+  const progress = qc.fetchQuery({ queryKey: progressKey, queryFn: load }).then((read) => {
+    assertRead(qc, [progressKey], "all");
+    if (!isBehindOwnMark(showId, read.completed)) patchLibraryProgress(qc, showId, read);
+  });
+  await Promise.all([progress, reread(qc, views)]);
 }
+
+/** Reads lists that hold many shows or movies again once no write to any of them is pending. */
+export const rereadLists = (qc: QueryClient, keys: readonly (readonly unknown[])[]): void =>
+  whenNoWritePending(() => {
+    for (const queryKey of keys) void qc.invalidateQueries({ queryKey });
+  });
+
+type Keys = readonly (readonly unknown[])[];
+
+/** Fails unless every one of these queries has been read since it was marked out of date. */
+function assertRead(qc: QueryClient, keys: Keys, type: "active" | "all"): void {
+  const cache = qc.getQueryCache();
+  const unread = keys.some((queryKey) =>
+    cache.findAll({ queryKey, type }).some((query) => query.state.isInvalidated),
+  );
+  if (unread) throw new Error("Trakt was not read again");
+}
+
+/**
+ * Reads these queries again, those no screen shows too with "all". All are marked out of date before
+ * any is fetched, so one built from another reads it fresh; a read that pauses or is cancelled fails.
+ */
+async function reread(qc: QueryClient, keys: Keys, type: "active" | "all" = "active") {
+  await Promise.all(
+    keys.map((queryKey) => qc.invalidateQueries({ queryKey, refetchType: "none" })),
+  );
+  const options = { throwOnError: true, cancelRefetch: false };
+  await Promise.all(keys.map((queryKey) => qc.refetchQueries({ queryKey, type }, options)));
+  assertRead(qc, keys, type);
+}
+
+const LIBRARY = queryKeys.library();
+const MOVIE_LISTS = [queryKeys.movieLibrary(), queryKeys.movieWatchlist()];
+const listsOf = (target: WriteTarget | null): readonly (readonly unknown[])[] => {
+  if (target === null) return [LIBRARY, ...MOVIE_LISTS];
+  return target.kind === "show" ? [LIBRARY] : MOVIE_LISTS;
+};
+const SHOW_VIEWS = (["progress", "seasons", "episode"] as const).map(queryKeys.showSection);
+
+/**
+ * Reads back what a refused write showed: its show's progress at once, and the lists once no write
+ * is pending. A write that names no show or movie reads every show and list. Fails unless Trakt
+ * answered every read.
+ */
+export const readBackRefused =
+  (qc: QueryClient, runtime: Pick<CueRuntime, "loadShowProgress">) =>
+  async (op: QueuedOp): Promise<void> => {
+    const target = targetOf(op);
+    const history = op.request.path.startsWith("/sync/history");
+    await Promise.all([
+      history && reread(qc, [queryKeys.historyPrefix()]),
+      history &&
+        target?.kind === "show" &&
+        refreshShowProgress(qc, target.id, () => runtime.loadShowProgress(target.id), "all"),
+      history && target === null && reread(qc, SHOW_VIEWS),
+      new Promise((resolve) =>
+        whenNoWritePending(() => resolve(reread(qc, listsOf(target), "all"))),
+      ),
+    ]);
+  };
 
 export function patchStopped(qc: QueryClient, showId: number, stopped: Stopped | null): void {
   patchLibraryEntry(qc, showId, (e) => ({
@@ -95,25 +160,15 @@ export function stoppedIn(qc: QueryClient, showId: number): Stopped | null {
   return entry === undefined ? null : stoppedOf(entry);
 }
 
-/** Sets the matching episodes watched or not, and returns the `season:number` of each it changed. */
 export function patchShowSeasons(
   qc: QueryClient,
   showId: number,
   match: EpisodeMatch,
   watched: boolean,
-): ReadonlySet<string> {
-  const key = queryKeys.showSeasons(showId);
-  const changed = new Set(
-    (qc.getQueryData<readonly SeasonView[]>(key) ?? []).flatMap((season) =>
-      season.episodes
-        .filter((e) => e.watched !== watched && match(season.number, e.number, e.aired))
-        .map((e) => `${season.number}:${e.number}`),
-    ),
-  );
-  qc.setQueryData<readonly SeasonView[]>(key, (old) =>
+): void {
+  qc.setQueryData<readonly SeasonView[]>(queryKeys.showSeasons(showId), (old) =>
     old === undefined ? old : patchEpisodes(old, match, watched),
   );
-  return changed;
 }
 
 export function patchEpisodeDetail(

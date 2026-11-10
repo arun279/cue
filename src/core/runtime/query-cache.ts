@@ -1,6 +1,7 @@
 import {
   QueryClient as Client,
   type DehydratedState,
+  dehydrate,
   partialMatchKey,
   type Query,
   type QueryClient,
@@ -91,4 +92,17 @@ export function restorableCache<T extends { readonly clientState: DehydratedStat
       ),
     },
   };
+}
+
+/** Saves the cache to `storage` at once, as its persister would, for a change that must survive a restart. */
+export function writeQueryCache(
+  client: QueryClient,
+  storage: { setItem(key: string, value: string): Promise<unknown> },
+  key: string,
+  buster: string,
+): Promise<void> {
+  const { shouldDehydrateQuery } = createQueryCachePolicy(client);
+  const clientState = dehydrate(client, { shouldDehydrateQuery });
+  const saved = JSON.stringify(restorableCache({ buster, timestamp: Date.now(), clientState }));
+  return storage.setItem(key, saved).then(() => undefined);
 }

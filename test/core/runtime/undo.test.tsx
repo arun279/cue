@@ -12,6 +12,7 @@ import { useMarkWatched } from "@/core/hooks/useMarkWatched";
 import { libraryQuery } from "@/core/queries/library";
 import { showSeasonsQuery } from "@/core/queries/shows";
 import { createQueryClient } from "@/core/runtime/query-cache";
+import { REFUSED_MESSAGE } from "@/core/runtime/refusals";
 import { resetMarkStore } from "@/core/stores/mark-store";
 import { useSnackbar } from "@/core/stores/snackbar-store";
 import { buildRuntime } from "../data/_runtime";
@@ -97,7 +98,7 @@ it("shows a stopped show as Trakt has it when the mark that resumed it is refuse
   await act(() => up.result.current.mark(entryOf(HIDDEN)));
   await act(() => cue.flushWrites());
 
-  expect(useSnackbar.getState().snack?.message).toBe("Couldn't save an earlier change to Trakt.");
+  expect(useSnackbar.getState().snack?.message).toBe(REFUSED_MESSAGE);
   expect(entryOf(HIDDEN).hidden).toBe(onTrakt(HIDDEN).hidden);
 });
 

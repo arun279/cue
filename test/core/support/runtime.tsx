@@ -11,8 +11,12 @@ export const withRuntime =
     </QueryClientProvider>
   );
 
-/** A runtime with only the members a suite exercises, typed so a stub matches the real signature. */
-export const partialRuntime = (members: Partial<CueRuntime>): CueRuntime => members as CueRuntime;
+/**
+ * A runtime with only the members a suite exercises, typed so a stub matches the real signature.
+ * It refuses no write unless the suite says so.
+ */
+export const partialRuntime = (members: Partial<CueRuntime>): CueRuntime =>
+  ({ onRefused: () => () => {}, ...members }) as CueRuntime;
 
 /** Presses Undo on the snack on screen, as the person would; resolves once the Undo is done. */
 export async function pressUndo(): Promise<void> {

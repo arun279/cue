@@ -108,14 +108,10 @@ describe("useHideShow", () => {
     expect(queryClient.getQueryData(queryKeys.library())).toBeUndefined();
   });
 
-  it("puts the show back and offers no Undo when Trakt refuses the write", async () => {
-    const { controls, hidden } = setup("failed");
+  it("offers no Undo when Trakt refuses the write", async () => {
+    const { controls } = setup("failed");
     await act(async () => controls.current.hide(7, { trakt: 7 }, "Severance"));
-    expect(hidden()).toBe(false);
-    expect(snack()?.message).toBe("Couldn't stop watching Severance. Please try again.");
-    expect(snack()?.actions?.map((action) => action.label)).toEqual(["Dismiss"]);
-
     await act(async () => controls.current.unhide(7, { trakt: 7 }, "Severance"));
-    expect(snack()?.message).toBe("Couldn't resume Severance. Please try again.");
+    expect(snack()).toBeNull();
   });
 });

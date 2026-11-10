@@ -37,6 +37,7 @@ function queueWith(ops = [mark("op-1", 880120)]) {
       settle: () => "applied",
       ownPlays: () => Promise.resolve([]),
       save: () => Promise.resolve(),
+      refused: () => {},
     },
     ops,
   );

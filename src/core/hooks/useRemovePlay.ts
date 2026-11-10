@@ -8,9 +8,8 @@ import {
   buildRemoveHistoryPlayOp,
 } from "../domain/write-queue/ops";
 import { type SubmitOutcome, useRuntime } from "../runtime/runtime";
-import { dismissSnack, showSnack, showUndoable } from "../stores/snackbar-store";
-import { whenNoWritePending } from "../stores/write-locks";
-import { refreshShowProgress } from "./library-cache";
+import { showUndoable } from "../stores/snackbar-store";
+import { refreshShowProgress, rereadLists } from "./library-cache";
 import { useOptimisticWrite, writeTarget } from "./useOptimisticWrite";
 
 export interface RemovePlayController {
@@ -24,10 +23,6 @@ const withoutId = (set: ReadonlySet<number>, id: number): Set<number> => {
   return next;
 };
 
-function showError(message: string): void {
-  showSnack({ message, actions: [{ label: "Dismiss", onPress: dismissSnack }] });
-}
-
 export function useRemovePlay(): RemovePlayController {
   const runtime = useRuntime();
   const queryClient = useQueryClient();
@@ -38,17 +33,15 @@ export function useRemovePlay(): RemovePlayController {
     (entry: HistoryEntry) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.historyPrefix() });
       if (entry.type === "movie") {
-        whenNoWritePending(
-          () => void queryClient.invalidateQueries({ queryKey: queryKeys.movieLibrary() }),
-        );
+        rereadLists(queryClient, [queryKeys.movieLibrary()]);
         return;
       }
-      refreshShowProgress(
+      void refreshShowProgress(
         queryClient,
         entry.mediaId,
         () => runtime.loadShowProgress(entry.mediaId),
         { season: entry.season, number: entry.number },
-      );
+      ).catch(() => undefined);
     },
     [queryClient, runtime],
   );
@@ -62,17 +55,11 @@ export function useRemovePlay(): RemovePlayController {
         ids: entry.ids,
         watchedAt: entry.watchedAt,
       });
-      const outcome = await submit(
+      await submit(
         writeTarget(entry.type === "movie" ? "movie" : "show", entry.mediaId),
-        [
-          {
-            ops: [op],
-            revert: () => setRemovedIds((previous) => new Set(previous).add(entry.historyId)),
-          },
-        ],
+        [op],
         () => revalidate(entry),
       );
-      if (outcome === "failed") showError("Couldn't restore that play. Please try again.");
     },
     [submit, revalidate, runtime.newId],
   );
@@ -91,20 +78,18 @@ export function useRemovePlay(): RemovePlayController {
       });
       const removal = submit(
         writeTarget(entry.type === "movie" ? "movie" : "show", entry.mediaId),
-        [
-          {
-            ops: [op],
-            revert: () => setRemovedIds((previous) => withoutId(previous, entry.historyId)),
-          },
-        ],
+        [op],
         () => revalidate(entry),
       );
+      void runtime.settled(op.id).then((outcome) => {
+        if (outcome === "failed") setRemovedIds((previous) => withoutId(previous, entry.historyId));
+      });
       showUndoable(remaining > 0 ? `Removed 1 play · ${remaining} remain` : "Removed play", () =>
         restore(entry, removal),
       );
-      if ((await removal) === "failed") showError("Couldn't remove that play. Please try again.");
+      await removal;
     },
-    [submit, revalidate, restore, runtime.newId],
+    [submit, revalidate, restore, runtime],
   );
 
   return { removedIds, removePlay };
