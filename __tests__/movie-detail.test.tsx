@@ -160,7 +160,7 @@ it("keeps cached content when its refresh fails", async () => {
   expect(screen.queryByText("Couldn't load this movie")).toBeNull();
 });
 
-it("rolls back a rejected mark", async () => {
+it("says so when Trakt refuses a mark", async () => {
   const runtime = movieRuntime({ watched: false, watchedAt: null });
   runtime.submit.mockResolvedValue("failed");
   await mount(runtime);
@@ -168,7 +168,6 @@ it("rolls back a rejected mark", async () => {
   expect(
     await screen.findByText("Couldn't update this movie. Please try again."),
   ).toBeOnTheScreen();
-  expect(screen.getByTestId(TEST_IDS.movieMark)).not.toBeChecked();
 });
 
 it("keeps the watched face when resolving plays fails", async () => {

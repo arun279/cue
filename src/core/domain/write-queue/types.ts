@@ -23,4 +23,10 @@ export interface QueuedOp {
    * are found once, when this write is first due, and the write then removes exactly those.
    */
   readonly undoes?: string;
+  /** The show or movie whose screens show this write, as `show:<id>` or `movie:<id>`. */
+  readonly target?: string;
+  /** When Trakt first asked this write to wait. */
+  readonly refusedSince?: number;
+  /** Trakt refused it, and what it showed on screen has not been read back from Trakt yet. */
+  readonly refused?: true;
 }

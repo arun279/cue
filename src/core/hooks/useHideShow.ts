@@ -6,8 +6,7 @@ import type { LibraryEntry, Stopped } from "../domain/model/library";
 import { buildResumeShowOps, buildStopShowOp } from "../domain/write-queue/ops";
 import { useRuntime } from "../runtime/runtime";
 import { showFailure, showUndoable } from "../stores/snackbar-store";
-import { whenNoWritePending } from "../stores/write-locks";
-import { patchStopped, stoppedIn } from "./library-cache";
+import { patchStopped, rereadLists, stoppedIn } from "./library-cache";
 import { useOptimisticWrite, writeTarget } from "./useOptimisticWrite";
 
 export interface HideController {
@@ -23,9 +22,7 @@ export function useHideShow(): HideController {
 
   const revalidate = useCallback(
     (showId: number) => {
-      whenNoWritePending(
-        () => void queryClient.invalidateQueries({ queryKey: queryKeys.library() }),
-      );
+      void rereadLists(queryClient, [queryKeys.library()]);
       void queryClient.invalidateQueries({ queryKey: queryKeys.showProgress(showId) });
     },
     [queryClient],
@@ -40,11 +37,7 @@ export function useHideShow(): HideController {
         stopped === null
           ? buildResumeShowOps({ newId: runtime.newId, ids })
           : [buildStopShowOp(stopped, { opId: runtime.newId(), ids })];
-      const outcome = await submit(
-        writeTarget("show", showId),
-        [{ ops, revert: () => patchStopped(queryClient, showId, before) }],
-        () => revalidate(showId),
-      );
+      const outcome = await submit(writeTarget("show", showId), ops, () => revalidate(showId));
       if (outcome === "failed") {
         showFailure(
           `Couldn't ${stopped === null ? "resume" : "stop watching"} ${title}. Please try again.`,

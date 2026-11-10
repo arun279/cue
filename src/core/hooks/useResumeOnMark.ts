@@ -1,21 +1,16 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
-import { queryKeys } from "../data/query-keys";
 import type { ShowIds } from "../domain/model/ids";
 import type { Stopped } from "../domain/model/library";
 import { buildResumeShowOps, buildStopShowOp } from "../domain/write-queue/ops";
 import type { QueuedOp } from "../domain/write-queue/types";
 import { useRuntime } from "../runtime/runtime";
-import { latestWrite, whenNoWritePending } from "../stores/write-locks";
+import { latestWrite } from "../stores/write-locks";
 import { patchStopped } from "./library-cache";
 import { useOptimisticWrite, writeTarget } from "./useOptimisticWrite";
 
 /** Both show their change on screen, and queue their writes behind every write queued before them. */
 export interface ResumeOnMark {
-  /**
-   * Resumes a stopped show. Trakt keeps the hidden and dropped lists apart, and either removal can
-   * be refused on its own, so after a refusal the library is read again rather than guessed.
-   */
   resume(showId: number, ids: ShowIds): void;
   /**
    * Stops a resumed show again the way it was stopped, once Trakt has taken every write in `after`;
@@ -32,26 +27,8 @@ export function useResumeOnMark(): ResumeOnMark {
 
   const resume = useCallback(
     (showId: number, ids: ShowIds): void => {
-      let refused = false;
       patchStopped(queryClient, showId, null);
-      void submit(
-        writeTarget("show", showId),
-        [
-          {
-            ops: buildResumeShowOps({ newId, ids }),
-            revert: () => {
-              refused = true;
-            },
-          },
-        ],
-        () => {
-          if (refused) {
-            whenNoWritePending(
-              () => void queryClient.invalidateQueries({ queryKey: queryKeys.library() }),
-            );
-          }
-        },
-      );
+      void submit(writeTarget("show", showId), buildResumeShowOps({ newId, ids }), () => {});
     },
     [queryClient, newId, submit],
   );
@@ -63,16 +40,7 @@ export function useResumeOnMark(): ResumeOnMark {
       void Promise.all(after.map((op) => settled(op.id))).then((outcomes) => {
         if (outcomes.includes("failed") || latestWrite(target) !== undo) return;
         patchStopped(queryClient, showId, stopped);
-        void submit(
-          target,
-          [
-            {
-              ops: [buildStopShowOp(stopped, { opId: newId(), ids })],
-              revert: () => patchStopped(queryClient, showId, null),
-            },
-          ],
-          () => {},
-        );
+        void submit(target, [buildStopShowOp(stopped, { opId: newId(), ids })], () => {});
       });
     },
     [queryClient, newId, settled, submit],

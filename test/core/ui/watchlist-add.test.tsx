@@ -8,8 +8,6 @@ import type { SearchHit } from "@/core/domain/discover";
 import type { LibraryEntry } from "@/core/domain/model/library";
 import type { MovieEntry } from "@/core/domain/model/movie";
 import type { QueuedOp } from "@/core/domain/write-queue/types";
-import { useHideShow } from "@/core/hooks/useHideShow";
-import { useSetWatchlisted } from "@/core/hooks/useSetWatchlisted";
 import { useWatchlistAdd, type WatchlistAddView } from "@/core/hooks/useWatchlistAdd";
 import type {
   CueRuntime,
@@ -123,53 +121,6 @@ it("lists an added show in the library at once and drops it again when the add i
   expect(client.getQueryData<UpNextData>(queryKeys.library())?.entries).toEqual([]);
 });
 
-it("restores every cache that lists a title after a hard-failed remove", async () => {
-  const client = new QueryClient();
-  const shows: UpNextData = { entries: [{ ...watchedShow, inWatchlist: true }] };
-  const movies: MovieLibraryData = { entries: [{ ...watchedMovie, inWatchlist: true }] };
-  client.setQueryData(queryKeys.library(), shows);
-  client.setQueryData(queryKeys.movieLibrary(), movies);
-  client.setQueryData(queryKeys.movieWatchlist(), [listedMovie]);
-  await mountAdd(client, membershipRuntime("failed"));
-
-  await act(async () => view.current.remove(show));
-  await act(async () => view.current.remove(movie));
-
-  expect(client.getQueryData(queryKeys.library())).toEqual(shows);
-  expect(client.getQueryData(queryKeys.movieLibrary())).toEqual(movies);
-  expect(client.getQueryData(queryKeys.movieWatchlist())).toEqual([listedMovie]);
-});
-
-it.each([
-  ["another show", { ...watchedShow, showId: 2, title: "Another Show" }],
-  ["the same show", watchedShow],
-])("keeps a change to %s made while a refused watchlist add was saving", async (_, other) => {
-  const client = new QueryClient();
-  client.setQueryData<UpNextData>(queryKeys.library(), { entries: [other] });
-  let refuse: (outcome: SubmitOutcome) => void = () => {};
-  const runtime = partialRuntime({
-    newId: () => "op",
-    loadUpNext: () => new Promise(() => {}),
-    submit: (op: QueuedOp) =>
-      op.itemKey.startsWith("watchlist:")
-        ? new Promise<SubmitOutcome>((resolve) => {
-            refuse = resolve;
-          })
-        : Promise.resolve("done"),
-  });
-  const wrapper = withRuntime(runtime, client);
-  const list = renderHook(useSetWatchlisted, { wrapper }).result;
-  const stop = renderHook(useHideShow, { wrapper }).result;
-  act(() => void list.current(show, true));
-  await act(async () => {});
-  await act(async () => stop.current.stopWatching(other));
-  await act(async () => refuse("failed"));
-
-  expect(client.getQueryData<UpNextData>(queryKeys.library())?.entries).toEqual([
-    { ...other, hidden: true },
-  ]);
-});
-
 it("keeps a title Trakt has not answered when another title's add lands", async () => {
   const client = new QueryClient();
   client.setQueryData<UpNextData>(queryKeys.library(), { entries: [] });
@@ -269,14 +220,13 @@ it("adds a movie to the movie watchlist and movie library once, then revalidates
   expect(view.current.isAdded(show)).toBe(false);
 });
 
-it("offers the add again, and says why, when Trakt refuses it", async () => {
+it("says why when Trakt refuses an add", async () => {
   const client = new QueryClient();
   client.setQueryData<UpNextData>(queryKeys.library(), { entries: [] });
   await mountAdd(client, membershipRuntime("failed"));
 
   await act(async () => view.current.add(show));
 
-  expect(view.current.isAdded(show)).toBe(false);
   expect(useSnackbar.getState().snack?.message).toBe(
     "Couldn't add Refetched Show to your watchlist. Please try again.",
   );

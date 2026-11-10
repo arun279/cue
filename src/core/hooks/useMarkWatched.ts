@@ -174,7 +174,7 @@ export function useMarkWatched(): MarkWatched {
       episode: { readonly season: number; readonly number: number },
       ownMark?: OwnMark,
     ) => {
-      refreshShowProgress(
+      void refreshShowProgress(
         queryClient,
         showId,
         () => runtime.loadShowProgress(showId),
@@ -220,7 +220,7 @@ export function useMarkWatched(): MarkWatched {
       const reversal =
         mark === null
           ? null
-          : submit(target, [{ ops: [mark], revert: () => showKept(record) }], () =>
+          : submit(target, [mark], () =>
               revalidate(record.showId, { season: record.season, number: record.number }),
             );
       if (record.stopped !== null && undoIsLatest) {
@@ -288,7 +288,6 @@ export function useMarkWatched(): MarkWatched {
   const settleMark = useCallback(
     (record: MarkRecord, outcome: SubmitOutcome) => {
       const replaced = outcome === "done" && replacedPlays(runtime.writeReceipt(record.opId)) > 0;
-      if (replaced) forgetOwnMark(record.showId);
       if ((!replaced && outcome !== "failed") || !retire(record)) return;
       if (replaced) {
         showReplaced(record, false);
@@ -351,15 +350,12 @@ export function useMarkWatched(): MarkWatched {
 
       let outcome: SubmitOutcome;
       try {
-        const marking = submit(
-          writeTarget("show", entry.showId),
-          [{ ops: [op], revert: () => restorePreMark(record) }],
-          () => {
-            if (isReversalRequested(opId)) return;
-            const at = { season: episode.season, number: episode.number };
-            revalidate(entry.showId, at, runtime.writeState(opId) === "done" ? record : undefined);
-          },
-        );
+        const marking = submit(writeTarget("show", entry.showId), [op], () => {
+          if (isReversalRequested(opId)) return;
+          const replaced = replacedPlays(runtime.writeReceipt(opId)) > 0;
+          const at = { season: episode.season, number: episode.number };
+          revalidate(entry.showId, at, replaced ? undefined : record);
+        });
         if (record.stopped !== null) resume.resume(entry.showId, { trakt: entry.showId });
         outcome = await marking;
       } finally {
@@ -373,7 +369,6 @@ export function useMarkWatched(): MarkWatched {
       patch,
       patchProgress,
       presentBatch,
-      restorePreMark,
       revalidate,
       submit,
       haptics,

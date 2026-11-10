@@ -60,12 +60,9 @@ it("moves a stopped show with no history and restores both memberships on Undo",
   expect(submit).toHaveBeenCalledTimes(5);
 });
 
-it("rolls a refused move back and leaves the show resumed, as Trakt has it", async () => {
-  const { client, entry, submit, move } = await setup("failed", true);
+it("says so when Trakt refuses a move to Watchlist, and still resumes the show", async () => {
+  const { submit, move } = await setup("failed", true);
   await move();
-  expect(client.getQueryData<UpNextData>(queryKeys.library())?.entries).toEqual([
-    { ...entry, hidden: false },
-  ]);
   expect(submit.mock.calls.map(([op]) => op.request.path)).toEqual([
     "/sync/watchlist",
     "/users/hidden/progress_watched/remove",

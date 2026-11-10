@@ -872,13 +872,11 @@ describe("queue mark edges", () => {
     expect(fake.submitted).toHaveLength(0);
   });
 
-  it("rolls a refused mark back and says so", async () => {
+  it("says so when Trakt refuses a mark", async () => {
     const entry = libraryEntry();
     const refused = fakeRuntime({ submit: () => Promise.resolve("failed") });
-    const qc = seededClient([entry]);
-    const [a] = mountSurfaces(refused.runtime, qc);
+    const [a] = mountSurfaces(refused.runtime, seededClient([entry]));
     await act(async () => a.current.mark.mark(entry));
-    expect(entryOf(qc, SHOW)).toStrictEqual(entry);
     expect(snackText()).toBe(`Couldn't mark ${entry.title} watched. Please try again.`);
   });
 
@@ -950,13 +948,12 @@ describe("queue mark edges", () => {
     expect(a.current.mark.justMarkedAt(SHOW)).toBeNull();
   });
 
-  it("keeps the mark and says so when a reversal is refused", async () => {
+  it("says so when a reversal is refused", async () => {
     const fake = fakeRuntime({
       submit: (op) => Promise.resolve(op.toState === "present" ? "done" : "failed"),
     });
     const entry = libraryEntry();
-    const qc = await markThenReverse(fake, entry);
-    expect(entryOf(qc, SHOW)?.pendingAdvance).toBe(true);
+    await markThenReverse(fake, entry);
     expect(snackText()).toBe(`Couldn't undo ${entry.title}. Please try again.`);
   });
 
@@ -1070,12 +1067,11 @@ describe("season controls", () => {
     }
   });
 
-  it("restores the season when Trakt refuses its mark", async () => {
+  it("says so when Trakt refuses a season mark", async () => {
     const fake = fakeRuntime({ submit: () => Promise.resolve("failed") });
     const season = seasonView([episodeView(1, true), episodeView(2)]);
-    const { qc, a } = mountSeasonSurfaces(fake, season.episodes);
+    const { a } = mountSeasonSurfaces(fake, season.episodes);
     await act(async () => a.current.season.markSeason(TARGET, season));
-    expect(seasonEp(qc, 2)?.watched).toBe(false);
     expect(snackText()).toBe("Couldn't save that change. Please try again.");
   });
 
@@ -1191,11 +1187,10 @@ describe("episode controls", () => {
   it.each([
     "S1 E2 marked",
     undefined,
-  ])("clears the tick and says so when a mark is refused (undo label: %s)", async (undoLabel) => {
+  ])("says so when an episode mark is refused (undo label: %s)", async (undoLabel) => {
     const fake = fakeRuntime({ submit: () => Promise.resolve("failed") });
-    const { qc, a } = mountSeasonSurfaces(fake);
+    const { a } = mountSeasonSurfaces(fake);
     await act(async () => a.current.season.toggleEpisode(TARGET, episodeView(2), { undoLabel }));
-    expect(seasonEp(qc, 2)?.watched).toBe(false);
     expect(snackText()).toBe("Couldn't update that episode. Please try again.");
   });
 
@@ -1226,26 +1221,12 @@ describe("episode controls", () => {
     expect(snackText()).toBe("Removed play");
   });
 
-  it("keeps the rewatch tick at its newest play when removing that play is refused", async () => {
-    const fake = fakeRuntime({
-      plays: [play(21, 2, "2026-01-02T00:00:00.000Z"), play(22, 2, "2026-02-02T00:00:00.000Z")],
-      submit: () => Promise.resolve("failed"),
-    });
-    const { qc, a } = mountSeasonSurfaces(fake, [episodeView(1, true), episodeView(2, true)]);
-    await act(async () => a.current.season.toggleEpisode(TARGET, episodeView(2, true)));
-    expect(qc.getQueryData<EpisodeDetail>(queryKeys.episode(SHOW, 1, 2))).toMatchObject({
-      watched: true,
-      watchedAt: "2026-02-02T00:00:00.000Z",
-    });
-  });
-
-  it("re-ticks a queued mark's episode when cancelling it is refused", async () => {
+  it("says so when cancelling a queued mark is refused", async () => {
     const fake = fakeRuntime({ submit: () => Promise.resolve("failed") });
-    const { qc, a } = mountSeasonSurfaces(fake, [episodeView(1, true), episodeView(2, true)]);
+    const { a } = mountSeasonSurfaces(fake, [episodeView(1, true), episodeView(2, true)]);
     fake.queued.push({ itemKey: `episode:${NEXT_EP_TRAKT}`, toState: "present" } as QueuedOp);
     await act(async () => a.current.season.toggleEpisode(TARGET, episodeView(2, true)));
     expect(fake.submitted[0]?.watchedAt).not.toBeNull();
-    expect(seasonEp(qc, 2)?.watched).toBe(true);
     expect(snackText()).toBe("Couldn't update that episode. Please try again.");
   });
 
@@ -1262,14 +1243,13 @@ describe("episode controls", () => {
     expect(snackText()).toBe("Removed 1 play · 1 remain");
   });
 
-  it("re-ticks and says so when removing a play is refused", async () => {
+  it("says so when removing a play is refused", async () => {
     const fake = fakeRuntime({
       plays: [play(21, 2, "2026-01-02T00:00:00.000Z")],
       submit: () => Promise.resolve("failed"),
     });
-    const { qc, a } = mountSeasonSurfaces(fake, [episodeView(1, true), episodeView(2, true)]);
+    const { a } = mountSeasonSurfaces(fake, [episodeView(1, true), episodeView(2, true)]);
     await act(async () => a.current.season.toggleEpisode(TARGET, episodeView(2, true)));
-    expect(seasonEp(qc, 2)?.watched).toBe(true);
     expect(snackText()).toBe("Couldn't update that episode. Please try again.");
   });
 
@@ -1324,17 +1304,13 @@ describe("episode controls", () => {
     expect(fake.submitted[1]?.request.path).toBe("/sync/history");
   });
 
-  it("re-ticks with the newest play and says so when removing every play is refused", async () => {
+  it("says so when removing every play is refused", async () => {
     const fake = fakeRuntime({
       plays: [play(21, 2, "2026-01-02T00:00:00.000Z"), play(22, 2, "2026-02-02T00:00:00.000Z")],
       submit: () => Promise.resolve("failed"),
     });
-    const { qc, a } = mountSeasonSurfaces(fake, [episodeView(1, true), episodeView(2, true)]);
+    const { a } = mountSeasonSurfaces(fake, [episodeView(1, true), episodeView(2, true)]);
     await act(async () => a.current.season.removeAllPlays(TARGET, episodeView(2, true)));
-    expect(seasonEp(qc, 2)?.watched).toBe(true);
-    expect(qc.getQueryData<EpisodeDetail>(queryKeys.episode(SHOW, 1, 2))?.watchedAt).toBe(
-      "2026-02-02T00:00:00.000Z",
-    );
     expect(snackText()).toBe("Couldn't remove those plays. Please try again.");
   });
 
@@ -1349,19 +1325,18 @@ describe("episode controls", () => {
     expect(snackText()).toBe(message);
   });
 
-  it("re-ticks and says so when an episode mark's Undo is refused", async () => {
+  it("says so, once, when an episode mark's Undo is refused", async () => {
     let submits = 0;
     const fake = fakeRuntime({
       submit: () => Promise.resolve(submits++ === 0 ? "done" : "failed"),
     });
-    const { qc, a } = mountSeasonSurfaces(fake);
+    const { a } = mountSeasonSurfaces(fake);
     await act(async () =>
       a.current.season.toggleEpisode(TARGET, episodeView(2), { undoLabel: "S1 E2 marked" }),
     );
     await act(() => pressUndo());
     await act(() => pressUndo());
     expect(fake.submitted).toHaveLength(2);
-    expect(seasonEp(qc, 2)?.watched).toBe(true);
     expect(snackText()).toBe("Couldn't undo that. Please try again.");
   });
 
@@ -1636,46 +1611,13 @@ function expectResumed(qc: QueryClient, fake: FakeRuntime): void {
   );
 }
 
-describe("a refused write takes back only its own change", () => {
-  const inSeason = (season: number, episodes: readonly EpisodeView[]): SeasonView => ({
-    ...seasonView(episodes.map((e) => ({ ...e, season, ids: { trakt: season * 100 + e.number } }))),
-    number: season,
-    title: `Season ${season}`,
-  });
+describe("resuming, stopping again and reading back around other writes", () => {
   const watchedIn = (qc: QueryClient, season: number) =>
     qc
       .getQueryData<readonly SeasonView[]>(queryKeys.showSeasons(SHOW))
       ?.find((s) => s.number === season)
       ?.episodes.filter((e) => e.watched)
       .map((e) => e.number);
-
-  it("keeps the episodes a long season write did save when one of its parts is refused", async () => {
-    const episodes = Array.from({ length: 150 }, (_, index) => episodeView(index + 1));
-    const fake = fakeRuntime({
-      submit: (op) => Promise.resolve(fake.submitted.indexOf(op) === 0 ? "done" : "failed"),
-    });
-    const season = seasonView(episodes);
-    const { qc, a } = mountSeasonSurfaces(fake, episodes);
-    await act(async () => a.current.season.markSeason(TARGET, season));
-
-    expect(fake.submitted).toHaveLength(2);
-    expect(watchedIn(qc, 1)).toEqual(episodes.slice(0, 100).map((e) => e.number));
-    expect(fake.runtime.loadShowProgress).toHaveBeenCalledWith(SHOW);
-  });
-
-  it("leaves a later season's mark alone when Trakt refuses an earlier one", async () => {
-    const { fake, refuse } = firstWriteHeld();
-    const first = inSeason(1, [episodeView(1), episodeView(2)]);
-    const second = inSeason(2, [episodeView(1), episodeView(2)]);
-    const qc = seededClient([libraryEntry()], [first, second]);
-    const [a] = mountSurfaces(fake.runtime, qc);
-    act(() => void a.current.season.markSeason(TARGET, first));
-    await act(async () => a.current.season.markSeason(TARGET, second));
-    await act(async () => refuse());
-
-    expect(watchedIn(qc, 1)).toEqual([]);
-    expect(watchedIn(qc, 2)).toEqual([1, 2]);
-  });
 
   it("shows a show resumed, as Trakt has it, when the Undo of the mark that resumed it cannot be done", async () => {
     const fake = fakeRuntime({ answer: () => null });
@@ -1772,10 +1714,7 @@ describe("a refused write takes back only its own change", () => {
     expectResumed(qc, fake);
   });
 
-  it.each([
-    ["Up Next", false],
-    ["the show screen", true],
-  ])("keeps a show resumed when Trakt refuses the Undo of its mark from %s", async (_, onShow) => {
+  it("keeps a show resumed when Trakt refuses the Undo of its mark from the show screen", async () => {
     const fake = fakeRuntime({
       submit: (op) =>
         Promise.resolve(op.request.path === "/sync/history/remove" ? "failed" : "done"),
@@ -1783,15 +1722,10 @@ describe("a refused write takes back only its own change", () => {
     const entry = { ...libraryEntry(), hidden: true };
     const qc = seededClient([entry], [seasonView([episodeView(1, true), episodeView(2)])]);
     const [a] = mountSurfaces(fake.runtime, qc);
-    if (onShow) {
-      await act(async () =>
-        a.current.season.toggleEpisode(TARGET, episodeView(2), { undoLabel: "S1 E2 marked" }),
-      );
-      await act(() => pressUndo());
-    } else {
-      await act(async () => a.current.mark.mark(entry));
-      await act(async () => a.current.mark.reverse(SHOW));
-    }
+    await act(async () =>
+      a.current.season.toggleEpisode(TARGET, episodeView(2), { undoLabel: "S1 E2 marked" }),
+    );
+    await act(() => pressUndo());
     await flush();
 
     expectResumed(qc, fake);
@@ -1879,40 +1813,6 @@ describe("a refused write takes back only its own change", () => {
     } finally {
       vi.useRealTimers();
     }
-  });
-
-  it("reads the library again, and guesses nothing, when Trakt refuses part of a resume", async () => {
-    const fake = fakeRuntime({
-      submit: (op) =>
-        Promise.resolve(op.request.path === "/users/hidden/dropped/remove" ? "failed" : "done"),
-    });
-    const entry = { ...libraryEntry(), hidden: true };
-    const qc = seededClient([entry]);
-    const [a] = mountSurfaces(fake.runtime, qc);
-    await act(async () => a.current.mark.mark(entry));
-    await flush();
-
-    expect(entryOf(qc, SHOW)?.hidden).toBe(false);
-    expect(qc.getQueryState(queryKeys.library())?.isInvalidated).toBe(true);
-  });
-
-  it("ticks again only the episodes a refused season unmark took off", async () => {
-    const fake = fakeRuntime({
-      showPlays: [play(11, 1, "2026-01-01T00:00:00.000Z")],
-      submit: () => Promise.resolve("failed"),
-    });
-    const season = seasonView([episodeView(1, true), episodeView(2)]);
-    const { qc, a } = mountSeasonSurfaces(fake, season.episodes);
-    await act(async () => a.current.season.unmarkSeason(TARGET, season));
-    expect(watchedIn(qc, 1)).toEqual([1]);
-  });
-
-  it("keeps the episodes a refused rewatch found watched", async () => {
-    const fake = fakeRuntime({ submit: () => Promise.resolve("failed") });
-    const season = seasonView([episodeView(1, true), episodeView(2)]);
-    const { qc, a } = mountSeasonSurfaces(fake, season.episodes);
-    await act(async () => a.current.season.rewatchSeason(TARGET, season));
-    expect(watchedIn(qc, 1)).toEqual([1]);
   });
 
   it("keeps a stopped show resumed when part of a long season write lands", async () => {

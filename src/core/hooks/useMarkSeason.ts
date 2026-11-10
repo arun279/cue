@@ -38,7 +38,6 @@ import {
   refreshShowProgress,
   stoppedIn,
 } from "./library-cache";
-import type { OptimisticChange } from "./optimistic-write";
 import { REPLACED_COPY } from "./replaced-copy";
 import {
   canRemoveOwnPlays,
@@ -265,7 +264,12 @@ export function useMarkSeason(): MarkSeasonController {
 
   const revalidate = useCallback(
     (showId: number, episode?: { readonly season: number; readonly number: number } | "all") =>
-      refreshShowProgress(queryClient, showId, () => runtime.loadShowProgress(showId), episode),
+      void refreshShowProgress(
+        queryClient,
+        showId,
+        () => runtime.loadShowProgress(showId),
+        episode,
+      ),
     [queryClient, runtime],
   );
 
@@ -316,7 +320,7 @@ export function useMarkSeason(): MarkSeasonController {
       }
       const target = writeTarget("show", pending.showId);
       const undoIsLatest = latestWrite(target) <= pressed;
-      const undoing = submit(target, [{ ops: plan, revert: keepMarked }], () =>
+      const undoing = submit(target, plan, () =>
         revalidate(pending.showId, marked === undefined ? "all" : undefined),
       );
       if (pending.stopped !== null && undoIsLatest) {
@@ -334,10 +338,7 @@ export function useMarkSeason(): MarkSeasonController {
     [undo],
   );
 
-  /**
-   * Marks the matching episodes at once and sends `ops`, resuming the show if it is stopped. Each
-   * write Trakt refuses unmarks again only the episodes it marked.
-   */
+  /** Marks the matching episodes at once and sends `ops`, resuming the show if it is stopped. */
   const submitSeasonWrite = useCallback(
     (
       target: MarkContextTarget,
@@ -345,21 +346,8 @@ export function useMarkSeason(): MarkSeasonController {
       match: EpisodeMatch,
       stopped: Stopped | null,
     ): Promise<SubmitOutcome> => {
-      const changed = patchShowSeasons(queryClient, target.showId, match, true);
-      const changes = ops.map((op): OptimisticChange => {
-        const marked = markedEpisodesOf(op)?.positions;
-        return {
-          ops: [op],
-          revert: () =>
-            patchShowSeasons(
-              queryClient,
-              target.showId,
-              (s, n) => changed.has(positionOf(s, n)) && marked?.has(positionOf(s, n)) === true,
-              false,
-            ),
-        };
-      });
-      const writing = submit(writeTarget("show", target.showId), changes, () =>
+      patchShowSeasons(queryClient, target.showId, match, true);
+      const writing = submit(writeTarget("show", target.showId), ops, () =>
         revalidate(target.showId, "all"),
       );
       if (stopped !== null) resume.resume(target.showId, target.ids);
@@ -469,7 +457,7 @@ export function useMarkSeason(): MarkSeasonController {
   const submitSeasonUnmark = useCallback(
     async (target: MarkContextTarget, season: SeasonView, plan: UnmarkPlan) => {
       const removed = new Set(plan.restore.map((play) => positionOf(play.season, play.number)));
-      const unmarked = patchShowSeasons(
+      patchShowSeasons(
         queryClient,
         target.showId,
         (season, number) => removed.has(positionOf(season, number)),
@@ -488,21 +476,8 @@ export function useMarkSeason(): MarkSeasonController {
       const kept = plan.keptRewatch.length;
       const keptSuffix = kept > 0 ? ` · kept ${kept} rewatched ${plural(kept)}` : "";
       const count = plan.removeIds.length;
-      const writing = submit(
-        writeTarget("show", target.showId),
-        [
-          {
-            ops,
-            revert: () =>
-              patchShowSeasons(
-                queryClient,
-                target.showId,
-                (season, number) => unmarked.has(positionOf(season, number)),
-                true,
-              ),
-          },
-        ],
-        () => revalidate(target.showId, "all"),
+      const writing = submit(writeTarget("show", target.showId), ops, () =>
+        revalidate(target.showId, "all"),
       );
       offerUndo({
         showId: target.showId,
@@ -626,15 +601,8 @@ export function useMarkSeason(): MarkSeasonController {
               watchedAt: queuedMark.watchedAt ?? new Date().toISOString(),
             })
           : buildUndoAddOp(runtime.newId(), queuedMark);
-      const outcome = await submit(
-        writeTarget("show", target.showId),
-        [
-          {
-            ops: [takeBack],
-            revert: () => setEpisodeWatched(target, episode, true, episode.watchedAt),
-          },
-        ],
-        () => revalidate(target.showId, episode),
+      const outcome = await submit(writeTarget("show", target.showId), [takeBack], () =>
+        revalidate(target.showId, episode),
       );
       if (outcome === "failed") showError("Couldn't update that episode. Please try again.");
     },
@@ -669,21 +637,8 @@ export function useMarkSeason(): MarkSeasonController {
             })),
           });
       const ops = [op];
-      const writing = submit(
-        writeTarget("show", target.showId),
-        [
-          {
-            ops,
-            revert: () =>
-              setEpisodeWatched(
-                target,
-                episode,
-                true,
-                rewatch ? resolution.latest.watchedAt : episode.watchedAt,
-              ),
-          },
-        ],
-        () => revalidate(target.showId, episode),
+      const writing = submit(writeTarget("show", target.showId), ops, () =>
+        revalidate(target.showId, episode),
       );
       offerUndo({
         showId: target.showId,
@@ -756,10 +711,8 @@ export function useMarkSeason(): MarkSeasonController {
         const ops = [buildMarkEpisodeOp({ opId, ids: episode.ids, watchedAt })];
         const stopped = stoppedIn(queryClient, target.showId);
         setEpisodeWatched(target, episode, true, watchedAt);
-        const writing = submit(
-          writeTarget("show", target.showId),
-          [{ ops, revert: () => setEpisodeWatched(target, episode, false, null) }],
-          () => revalidate(target.showId, episode),
+        const writing = submit(writeTarget("show", target.showId), ops, () =>
+          revalidate(target.showId, episode),
         );
         if (stopped !== null) resume.resume(target.showId, target.ids);
         if (undoLabel !== undefined) {
@@ -809,10 +762,8 @@ export function useMarkSeason(): MarkSeasonController {
           watchedAt: new Date().toISOString(),
         });
         const stopped = stoppedIn(queryClient, target.showId);
-        const writing = submit(
-          writeTarget("show", target.showId),
-          [{ ops: [op], revert: () => {} }],
-          () => revalidate(target.showId, { season: episode.season, number: episode.number }),
+        const writing = submit(writeTarget("show", target.showId), [op], () =>
+          revalidate(target.showId, { season: episode.season, number: episode.number }),
         );
         if (stopped !== null) resume.resume(target.showId, target.ids);
         showSnack({ message: "Play added" });
@@ -842,8 +793,7 @@ export function useMarkSeason(): MarkSeasonController {
           .filter((play) => play.episodeTrakt === episode.ids.trakt)
           .sort((a, b) => Date.parse(b.watchedAt) - Date.parse(a.watchedAt));
         const bound: EpisodeBound = { season: episode.season, number: episode.number };
-        const [latest] = own;
-        if (latest === undefined) {
+        if (own.length === 0) {
           revalidate(target.showId, bound);
           return;
         }
@@ -856,18 +806,8 @@ export function useMarkSeason(): MarkSeasonController {
           restore: own.map((play) => ({ trakt: play.episodeTrakt, watchedAt: play.watchedAt })),
         });
         const ops = [op];
-        const writing = submit(
-          writeTarget("show", target.showId),
-          [
-            {
-              ops,
-              revert: () => {
-                patchShowSeasons(queryClient, target.showId, matchEpisode, true);
-                patchEpisodeDetail(queryClient, target.showId, bound, true, latest.watchedAt);
-              },
-            },
-          ],
-          () => revalidate(target.showId, bound),
+        const writing = submit(writeTarget("show", target.showId), ops, () =>
+          revalidate(target.showId, bound),
         );
         offerUndo({
           showId: target.showId,

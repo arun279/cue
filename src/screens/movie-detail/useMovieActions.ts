@@ -11,6 +11,7 @@ import {
 } from "@/core/domain/write-queue/ops";
 import { replacedPlays } from "@/core/domain/write-queue/receipt";
 import type { QueuedOp } from "@/core/domain/write-queue/types";
+import { rereadLists } from "@/core/hooks/library-cache";
 import { REPLACED_COPY } from "@/core/hooks/replaced-copy";
 import { resolveMovieUnmark } from "@/core/hooks/resolve-unmark";
 import { useOptimisticWrite, writeTarget } from "@/core/hooks/useOptimisticWrite";
@@ -18,7 +19,7 @@ import { useSetWatchlisted } from "@/core/hooks/useSetWatchlisted";
 import { movieLibraryQuery } from "@/core/queries/library";
 import { type MovieLibraryData, useRuntime } from "@/core/runtime/runtime";
 import { showSnack, showUndoable, snackText } from "@/core/stores/snackbar-store";
-import { pendingMark, whenNoWritePending } from "@/core/stores/write-locks";
+import { pendingMark } from "@/core/stores/write-locks";
 
 export function useMovieActions(header: MovieHeader) {
   const runtime = useRuntime();
@@ -54,10 +55,7 @@ export function useMovieActions(header: MovieHeader) {
     });
   };
   const revalidate = () =>
-    whenNoWritePending(() => {
-      for (const queryKey of [key, queryKeys.movieWatchlist(), queryKeys.historyPrefix()])
-        void client.invalidateQueries({ queryKey });
-    });
+    void rereadLists(client, [key, queryKeys.movieWatchlist(), queryKeys.historyPrefix()]);
   const run = async (action: () => Promise<void>) => {
     running.current += 1;
     setBusy(true);
@@ -76,14 +74,10 @@ export function useMovieActions(header: MovieHeader) {
   const undoable = (message: string, undo: () => Promise<void>): void => {
     showUndoable(message, () => run(undo));
   };
-  const write = async (op: QueuedOp, next: Partial<MovieEntry>, previous: Partial<MovieEntry>) => {
+  const write = async (op: QueuedOp, next: Partial<MovieEntry>) => {
     await client.cancelQueries({ queryKey: key });
     patch(next);
-    const outcome = await submit(
-      writeTarget("movie", header.movieId),
-      [{ ops: [op], revert: () => patch(previous) }],
-      revalidate,
-    );
+    const outcome = await submit(writeTarget("movie", header.movieId), [op], revalidate);
     if (outcome === "failed") error();
     return outcome;
   };
@@ -114,19 +108,11 @@ export function useMovieActions(header: MovieHeader) {
             watchedAt: op.watchedAt ?? "",
           })
         : buildUndoAddOp(runtime.newId(), op);
-    await write(
-      inverse,
-      { watched: false, watchedAt: null },
-      { watched: true, watchedAt: op.watchedAt },
-    );
+    await write(inverse, { watched: false, watchedAt: null });
   };
   const mark = async (watchedAt = new Date().toISOString(), offerUndo = true) => {
     const op = buildMarkMovieOp({ opId: runtime.newId(), ids: header.ids, watchedAt });
-    const outcome = await write(
-      op,
-      { watched: true, watchedAt },
-      { watched: false, watchedAt: null },
-    );
+    const outcome = await write(op, { watched: true, watchedAt });
     if (outcome === "failed") return;
     if (outcome === "done" && replacedPlays(runtime.writeReceipt(op.id)) > 0) {
       showSnack({ message: REPLACED_COPY.mark(header.title) });
@@ -151,11 +137,10 @@ export function useMovieActions(header: MovieHeader) {
       patch({ watched: false, watchedAt: null });
       revalidate();
     } else if (
-      (await write(
-        remove(resolution.historyId, resolution.watchedAt),
-        { watched: false, watchedAt: null },
-        { watched: true, watchedAt: entry.watchedAt },
-      )) !== "failed"
+      (await write(remove(resolution.historyId, resolution.watchedAt), {
+        watched: false,
+        watchedAt: null,
+      })) !== "failed"
     ) {
       undoable("Removed play", () => mark(resolution.watchedAt, false));
     }

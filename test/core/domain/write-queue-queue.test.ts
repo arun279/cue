@@ -49,6 +49,7 @@ function harness(
       settle: () => "applied",
       ownPlays,
       save: async () => {},
+      refused: () => {},
     },
     dispatch,
     clock,
@@ -273,10 +274,37 @@ describe("WriteQueue concurrency safety", () => {
     q.enqueue(mark("a", 1));
     expect(q.stateOf("a")).toBe("unsent");
     const flushed = q.flush();
+    await vi.waitFor(() => expect(h.dispatch).toHaveBeenCalled());
     expect(q.stateOf("a")).toBe("sent");
     held.release(dispatchResult(200));
     await flushed;
     expect(q.stateOf("a")).toBe("done");
+  });
+});
+
+describe("WriteQueue saving", () => {
+  it("sends a write only once the device has kept it, and fails one it cannot keep", async () => {
+    const h = harness(ok);
+    let full: (error: Error) => void = () => {};
+    const refused: string[] = [];
+    const q = new WriteQueue({
+      ...h.deps,
+      save: () =>
+        new Promise((_, reject) => {
+          full = reject;
+        }),
+      refused: (op) => refused.push(op.id),
+    });
+    q.enqueue(mark("a", 1));
+    const flushed = q.flush();
+    await h.clock.sleep(0);
+    expect(h.dispatch).not.toHaveBeenCalled();
+    full(new Error("storage full"));
+    await flushed;
+
+    expect(q.stateOf("a")).toBe("failed");
+    expect(h.dispatch).not.toHaveBeenCalled();
+    expect(refused).toEqual(["a"]);
   });
 });
 
@@ -384,11 +412,12 @@ describe("WriteQueue taking back an add that may be on Trakt", () => {
       order.push(`send ${JSON.stringify(req)}`);
       return dispatchResult(200);
     });
-    let saves = 0;
-    const save = async () => {
-      saves += 1;
-      order.push(saves === 1 ? "save refused" : "saved");
-      if (saves === 1) throw new Error("storage full");
+    let refusals = 1;
+    const save = async (ops: readonly QueuedOp[]) => {
+      if (!ops.some((op) => op.id === "undo" && op.undoes === undefined)) return;
+      order.push(refusals > 0 ? "save refused" : "saved");
+      refusals -= 1;
+      if (refusals === 0) throw new Error("storage full");
     };
     const added = mark("a", 1);
     const q = new WriteQueue({ ...h.deps, save }, [added]);

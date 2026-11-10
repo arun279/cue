@@ -70,7 +70,7 @@ import type { TokenStore } from "../ports/token-store";
 import { resetMarkStore } from "../stores/mark-store";
 import { usePlayPolicy } from "../stores/play-policy-store";
 import { useReadIncidents } from "../stores/read-incidents-store";
-import { dismissSnack } from "../stores/snackbar-store";
+import { dismissSnack, showSnack } from "../stores/snackbar-store";
 import { useSyncActivity } from "../stores/sync-activity-store";
 import type {
   ActivitiesReconcile,
@@ -216,6 +216,16 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     signal,
   });
 
+  const stored = (await opLogStore.read()) ?? [];
+  let refused = stored.filter((op) => op.refused === true);
+  let readBack: ((op: QueuedOp) => Promise<void>) | null = null;
+  // The writes a caller is waiting on, which that caller reports itself if Trakt refuses them.
+  const answering = new Set<string>();
+  const correct = (op: QueuedOp): void =>
+    void readBack?.(op).then(() => {
+      refused = refused.filter((kept) => kept.id !== op.id);
+      return queue.save();
+    });
   const queue = new WriteQueue(
     {
       dispatch: createTraktTransport(client),
@@ -223,13 +233,22 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       now: Date.now,
       settle: receipts.settle,
       ownPlays: (undo) => ownPlayIds(client, undo),
-      save: (ops) => opLogStore.write([...ops]),
+      save: (ops) => opLogStore.write([...ops, ...refused]),
+      refused: (op) => {
+        refused = [...refused, { ...op, refused: true }];
+        if (!answering.has(op.id)) {
+          showSnack({
+            message: "Couldn't save an earlier change to Trakt.",
+            actions: [{ label: "Dismiss", onPress: dismissSnack }],
+          });
+        }
+        correct(op);
+      },
     },
-    (await opLogStore.read()) ?? [],
+    stored.filter((op) => op.refused !== true),
   );
 
-  const persistLog = (): Promise<void> => opLogStore.write(queue.snapshot());
-  void queue.flush().then(persistLog);
+  void queue.flush().then(() => queue.save());
 
   const { readsPausedUntil, subscribeReadPause, readRetryFailure, subscribeReadRetry } =
     client.reads;
@@ -383,12 +402,21 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     },
 
     async submit(op: QueuedOp): Promise<SubmitOutcome> {
+      answering.add(op.id);
       queue.enqueue(op);
-      await persistLog();
       await queue.flush();
-      await persistLog();
+      await queue.save();
+      answering.delete(op.id);
       const state = queue.stateOf(op.id);
       return state === "unsent" || state === "sent" ? "deferred" : state;
+    },
+
+    onRefused(handler) {
+      readBack = handler;
+      for (const op of refused) correct(op);
+      return () => {
+        if (readBack === handler) readBack = null;
+      };
     },
 
     settled: (opId) => queue.settled(opId),
@@ -409,7 +437,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
 
     async flushWrites(): Promise<number> {
       await queue.flush();
-      await persistLog();
+      await queue.save();
       return queue.snapshot().length;
     },
 
@@ -426,7 +454,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     async endLocalSession(): Promise<void> {
       if (!signal.aborted) {
         await queue.flush();
-        await persistLog();
+        await queue.save();
         if (!signal.aborted && queue.size > 0) throw new PendingWritesError();
       }
       return end();
