@@ -53,7 +53,7 @@ export function beginWrite(target: string): void {
 /** Which write to `target` began last; a later write gives a higher number. */
 export const latestWrite = (target: string): number => latestWrites.get(target) ?? 0;
 
-/** How many writes have begun; a write to `target` began since `seen` if `latestWrite` exceeds it. */
+/** How many writes have begun, to compare with `latestWrite`. */
 export const writesBegun = (): number => writesStarted;
 
 /** Ends a write to `target`; once none is left pending, runs every read back owed to it. */

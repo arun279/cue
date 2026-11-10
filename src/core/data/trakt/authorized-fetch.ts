@@ -9,7 +9,6 @@ export interface AuthorizedFetchDeps {
   readonly inner: FetchLike;
   readonly token: Token;
   readonly config: OAuthConfig;
-  /** The token's session, which every refresh is tied to. */
   readonly signal: AbortSignal;
   readonly persist: (token: Token) => void;
   /** Trakt no longer knows the refresh token. */

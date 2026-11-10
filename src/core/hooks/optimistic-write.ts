@@ -15,10 +15,8 @@ const worse = (a: SubmitOutcome, b: SubmitOutcome): SubmitOutcome =>
   WORST_FIRST.indexOf(a) < WORST_FIRST.indexOf(b) ? a : b;
 
 /**
- * Queues every write before any is sent, so each is weighed against the queue as it stood. What was
- * written to `target` is read back once every write has ended, one of them landed, and no other
- * write to `target` is still pending: the last to end reads back for all of them. A write Trakt
- * refuses is read back by the runtime.
+ * Queues every write before any is sent, so each is weighed against the queue as it stood. Once all
+ * have ended and one landed, `target` is read back after its other pending writes.
  */
 export async function applyOptimisticWrite(
   gateway: WriteGateway,

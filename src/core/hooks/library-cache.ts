@@ -75,10 +75,7 @@ export function refreshShowProgress(
     .catch(() => {});
 }
 
-/**
- * Reads lists that hold many shows or movies again, once no write to any of them is pending: those a
- * screen shows, or with "all" every one in the cache.
- */
+/** Reads lists of many shows or movies again once no write is pending; with "all", unseen ones too. */
 export const rereadLists = (
   qc: QueryClient,
   keys: readonly (readonly unknown[])[],
@@ -94,11 +91,7 @@ export const rereadLists = (
 
 const MOVIE_LISTS = [queryKeys.movieLibrary(), queryKeys.movieWatchlist()];
 
-/**
- * Reads back from Trakt what a write it refused showed: the progress of the show it was made on at
- * once, and the lists of many shows or movies once no write is pending. A write that does not say
- * which show or movie it changed reads every list again.
- */
+/** Reads back what a refused write showed: its show's progress now, the lists once nothing is pending. */
 export const readBackRefused =
   (qc: QueryClient, runtime: Pick<CueRuntime, "loadShowProgress">) =>
   async (op: QueuedOp): Promise<void> => {
@@ -137,25 +130,15 @@ export function stoppedIn(qc: QueryClient, showId: number): Stopped | null {
   return entry === undefined ? null : stoppedOf(entry);
 }
 
-/** Sets the matching episodes watched or not, and returns the `season:number` of each it changed. */
 export function patchShowSeasons(
   qc: QueryClient,
   showId: number,
   match: EpisodeMatch,
   watched: boolean,
-): ReadonlySet<string> {
-  const key = queryKeys.showSeasons(showId);
-  const changed = new Set(
-    (qc.getQueryData<readonly SeasonView[]>(key) ?? []).flatMap((season) =>
-      season.episodes
-        .filter((e) => e.watched !== watched && match(season.number, e.number, e.aired))
-        .map((e) => `${season.number}:${e.number}`),
-    ),
-  );
-  qc.setQueryData<readonly SeasonView[]>(key, (old) =>
+): void {
+  qc.setQueryData<readonly SeasonView[]>(queryKeys.showSeasons(showId), (old) =>
     old === undefined ? old : patchEpisodes(old, match, watched),
   );
-  return changed;
 }
 
 export function patchEpisodeDetail(

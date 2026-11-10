@@ -19,8 +19,7 @@ export class ReadBudget {
   // Trakt's rate limits apply per window, and its 429 guidance is to pause all requests for Retry-After.
   private resumeReadsAt = 0;
   private readonly pauseListeners = new Set<() => void>();
-  // The library load retries its own reads, so the failure it is retrying past is published
-  // the same way the pause is, for the screens waiting on it.
+  // Failures the library load is retrying past, published like the pause to the screens waiting.
   private readonly retrying = new Map<symbol, TraktFailure>();
   private readonly retryListeners = new Set<() => void>();
   private retryFailure: TraktFailure | null = null;

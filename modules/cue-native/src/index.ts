@@ -1,12 +1,7 @@
 import { NativeModule, requireNativeModule } from "expo";
 import type { Haptics } from "@/core/ports/haptics";
 
-/**
- * The two native classes this module ships, and the whole of its JavaScript
- * surface. One module package rather than two, because an Expo local module is a
- * native compilation unit: splitting it would double the config, the podspec and
- * the Gradle file to separate two Swift classes.
- */
+// Both native classes share one package: an Expo local module is one native compilation unit.
 
 declare class CueLegacyPreferencesNativeModule extends NativeModule<Record<never, never>> {
   read(key: string): Promise<string | null>;
@@ -15,13 +10,7 @@ declare class CueLegacyPreferencesNativeModule extends NativeModule<Record<never
   clearWebView(): Promise<void>;
 }
 
-/**
- * The port's verbs, one to one, rather than a second list of them: the Swift and
- * Kotlin classes exist to answer exactly this contract, and a verb added to the
- * port has to arrive here or the seam stops compiling. Every one is fired and
- * forgotten, dispatching to the platform's UI thread and returning nothing, so
- * no caller ever has a promise to discard.
- */
+/** Typed as the port itself, so the native classes answer exactly its verbs. */
 export const CueHaptics = requireNativeModule<NativeModule<Record<never, never>> & Haptics>(
   "CueHaptics",
 );

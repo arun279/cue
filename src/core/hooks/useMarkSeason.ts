@@ -338,7 +338,6 @@ export function useMarkSeason(): MarkSeasonController {
     [undo],
   );
 
-  /** Marks the matching episodes at once and sends `ops`, resuming the show if it is stopped. */
   const submitSeasonWrite = useCallback(
     (
       target: MarkContextTarget,

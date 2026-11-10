@@ -20,9 +20,8 @@ class AbortError extends Error {
 }
 
 /**
- * Runs `request` with a signal that aborts after `ms`, or as soon as `scope` aborts. A scope
- * that has ended neither starts a request nor takes its answer: React Native's fetch can
- * still resolve a response that completed just before the abort.
+ * Runs `request` until `ms` pass or `scope` aborts. An ended scope takes no answer: React Native's
+ * fetch can still resolve a response that completed just before the abort.
  */
 export async function withDeadline<T>(
   ms: number,

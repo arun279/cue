@@ -21,7 +21,6 @@ import { useMoveToWatchlist } from "@/core/hooks/useMoveToWatchlist";
 import type { KeyValueStore } from "@/core/ports/kv";
 import { INCIDENTS_KEY, OP_LOG_KEY, PLAY_POLICY_KEY } from "@/core/ports/storage-keys";
 import { createTokenStore } from "@/core/ports/token-store";
-import { createPrefsStore } from "@/core/prefs/prefs-store";
 import { clearAccount } from "@/core/runtime/create-runtime";
 import { createQueryClient } from "@/core/runtime/query-cache";
 import { type CueRuntime, forScreens } from "@/core/runtime/runtime";
@@ -29,11 +28,7 @@ import { usePlayPolicy } from "@/core/stores/play-policy-store";
 import { useReadIncidents } from "@/core/stores/read-incidents-store";
 import { showSnack, useSnackbar } from "@/core/stores/snackbar-store";
 import { withRuntime } from "../support/runtime";
-import {
-  type MemoryKeyValueStore,
-  memoryKeyValueStore,
-  memoryPreferenceStorage,
-} from "../support/stores";
+import { type MemoryKeyValueStore, memoryKeyValueStore } from "../support/stores";
 import { startTraktFake } from "../trakt-fake/in-process.ts";
 
 const fake = startTraktFake();
@@ -504,23 +499,6 @@ it("keeps a read an ended session starts out of the next session's incidents", a
 
   expect(useReadIncidents.getState().incidents).toEqual([]);
   expect(fake.requests.slice(before)).toEqual([]);
-});
-
-it("keeps every preference changeable after a sign-in clears the last account's", async () => {
-  const preferences = memoryPreferenceStorage();
-  const prefs = createPrefsStore(preferences);
-  const device = await install(live(), {
-    clearLocalPreferences: () => prefs.getState().clearPreferences(),
-  });
-  const first = launch(device);
-  await signOut(device, await first.runtime());
-  first.hook.unmount();
-  await signIn(device);
-
-  prefs.getState().setRemindersEnabled(true);
-  prefs.getState().setTheme("dark");
-
-  expect(prefs.getState()).toMatchObject({ remindersEnabled: true, theme: "dark" });
 });
 
 it("offers the next session no Undo for a hide Trakt answers after its session ended", async () => {

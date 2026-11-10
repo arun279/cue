@@ -144,7 +144,6 @@ function hideOp(list: Stopped, toState: "present" | "absent", params: HideOpPara
   };
 }
 
-/** Stops a show: hides it from progress, or drops it. */
 export function buildStopShowOp(stopped: Stopped, params: HideOpParams): QueuedOp {
   return hideOp(stopped, "present", params);
 }

@@ -42,7 +42,6 @@ export interface LibraryShow {
   readonly status: string;
   /** Hidden from Up Next: hidden from progress on Trakt, or dropped there. */
   readonly hidden: boolean;
-  /** On Trakt's dropped list. */
   readonly dropped: boolean;
   readonly inWatchlist: boolean;
   readonly addedAt: string | null;
@@ -81,7 +80,6 @@ export type ShowListing = Pick<
 export const playsOnlyInProgress = (show: LibraryShow): boolean =>
   show.plays !== null && show.plays === show.completed;
 
-/** How a stopped show was stopped, so it can be stopped again the same way. */
 export type Stopped = "hidden" | "dropped";
 
 export function stoppedOf(show: LibraryShow): Stopped | null {

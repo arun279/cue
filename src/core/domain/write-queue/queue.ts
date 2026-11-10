@@ -24,7 +24,6 @@ export interface WriteQueueDeps {
   /** The history rows made by the add that `undo` takes back, read after that add was answered. */
   readonly ownPlays: (undo: QueuedOp) => Promise<readonly number[]>;
   readonly save: (ops: readonly QueuedOp[]) => Promise<void>;
-  /** Told once of each write that ends "failed". */
   readonly refused: (op: QueuedOp) => void;
 }
 
@@ -208,7 +207,6 @@ export class WriteQueue {
     return null;
   }
 
-  /** Whether Trakt has kept `next` waiting longer than any wait it asks for, since it first did. */
   private waitedTooLong(next: Delivery, now: number): boolean {
     const { refusedSince = now } = next.op;
     if (next.op.refusedSince === undefined) {

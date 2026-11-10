@@ -9,13 +9,11 @@ import { latestWrite } from "../stores/write-locks";
 import { patchStopped } from "./library-cache";
 import { useOptimisticWrite, writeTarget } from "./useOptimisticWrite";
 
-/** Both show their change on screen, and queue their writes behind every write queued before them. */
 export interface ResumeOnMark {
   resume(showId: number, ids: ShowIds): void;
   /**
-   * Stops a resumed show again the way it was stopped, once Trakt has taken every write in `after`;
-   * at once when there is none. A refused write in `after`, or a later write to the show, leaves it
-   * resumed.
+   * Stops a resumed show again once Trakt has taken every write in `after`. A refused write in
+   * `after`, or a later write to the show, leaves it resumed.
    */
   stopAgain(showId: number, ids: ShowIds, stopped: Stopped, after: readonly QueuedOp[]): void;
 }

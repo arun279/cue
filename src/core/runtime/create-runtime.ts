@@ -132,7 +132,6 @@ async function ownPlayIds(
   return rows.flat().map((play) => play.historyId);
 }
 
-/** Every client store that holds something of one account. */
 const ACCOUNT_STORES: readonly (() => void)[] = [
   resetMarkStore,
   dismissSnack,
@@ -142,7 +141,6 @@ const ACCOUNT_STORES: readonly (() => void)[] = [
   () => useRevealedStills.setState(useRevealedStills.getInitialState()),
 ];
 
-/** Removes everything the device keeps for an account, so the next one starts without it. */
 export async function clearAccount(
   deps: Pick<RuntimeDeps, "kv" | "clearPersistedCaches" | "clearLocalPreferences" | "reminders">,
 ): Promise<void> {

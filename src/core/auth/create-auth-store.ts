@@ -20,7 +20,7 @@ export interface AuthDeps {
   readonly clientId: string;
   readonly redirectUri: string;
   readonly traktBaseUrl: string | undefined;
-  /** Removes what the device keeps for an account; a sign-in runs it before saving its token. */
+  /** Runs before a sign-in saves its token. */
   readonly clearAccount: () => Promise<void>;
 }
 
