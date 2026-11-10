@@ -26,7 +26,7 @@ export function useResumeOnMark(): ResumeOnMark {
   const resume = useCallback(
     (showId: number, ids: ShowIds): void => {
       patchStopped(queryClient, showId, null);
-      void submit(writeTarget("show", showId), buildResumeShowOps({ newId, ids }), () => {});
+      void submit(writeTarget("show", showId), buildResumeShowOps({ newId, ids }));
     },
     [queryClient, newId, submit],
   );
@@ -38,7 +38,7 @@ export function useResumeOnMark(): ResumeOnMark {
       void Promise.all(after.map((op) => settled(op.id))).then((outcomes) => {
         if (outcomes.includes("failed") || latestWrite(target) !== undo) return;
         patchStopped(queryClient, showId, stopped);
-        void submit(target, [buildStopShowOp(stopped, { opId: newId(), ids })], () => {});
+        void submit(target, [buildStopShowOp(stopped, { opId: newId(), ids })]);
       });
     },
     [queryClient, newId, settled, submit],

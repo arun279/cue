@@ -439,7 +439,7 @@ it.each([
   await (await launch(device).runtime()).flushWrites();
 
   expect(sent("POST", HIDDEN)).toHaveLength(posted);
-  expect(device.bulk.values.get(OP_LOG_KEY)).toBe("[]");
+  expect(JSON.parse(device.bulk.values.get(OP_LOG_KEY) ?? "[]")).toEqual([]);
 });
 
 it("keeps a write Trakt answers after its session ended from teaching the next session", async () => {

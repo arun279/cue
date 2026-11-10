@@ -160,16 +160,6 @@ it("keeps cached content when its refresh fails", async () => {
   expect(screen.queryByText("Couldn't load this movie")).toBeNull();
 });
 
-it("says so when Trakt refuses a mark", async () => {
-  const runtime = movieRuntime({ watched: false, watchedAt: null });
-  runtime.submit.mockResolvedValue("failed");
-  await mount(runtime);
-  await fireEvent.press(await screen.findByTestId(TEST_IDS.movieMark));
-  expect(
-    await screen.findByText("Couldn't update this movie. Please try again."),
-  ).toBeOnTheScreen();
-});
-
 it("keeps the watched face when resolving plays fails", async () => {
   const runtime = movieRuntime();
   runtime.loadMoviePlays.mockRejectedValue(new Error("offline"));

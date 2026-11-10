@@ -114,7 +114,7 @@ export function useSetWatchlisted(): (
         ids: title.ids,
       });
       return submit(writeTarget(title.type, title.traktId), [op], () => {
-        void rereadLists(client, keys);
+        rereadLists(client, keys);
       });
     },
     [client, runtime, submit],

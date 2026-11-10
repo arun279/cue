@@ -126,15 +126,6 @@ export function useMarkWatched(): MarkWatched {
     [queryClient],
   );
 
-  const restorePreMark = useCallback(
-    (record: MarkRecord) => {
-      forgetOwnMark(record.showId);
-      patch(record.showId, (entry) => withMarkFields(entry, record.beforeMark));
-      patchProgress(record.showId, { season: record.season, number: record.number }, false, null);
-    },
-    [patch, patchProgress],
-  );
-
   const reapplyMark = useCallback(
     (record: MarkRecord) => {
       keepOwnMark(record.showId, record);
@@ -154,10 +145,12 @@ export function useMarkWatched(): MarkWatched {
   /** Shows the mark undone at once, with the show stopped again if the mark resumed it. */
   const showUndone = useCallback(
     (record: MarkRecord) => {
-      restorePreMark(record);
+      forgetOwnMark(record.showId);
+      patch(record.showId, (entry) => withMarkFields(entry, record.beforeMark));
+      patchProgress(record.showId, { season: record.season, number: record.number }, false, null);
       if (record.stopped !== null) patchStopped(queryClient, record.showId, record.stopped);
     },
-    [queryClient, restorePreMark],
+    [queryClient, patch, patchProgress],
   );
 
   const showKept = useCallback(
@@ -180,7 +173,7 @@ export function useMarkWatched(): MarkWatched {
         () => runtime.loadShowProgress(showId),
         episode,
         ownMark,
-      );
+      ).catch(() => undefined);
       void queryClient.invalidateQueries({ queryKey: queryKeys.historyPrefix() });
     },
     [queryClient, runtime],
@@ -249,15 +242,13 @@ export function useMarkWatched(): MarkWatched {
   const submitReversal = useCallback(
     async (record: MarkRecord) => {
       requestReversal(record.opId);
-      let outcome: SubmitOutcome | null;
       try {
-        outcome = await runReversal(record);
+        await runReversal(record);
       } finally {
         settleReversal(record.opId);
       }
-      if (outcome === "failed") showUndoFailed(haptics, record.title);
     },
-    [runReversal, haptics],
+    [runReversal],
   );
 
   const undoBatch = useCallback(async () => {
@@ -298,18 +289,11 @@ export function useMarkWatched(): MarkWatched {
   const settleMark = useCallback(
     (record: MarkRecord, outcome: SubmitOutcome) => {
       const replaced = outcome === "done" && replacedPlays(runtime.writeReceipt(record.opId)) > 0;
-      if ((!replaced && outcome !== "failed") || !retire(record)) return;
-      if (replaced) {
+      if ((replaced || outcome === "failed") && retire(record) && replaced) {
         showReplaced(record, false);
-        return;
       }
-      haptics.failure();
-      showSnack({
-        message: `Couldn't mark ${record.title} watched. Please try again.`,
-        actions: [{ label: "Dismiss", onPress: dismissSnack }],
-      });
     },
-    [runtime, haptics],
+    [runtime],
   );
 
   const mark = useCallback(

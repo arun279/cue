@@ -129,13 +129,10 @@ describe("useRemovePlay", () => {
     expect(submitted[1]?.request.body).toMatchObject({ episodes: [{ ids: { trakt: 301 } }] });
   });
 
-  it("brings the play back and says so when Trakt refuses the removal", async () => {
+  it("brings the play back when Trakt refuses the removal", async () => {
     const { controller } = setup(() => Promise.resolve("failed"));
     await act(async () => controller.current.removePlay(entry));
     expect(controller.current.removedIds).toEqual(new Set());
-    expect(useSnackbar.getState().snack?.message).toBe(
-      "Couldn't remove that play. Please try again.",
-    );
   });
 
   it("restores nothing when Undo beat a removal that then failed", async () => {
@@ -151,16 +148,5 @@ describe("useRemovePlay", () => {
     await act(async () => settle("failed"));
     expect(submitted).toHaveLength(1);
     expect(controller.current.removedIds).toEqual(new Set());
-  });
-
-  it("says so when the restore of a removed play is refused", async () => {
-    const { controller } = setup((op) =>
-      Promise.resolve(op.request.path === "/sync/history" ? "failed" : "done"),
-    );
-    await act(async () => controller.current.removePlay(entry));
-    await pressUndo();
-    expect(useSnackbar.getState().snack?.message).toBe(
-      "Couldn't restore that play. Please try again.",
-    );
   });
 });

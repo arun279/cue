@@ -5,7 +5,7 @@ import type { ShowIds } from "../domain/model/ids";
 import type { LibraryEntry, Stopped } from "../domain/model/library";
 import { buildResumeShowOps, buildStopShowOp } from "../domain/write-queue/ops";
 import { useRuntime } from "../runtime/runtime";
-import { showFailure, showUndoable } from "../stores/snackbar-store";
+import { showUndoable } from "../stores/snackbar-store";
 import { patchStopped, rereadLists, stoppedIn } from "./library-cache";
 import { useOptimisticWrite, writeTarget } from "./useOptimisticWrite";
 
@@ -22,7 +22,7 @@ export function useHideShow(): HideController {
 
   const revalidate = useCallback(
     (showId: number) => {
-      void rereadLists(queryClient, [queryKeys.library()]);
+      rereadLists(queryClient, [queryKeys.library()]);
       void queryClient.invalidateQueries({ queryKey: queryKeys.showProgress(showId) });
     },
     [queryClient],
@@ -30,7 +30,7 @@ export function useHideShow(): HideController {
 
   /** Stops the show the way `stopped` says, or resumes it when that is null. */
   const writeStopped = useCallback(
-    async (showId: number, ids: ShowIds, title: string, stopped: Stopped | null) => {
+    async (showId: number, ids: ShowIds, stopped: Stopped | null) => {
       const before = stoppedIn(queryClient, showId);
       patchStopped(queryClient, showId, stopped);
       const ops =
@@ -38,12 +38,6 @@ export function useHideShow(): HideController {
           ? buildResumeShowOps({ newId: runtime.newId, ids })
           : [buildStopShowOp(stopped, { opId: runtime.newId(), ids })];
       const outcome = await submit(writeTarget("show", showId), ops, () => revalidate(showId));
-      if (outcome === "failed") {
-        showFailure(
-          `Couldn't ${stopped === null ? "resume" : "stop watching"} ${title}. Please try again.`,
-          () => {},
-        );
-      }
       return { outcome, before };
     },
     [queryClient, revalidate, runtime, submit],
@@ -51,10 +45,10 @@ export function useHideShow(): HideController {
 
   const setHidden = useCallback(
     async (showId: number, ids: ShowIds, title: string, stopped: Stopped | null) => {
-      const { outcome, before } = await writeStopped(showId, ids, title, stopped);
+      const { outcome, before } = await writeStopped(showId, ids, stopped);
       if (outcome === "failed") return;
       showUndoable(`${title} ${stopped === null ? "resumed" : "stopped"}`, async () => {
-        await writeStopped(showId, ids, title, before);
+        await writeStopped(showId, ids, before);
       });
     },
     [writeStopped],

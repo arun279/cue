@@ -55,7 +55,7 @@ export function useMovieActions(header: MovieHeader) {
     });
   };
   const revalidate = () =>
-    void rereadLists(client, [key, queryKeys.movieWatchlist(), queryKeys.historyPrefix()]);
+    rereadLists(client, [key, queryKeys.movieWatchlist(), queryKeys.historyPrefix()]);
   const run = async (action: () => Promise<void>) => {
     running.current += 1;
     setBusy(true);
@@ -77,9 +77,7 @@ export function useMovieActions(header: MovieHeader) {
   const write = async (op: QueuedOp, next: Partial<MovieEntry>) => {
     await client.cancelQueries({ queryKey: key });
     patch(next);
-    const outcome = await submit(writeTarget("movie", header.movieId), [op], revalidate);
-    if (outcome === "failed") error();
-    return outcome;
+    return submit(writeTarget("movie", header.movieId), [op], revalidate);
   };
   const remove = (historyId: number, watchedAt: string) =>
     buildRemoveHistoryPlayOp({
@@ -150,11 +148,7 @@ export function useMovieActions(header: MovieHeader) {
       { type: "movie", traktId: header.movieId, ...header },
       listed,
     );
-    if (outcome === "failed") {
-      error();
-      return;
-    }
-    if (offerUndo)
+    if (offerUndo && outcome !== "failed")
       undoable(`${header.title} ${listed ? "added to" : "removed from"} Watchlist`, () =>
         watchlist(!listed, false),
       );

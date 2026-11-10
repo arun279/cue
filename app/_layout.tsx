@@ -10,6 +10,7 @@ import { createAuthStore } from "@/core/auth/create-auth-store";
 import { type AuthStore, AuthStoreProvider, useAuth } from "@/core/auth/store";
 import { useActivitiesPoll } from "@/core/hooks/useActivitiesPoll";
 import { useEpisodeReminders } from "@/core/hooks/useEpisodeReminders";
+import { useRefusedWrites } from "@/core/hooks/useRefusedWrites";
 import { migrateLegacyData } from "@/core/migration/legacy-capacitor";
 import { AppVersionProvider } from "@/core/ports/app-version";
 import { HapticsProvider } from "@/core/ports/haptics";
@@ -29,6 +30,7 @@ import {
   persistBuster,
   queryClient,
   queryPersister,
+  saveQueryCache,
   shouldDehydrateQuery,
 } from "../src/platform/query-persister";
 import { createNativeReminders, useOpenTappedReminder } from "../src/platform/reminders";
@@ -135,6 +137,7 @@ function Gate({ runtimeDeps }: Pick<NativeSession, "runtimeDeps">): ReactElement
 
 function RoutedApp(): ReactElement {
   useActivitiesPoll();
+  useRefusedWrites(saveQueryCache);
   useEpisodeReminders();
   useOpenTappedReminder();
 

@@ -28,7 +28,7 @@ export interface WriteQueueDeps {
 }
 
 interface Delivery {
-  /** Fixed, apart from a take-back once its plays are found and when Trakt first asks it to wait. */
+  /** Fixed, apart from a take-back once its plays are found and while Trakt asks it to wait. */
   op: QueuedOp;
   /** It may be on Trakt already, so no later write can cancel it. */
   sent: boolean;
@@ -37,15 +37,31 @@ interface Delivery {
   readonly resolve: (outcome: WriteOutcome) => void;
 }
 
+/** The write after Trakt asked it to wait at `now`; a wait that began a flush counts no time before it. */
+const waited = (op: QueuedOp, now: number, waitedOn: boolean): QueuedOp => {
+  const { waitingSince = now, lastRefusedAt = now } = op;
+  return {
+    ...op,
+    waitingSince: waitedOn ? waitingSince : waitingSince + now - lastRefusedAt,
+    lastRefusedAt: now,
+  };
+};
+
+const waitedTooLong = ({ waitingSince = 0, lastRefusedAt = 0 }: QueuedOp): boolean =>
+  lastRefusedAt - waitingSince >= GIVE_UP_AFTER_MS;
+
 /**
  * Sends writes to Trakt one at a time, in the order they were made. Every write Cue makes can be
  * sent again safely (a history add carries its own watched_at, which Trakt does not add twice:
  * trakt/trakt-api discussion #694), so a write whose answer is lost stays first in line and is sent
  * again. A take-back finds the plays it removes once, and keeps them before it is first sent, so no
- * later send removes a play made since. No write is sent before the device has kept it.
+ * later send removes a play made since. Every change to what the queue holds is saved as it happens,
+ * and no write is sent before the device has kept it.
  */
 export class WriteQueue {
   private pending: Delivery[];
+  /** Writes Trakt refused, kept until `forget` says what they showed has been corrected. */
+  private refused: QueuedOp[];
   private readonly deliveries = new Map<string, Delivery>();
   private lastDispatchAt: number | null = null;
   private resumeAt = 0;
@@ -56,7 +72,8 @@ export class WriteQueue {
   /** `stored` comes back from the device, where each write may have been sent before the app stopped. */
   constructor(deps: WriteQueueDeps, stored: readonly QueuedOp[] = []) {
     this.deps = deps;
-    this.pending = stored.map((op) => this.track(op, true));
+    this.refused = stored.filter((op) => op.refused === true);
+    this.pending = stored.filter((op) => op.refused !== true).map((op) => this.track(op, true));
   }
 
   get size(): number {
@@ -65,6 +82,15 @@ export class WriteQueue {
 
   snapshot(): QueuedOp[] {
     return this.pending.map(({ op }) => op);
+  }
+
+  refusals(): readonly QueuedOp[] {
+    return this.refused;
+  }
+
+  forget(id: string): void {
+    this.refused = this.refused.filter((op) => op.id !== id);
+    void this.save();
   }
 
   /** A write this queue has not been given yet is one it has not sent. */
@@ -90,37 +116,36 @@ export class WriteQueue {
     if (twin === undefined || twin.sent || twin.op.undoes !== undefined) {
       const delivery = this.track(op, false);
       this.pending.push(delivery);
-      this.saved = this.save().then(
-        (kept) => kept || this.failPending((queued) => queued === delivery),
-      );
+      this.saved = this.save().then((kept) => kept || this.finish(delivery, "failed"));
     } else if (twin.op.toState === op.toState) {
       this.deliveries.set(op.id, twin);
     } else {
-      this.pending = this.pending.filter((queued) => queued !== twin);
       this.finish(twin, "cancelled");
       this.finish(this.track(op, false), "cancelled");
     }
   }
 
+  /** Resolves once every write that was due has been sent or kept for later, and saved. */
+  flush(): Promise<void> {
+    if (this.flushing === null) {
+      const run = this.drain().finally(() => {
+        this.flushing = null;
+      });
+      this.flushing = run;
+    }
+    return this.flushing.then(() => this.saved).then(() => undefined);
+  }
+
   /** Keeps the queue on the device as it stands once every earlier save is done; whether it was kept. */
-  save(): Promise<boolean> {
+  private save(): Promise<boolean> {
     const kept = this.saved
-      .then(() => this.deps.save(this.snapshot()))
+      .then(() => this.deps.save([...this.snapshot(), ...this.refused]))
       .then(
         () => true,
         () => false,
       );
     this.saved = kept;
     return kept;
-  }
-
-  flush(): Promise<void> {
-    if (this.flushing !== null) return this.flushing;
-    const run = this.drain().finally(() => {
-      this.flushing = null;
-    });
-    this.flushing = run;
-    return run;
   }
 
   private track(op: QueuedOp, sent: boolean): Delivery {
@@ -134,22 +159,18 @@ export class WriteQueue {
   }
 
   private finish(delivery: Delivery, outcome: WriteOutcome): void {
+    this.pending = this.pending.filter((queued) => queued !== delivery);
+    if (outcome === "failed") this.refused = [...this.refused, { ...delivery.op, refused: true }];
+    void this.save();
     delivery.outcome = outcome;
     delivery.resolve(outcome);
     if (outcome === "failed") this.deps.refused(delivery.op);
   }
 
-  private failPending(which: (delivery: Delivery) => boolean): void {
-    const failed = this.pending.filter(which);
-    this.pending = this.pending.filter((queued) => !failed.includes(queued));
-    for (const delivery of failed) this.finish(delivery, "failed");
-  }
-
   /** Whether `next` is still first in line once every write queued so far has been kept. */
   private async kept(next: Delivery): Promise<boolean> {
-    const saved = this.saved;
-    await saved;
-    return saved === this.saved ? this.pending[0] === next : this.kept(next);
+    await this.saved;
+    return this.pending[0] === next;
   }
 
   private async drain(): Promise<void> {
@@ -159,7 +180,6 @@ export class WriteQueue {
       next.sent = true;
       const outcome = await this.deliver(next, firstSend);
       if (outcome === null) return;
-      this.pending.shift();
       this.finish(next, outcome);
     }
   }
@@ -196,24 +216,23 @@ export class WriteQueue {
       if (classification.kind === "ok") {
         const settlement = this.deps.settle(next.op, result, first);
         // Taking back an add that replaced an earlier play would lose that play.
-        if (settlement === "replaced") this.failPending(({ op }) => op.undoes === next.op.id);
+        if (settlement === "replaced") this.failTakeBacks(next.op.id);
         return settlement === "refused" ? "failed" : "done";
       }
       if (classification.kind === "failed") return "failed";
       first = false;
       this.resumeAt = now + classification.delayMs;
-      if (this.waitedTooLong(next, now)) return "failed";
+      next.op = waited(next.op, now, attempt > 0);
+      void this.save();
+      if (waitedTooLong(next.op)) return "failed";
     }
     return null;
   }
 
-  private waitedTooLong(next: Delivery, now: number): boolean {
-    const { refusedSince = now } = next.op;
-    if (next.op.refusedSince === undefined) {
-      next.op = { ...next.op, refusedSince };
-      void this.save();
+  private failTakeBacks(addId: string): void {
+    for (const takeBack of this.pending.filter(({ op }) => op.undoes === addId)) {
+      this.finish(takeBack, "failed");
     }
-    return now - refusedSince >= GIVE_UP_AFTER_MS;
   }
 
   /** Keeps writes a second apart, and holds the next one until Trakt's last asked-for wait is over. */

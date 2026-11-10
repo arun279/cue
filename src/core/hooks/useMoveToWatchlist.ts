@@ -3,7 +3,7 @@ import { queryKeys } from "../data/query-keys";
 import { type LibraryEntry, stoppedOf } from "../domain/model/library";
 import { buildAddWatchlistOp, buildRemoveWatchlistOp } from "../domain/write-queue/ops";
 import { useRuntime } from "../runtime/runtime";
-import { showSnack, showUndoable } from "../stores/snackbar-store";
+import { showUndoable } from "../stores/snackbar-store";
 import { ensureLibraryEntry, patchLibraryEntry, rereadLists } from "./library-cache";
 import { useOptimisticWrite, writeTarget } from "./useOptimisticWrite";
 import { useResumeOnMark } from "./useResumeOnMark";
@@ -19,7 +19,7 @@ export function useMoveToWatchlist(): (entry: LibraryEntry) => Promise<void> {
     const build = added ? buildAddWatchlistOp : buildRemoveWatchlistOp;
     const op = build({ opId: runtime.newId(), section: "shows", ids: { trakt: entry.showId } });
     const writing = submit(writeTarget("show", entry.showId), [op], () => {
-      void rereadLists(client, [queryKeys.library()]);
+      rereadLists(client, [queryKeys.library()]);
     });
     const stopped = stoppedOf(entry);
     if (stopped !== null) {
@@ -27,8 +27,6 @@ export function useMoveToWatchlist(): (entry: LibraryEntry) => Promise<void> {
       else resume.stopAgain(entry.showId, { trakt: entry.showId }, stopped, [op]);
     }
     const outcome = await writing;
-    if (outcome === "failed")
-      showSnack({ message: "Couldn't update your watchlist. Please try again." });
     return outcome !== "failed";
   };
   return async (entry) => {

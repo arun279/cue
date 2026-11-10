@@ -1,5 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { invalidateShowProgress } from "../data/query-invalidation";
+import { showProgressKeys } from "../data/query-invalidation";
 import { queryKeys } from "../data/query-keys";
 import type { EpisodeDetail } from "../domain/episode-detail";
 import {
@@ -15,7 +15,8 @@ import {
   type ShowProgress,
   toEpisodeRef,
 } from "../domain/show-detail";
-import type { QueuedOp } from "../domain/write-queue/types";
+import { targetOf } from "../domain/write-queue/ops";
+import type { QueuedOp, WriteTarget } from "../domain/write-queue/types";
 import type { CueRuntime, UpNextData } from "../runtime/runtime";
 import { forgetOwnMark, isBehindOwnMark, keepOwnMark, type OwnMark } from "../stores/own-marks";
 import { whenNoWritePending } from "../stores/write-locks";
@@ -57,6 +58,7 @@ function patchLibraryProgress(qc: QueryClient, showId: number, progress: ShowPro
   }));
 }
 
+/** Reads the show's progress, seasons and episode pages again; fails unless Trakt answered. */
 export function refreshShowProgress(
   qc: QueryClient,
   showId: number,
@@ -66,45 +68,59 @@ export function refreshShowProgress(
 ): Promise<void> {
   if (ownMark === undefined) forgetOwnMark(showId);
   else keepOwnMark(showId, ownMark);
-  invalidateShowProgress(qc, showId, episode);
-  return qc
+  const progress = qc
     .fetchQuery({ queryKey: queryKeys.showProgress(showId), queryFn: load })
-    .then((progress) => {
-      if (!isBehindOwnMark(showId, progress.completed)) patchLibraryProgress(qc, showId, progress);
-    })
-    .catch(() => {});
+    .then((read) => {
+      if (!isBehindOwnMark(showId, read.completed)) patchLibraryProgress(qc, showId, read);
+    });
+  return Promise.all([progress, reread(qc, showProgressKeys(showId, episode))]).then(
+    () => undefined,
+  );
 }
 
-/** Reads lists of many shows or movies again once no write is pending; with "all", unseen ones too. */
-export const rereadLists = (
+/** Reads lists that hold many shows or movies again once no write to any of them is pending. */
+export const rereadLists = (qc: QueryClient, keys: readonly (readonly unknown[])[]): void =>
+  whenNoWritePending(() => {
+    for (const queryKey of keys) void qc.invalidateQueries({ queryKey });
+  });
+
+/** Reads these queries again, those no screen shows too with "all"; fails unless Trakt answered. */
+const reread = (
   qc: QueryClient,
   keys: readonly (readonly unknown[])[],
   refetchType: "active" | "all" = "active",
-): Promise<void> =>
-  new Promise((resolve) => {
-    whenNoWritePending(() => {
-      void Promise.all(
-        keys.map((queryKey) => qc.invalidateQueries({ queryKey, refetchType })),
-      ).then(() => resolve());
-    });
-  });
+): Promise<unknown> =>
+  Promise.all(
+    keys.map((queryKey) => qc.invalidateQueries({ queryKey, refetchType }, { throwOnError: true })),
+  );
 
+const LIBRARY = queryKeys.library();
 const MOVIE_LISTS = [queryKeys.movieLibrary(), queryKeys.movieWatchlist()];
+const listsOf = (target: WriteTarget | null): readonly (readonly unknown[])[] => {
+  if (target === null) return [LIBRARY, ...MOVIE_LISTS];
+  return target.kind === "show" ? [LIBRARY] : MOVIE_LISTS;
+};
+const SHOW_VIEWS = (["progress", "seasons", "episode"] as const).map(queryKeys.showSection);
 
-/** Reads back what a refused write showed: its show's progress now, the lists once nothing is pending. */
+/**
+ * Reads back what a refused write showed: its show's progress at once, and the lists once no write
+ * is pending. A write that names no show or movie reads every show and list. Fails unless Trakt
+ * answered every read.
+ */
 export const readBackRefused =
   (qc: QueryClient, runtime: Pick<CueRuntime, "loadShowProgress">) =>
   async (op: QueuedOp): Promise<void> => {
-    const [kind, id] = op.target?.split(":") ?? [];
-    const showId = Number(id);
+    const target = targetOf(op);
     const history = op.request.path.startsWith("/sync/history");
-    const library = kind === "movie" ? [] : [queryKeys.library()];
     await Promise.all([
-      history && qc.invalidateQueries({ queryKey: queryKeys.historyPrefix() }),
-      kind === "show" &&
-        history &&
-        refreshShowProgress(qc, showId, () => runtime.loadShowProgress(showId), "all"),
-      rereadLists(qc, kind === "show" ? library : [...library, ...MOVIE_LISTS], "all"),
+      history && reread(qc, [queryKeys.historyPrefix()]),
+      history &&
+        target?.kind === "show" &&
+        refreshShowProgress(qc, target.id, () => runtime.loadShowProgress(target.id), "all"),
+      history && target === null && reread(qc, SHOW_VIEWS),
+      new Promise((resolve) =>
+        whenNoWritePending(() => resolve(reread(qc, listsOf(target), "all"))),
+      ),
     ]);
   };
 

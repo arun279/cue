@@ -8,7 +8,7 @@ import {
   buildRemoveHistoryPlayOp,
 } from "../domain/write-queue/ops";
 import { type SubmitOutcome, useRuntime } from "../runtime/runtime";
-import { dismissSnack, showSnack, showUndoable } from "../stores/snackbar-store";
+import { showUndoable } from "../stores/snackbar-store";
 import { refreshShowProgress, rereadLists } from "./library-cache";
 import { useOptimisticWrite, writeTarget } from "./useOptimisticWrite";
 
@@ -23,10 +23,6 @@ const withoutId = (set: ReadonlySet<number>, id: number): Set<number> => {
   return next;
 };
 
-function showError(message: string): void {
-  showSnack({ message, actions: [{ label: "Dismiss", onPress: dismissSnack }] });
-}
-
 export function useRemovePlay(): RemovePlayController {
   const runtime = useRuntime();
   const queryClient = useQueryClient();
@@ -37,7 +33,7 @@ export function useRemovePlay(): RemovePlayController {
     (entry: HistoryEntry) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.historyPrefix() });
       if (entry.type === "movie") {
-        void rereadLists(queryClient, [queryKeys.movieLibrary()]);
+        rereadLists(queryClient, [queryKeys.movieLibrary()]);
         return;
       }
       void refreshShowProgress(
@@ -45,7 +41,7 @@ export function useRemovePlay(): RemovePlayController {
         entry.mediaId,
         () => runtime.loadShowProgress(entry.mediaId),
         { season: entry.season, number: entry.number },
-      );
+      ).catch(() => undefined);
     },
     [queryClient, runtime],
   );
@@ -59,12 +55,11 @@ export function useRemovePlay(): RemovePlayController {
         ids: entry.ids,
         watchedAt: entry.watchedAt,
       });
-      const outcome = await submit(
+      await submit(
         writeTarget(entry.type === "movie" ? "movie" : "show", entry.mediaId),
         [op],
         () => revalidate(entry),
       );
-      if (outcome === "failed") showError("Couldn't restore that play. Please try again.");
     },
     [submit, revalidate, runtime.newId],
   );
@@ -92,7 +87,7 @@ export function useRemovePlay(): RemovePlayController {
       showUndoable(remaining > 0 ? `Removed 1 play · ${remaining} remain` : "Removed play", () =>
         restore(entry, removal),
       );
-      if ((await removal) === "failed") showError("Couldn't remove that play. Please try again.");
+      await removal;
     },
     [submit, revalidate, restore, runtime],
   );

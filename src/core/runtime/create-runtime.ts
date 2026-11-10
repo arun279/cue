@@ -71,8 +71,9 @@ import { resetMarkStore } from "../stores/mark-store";
 import { usePlayPolicy } from "../stores/play-policy-store";
 import { useReadIncidents } from "../stores/read-incidents-store";
 import { useRevealedStills } from "../stores/revealed-stills-store";
-import { dismissSnack, showSnack } from "../stores/snackbar-store";
+import { dismissSnack } from "../stores/snackbar-store";
 import { useSyncActivity } from "../stores/sync-activity-store";
+import { createRefusals } from "./refusals";
 import type {
   ActivitiesReconcile,
   BrowseData,
@@ -216,39 +217,20 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     signal,
   });
 
-  const stored = (await opLogStore.read()) ?? [];
-  let refused = stored.filter((op) => op.refused === true);
-  let readBack: ((op: QueuedOp) => Promise<void>) | null = null;
-  // The writes a caller is waiting on, which that caller reports itself if Trakt refuses them.
-  const answering = new Set<string>();
-  const correct = (op: QueuedOp): void =>
-    void readBack?.(op).then(() => {
-      refused = refused.filter((kept) => kept.id !== op.id);
-      return queue.save();
-    });
-  const queue = new WriteQueue(
+  const queue: WriteQueue = new WriteQueue(
     {
       dispatch: createTraktTransport(client),
       sleep: (ms) => sleep(ms, signal),
       now: Date.now,
       settle: receipts.settle,
       ownPlays: (undo) => ownPlayIds(client, undo),
-      save: (ops) => opLogStore.write([...ops, ...refused]),
-      refused: (op) => {
-        refused = [...refused, { ...op, refused: true }];
-        if (!answering.has(op.id)) {
-          showSnack({
-            message: "Couldn't save an earlier change to Trakt.",
-            actions: [{ label: "Dismiss", onPress: dismissSnack }],
-          });
-        }
-        correct(op);
-      },
+      save: (ops) => opLogStore.write([...ops]),
+      refused: (op) => refusals.refused(op),
     },
-    stored.filter((op) => op.refused !== true),
+    (await opLogStore.read()) ?? [],
   );
-
-  void queue.flush().then(() => queue.save());
+  const refusals = createRefusals(queue);
+  void queue.flush();
 
   const { readsPausedUntil, subscribeReadPause, readRetryFailure, subscribeReadRetry } =
     client.reads;
@@ -402,22 +384,13 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     },
 
     async submit(op: QueuedOp): Promise<SubmitOutcome> {
-      answering.add(op.id);
       queue.enqueue(op);
       await queue.flush();
-      await queue.save();
-      answering.delete(op.id);
       const state = queue.stateOf(op.id);
       return state === "unsent" || state === "sent" ? "deferred" : state;
     },
 
-    onRefused(handler) {
-      readBack = handler;
-      for (const op of refused) correct(op);
-      return () => {
-        if (readBack === handler) readBack = null;
-      };
-    },
+    onRefused: refusals.onRefused,
 
     settled: (opId) => queue.settled(opId),
     writeState: (opId) => queue.stateOf(opId),
@@ -437,14 +410,14 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
 
     async flushWrites(): Promise<number> {
       await queue.flush();
-      await queue.save();
-      return queue.snapshot().length;
+      return queue.size;
     },
 
     async pollActivities(): Promise<ActivitiesReconcile | null> {
       const stored = await activitiesStore.read();
       const poll = await getLastActivities(client);
       if (!poll.ok) return null;
+      refusals.retry();
       return {
         keys: stored === null ? [] : changedActivityKeys(stored, poll.data),
         commit: () => activitiesStore.write(poll.data),
@@ -454,7 +427,6 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     async endLocalSession(): Promise<void> {
       if (!signal.aborted) {
         await queue.flush();
-        await queue.save();
         if (!signal.aborted && queue.size > 0) throw new PendingWritesError();
       }
       return end();

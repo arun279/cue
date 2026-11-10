@@ -1,5 +1,5 @@
 import type { WriteOutcome } from "../domain/write-queue/queue";
-import type { QueuedOp } from "../domain/write-queue/types";
+import type { QueuedOp, WriteTarget } from "../domain/write-queue/types";
 import type { SubmitOutcome } from "../runtime/runtime";
 import { beginWrite, endWrite } from "../stores/write-locks";
 
@@ -20,9 +20,9 @@ const worse = (a: SubmitOutcome, b: SubmitOutcome): SubmitOutcome =>
  */
 export async function applyOptimisticWrite(
   gateway: WriteGateway,
-  target: string,
+  target: WriteTarget,
   ops: readonly QueuedOp[],
-  revalidate: () => void,
+  revalidate?: () => void,
 ): Promise<SubmitOutcome> {
   beginWrite(target);
   const answers = await Promise.all(
@@ -30,6 +30,6 @@ export async function applyOptimisticWrite(
   );
   void Promise.all(
     answers.map(([id, outcome]) => (outcome === "deferred" ? gateway.settled(id) : outcome)),
-  ).then((ended) => endWrite(target, ended.includes("done") ? revalidate : null));
+  ).then((ended) => endWrite(target, ended.includes("done") ? (revalidate ?? null) : null));
   return answers.map(([, outcome]) => outcome).reduce(worse, "done");
 }

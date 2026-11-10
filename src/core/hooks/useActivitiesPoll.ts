@@ -1,15 +1,8 @@
-import {
-  focusManager,
-  onlineManager,
-  useIsRestoring,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { focusManager, onlineManager, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { refreshChangedShows } from "../runtime/library-reloads";
 import { useRuntime } from "../runtime/runtime";
 import { useSyncActivity } from "../stores/sync-activity-store";
-import { readBackRefused } from "./library-cache";
 import { syncQuery } from "./sync-query";
 
 const POLL_INTERVAL_MS = 60_000;
@@ -17,7 +10,6 @@ const POLL_INTERVAL_MS = 60_000;
 export function useActivitiesPoll(): void {
   const runtime = useRuntime();
   const queryClient = useQueryClient();
-  const restoring = useIsRestoring();
 
   useQuery({
     ...syncQuery(runtime),
@@ -30,11 +22,6 @@ export function useActivitiesPoll(): void {
   useEffect(
     () => refreshChangedShows(queryClient, () => runtime.pendingOps()),
     [queryClient, runtime],
-  );
-
-  useEffect(
-    () => (restoring ? undefined : runtime.onRefused(readBackRefused(queryClient, runtime))),
-    [restoring, queryClient, runtime],
   );
 
   useEffect(() => {

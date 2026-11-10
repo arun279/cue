@@ -15,7 +15,6 @@ import type {
   SubmitOutcome,
   UpNextData,
 } from "@/core/runtime/runtime";
-import { useSnackbar } from "@/core/stores/snackbar-store";
 import { resetWriteLocks } from "@/core/stores/write-locks";
 import { makeShow } from "../domain/_helpers";
 import { partialRuntime, withRuntime } from "../support/runtime";
@@ -218,18 +217,6 @@ it("adds a movie to the movie watchlist and movie library once, then revalidates
   expect(client.getQueryState(queryKeys.movieLibrary())?.isInvalidated).toBe(true);
   expect(client.getQueryState(queryKeys.movieWatchlist())?.isInvalidated).toBe(true);
   expect(view.current.isAdded(show)).toBe(false);
-});
-
-it("says why when Trakt refuses an add", async () => {
-  const client = new QueryClient();
-  client.setQueryData<UpNextData>(queryKeys.library(), { entries: [] });
-  await mountAdd(client, membershipRuntime("failed"));
-
-  await act(async () => view.current.add(show));
-
-  expect(useSnackbar.getState().snack?.message).toBe(
-    "Couldn't add Refetched Show to your watchlist. Please try again.",
-  );
 });
 
 it("removes a listed movie before the movie library has loaded", async () => {

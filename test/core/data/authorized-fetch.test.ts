@@ -219,7 +219,7 @@ describe("createAuthorizedFetch: mutating writes are never blind re-POSTed", () 
 
     const res = await authorized.fetch(WRITE, post);
 
-    expect(res.status).toBe(401); // classified as failed by the queue → roll back
+    expect(res.status).toBe(401);
     expect(endSession).toHaveBeenCalledTimes(1);
     expect(sentTo("/sync/history")).toHaveLength(1);
   });

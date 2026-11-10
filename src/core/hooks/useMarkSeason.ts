@@ -221,13 +221,8 @@ export function useMarkSeason(): MarkSeasonController {
       outcome: SubmitOutcome,
       ops: readonly QueuedOp[],
       undoOps: readonly QueuedOp[] | null,
-      failure: string,
       replacedMessage: (replaced: number) => string,
     ): void => {
-      if (outcome === "failed") {
-        showError(failure);
-        return;
-      }
       const { replaced } = receiptTotals(runtime, ops);
       if (outcome !== "done" || replaced === 0) return;
       if (undoOps !== null && offered()?.ops !== undoOps) return;
@@ -269,7 +264,7 @@ export function useMarkSeason(): MarkSeasonController {
         showId,
         () => runtime.loadShowProgress(showId),
         episode,
-      ),
+      ).catch(() => undefined),
     [queryClient, runtime],
   );
 
@@ -326,7 +321,7 @@ export function useMarkSeason(): MarkSeasonController {
       if (pending.stopped !== null && undoIsLatest) {
         resume.stopAgain(pending.showId, pending.ids, pending.stopped, plan);
       }
-      if ((await undoing) === "failed") showError("Couldn't undo that. Please try again.");
+      await undoing;
     },
     [revalidate, setEpisodeWatched, submit, resume, runtime],
   );
@@ -375,13 +370,7 @@ export function useMarkSeason(): MarkSeasonController {
       });
       const writing = submitSeasonWrite(target, ops, match, stopped);
       offerUndo(undo);
-      settleWrite(
-        await writing,
-        ops,
-        undo.ops,
-        "Couldn't save that change. Please try again.",
-        (n) => REPLACED_COPY.bulk(label, n),
-      );
+      settleWrite(await writing, ops, undo.ops, (n) => REPLACED_COPY.bulk(label, n));
     },
     [offerUndo, queryClient, submitSeasonWrite, settleWrite],
   );
@@ -486,7 +475,7 @@ export function useMarkSeason(): MarkSeasonController {
         stopped: null,
         priorPlay: false,
       });
-      if ((await writing) === "failed") showError("Couldn't unmark that season. Please try again.");
+      await writing;
     },
     [offerUndo, queryClient, revalidate, submit, runtime.newId],
   );
@@ -551,9 +540,6 @@ export function useMarkSeason(): MarkSeasonController {
         );
         showSnack({ message: `${label} · ${aired.length} ${plural(aired.length)}` });
         const outcome = await writing;
-        if (outcome === "failed") {
-          showError("Couldn't save that change. Please try again.");
-        }
         const { added, replaced } = receiptTotals(runtime, ops);
         if (outcome === "done" && replaced > 0) {
           showSnack({ message: REPLACED_COPY.rewatch(label, added, replaced) });
@@ -600,10 +586,9 @@ export function useMarkSeason(): MarkSeasonController {
               watchedAt: queuedMark.watchedAt ?? new Date().toISOString(),
             })
           : buildUndoAddOp(runtime.newId(), queuedMark);
-      const outcome = await submit(writeTarget("show", target.showId), [takeBack], () =>
+      await submit(writeTarget("show", target.showId), [takeBack], () =>
         revalidate(target.showId, episode),
       );
-      if (outcome === "failed") showError("Couldn't update that episode. Please try again.");
     },
     [revalidate, setEpisodeWatched, submit, runtime],
   );
@@ -647,8 +632,7 @@ export function useMarkSeason(): MarkSeasonController {
         stopped: null,
         priorPlay: false,
       });
-      if ((await writing) === "failed")
-        showError("Couldn't update that episode. Please try again.");
+      await writing;
     },
     [offerUndo, revalidate, setEpisodeWatched, submit, runtime.newId],
   );
@@ -729,7 +713,6 @@ export function useMarkSeason(): MarkSeasonController {
           await writing,
           ops,
           undoLabel === undefined ? null : ops,
-          "Couldn't update that episode. Please try again.",
           () => REPLACED_COPY.episode,
         );
       } finally {
@@ -766,13 +749,7 @@ export function useMarkSeason(): MarkSeasonController {
         );
         if (stopped !== null) resume.resume(target.showId, target.ids);
         showSnack({ message: "Play added" });
-        settleWrite(
-          await writing,
-          [op],
-          null,
-          "Couldn't add that play. Please try again.",
-          () => REPLACED_COPY.play,
-        );
+        settleWrite(await writing, [op], null, () => REPLACED_COPY.play);
       });
     },
     [withEpisodeLock, queryClient, submit, resume, revalidate, runtime, settleWrite],
@@ -816,9 +793,7 @@ export function useMarkSeason(): MarkSeasonController {
           stopped: null,
           priorPlay: false,
         });
-        if ((await writing) === "failed") {
-          showError("Couldn't remove those plays. Please try again.");
-        }
+        await writing;
       });
     },
     [withEpisodeLock, runtime, queryClient, offerUndo, submit, revalidate],

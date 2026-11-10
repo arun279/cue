@@ -5,7 +5,6 @@ import type { MovieEntry } from "../domain/model/movie";
 import { usePrefs } from "../prefs/prefs-store";
 import { libraryQuery, movieLibraryQuery, movieWatchlistQuery } from "../queries/library";
 import { useRuntime } from "../runtime/runtime";
-import { showFailure } from "../stores/snackbar-store";
 import { useSetWatchlisted } from "./useSetWatchlisted";
 
 const movieIds = (entries: readonly MovieEntry[]): readonly number[] =>
@@ -35,13 +34,10 @@ export function useWatchlistAdd(): WatchlistAddView {
   const isAdded = (hit: SearchHit) => listedIds[hit.type].has(hit.traktId);
 
   const add = async (hit: SearchHit) => {
-    if (isAdded(hit)) return;
-    if ((await setListed(hit, true)) === "failed")
-      showFailure(`Couldn't add ${hit.title} to your watchlist. Please try again.`, () => {});
+    if (!isAdded(hit)) await setListed(hit, true);
   };
   const remove = async (hit: SearchHit) => {
-    if ((await setListed(hit, false)) === "failed")
-      showFailure(`Couldn't remove ${hit.title} from your watchlist. Please try again.`, () => {});
+    await setListed(hit, false);
   };
   return { isAdded, add, remove };
 }

@@ -23,6 +23,7 @@ import { OP_LOG_KEY } from "@/core/ports/storage-keys";
 import { libraryQuery } from "@/core/queries/library";
 import type { RuntimeDeps } from "@/core/runtime/create-runtime";
 import { createQueryClient } from "@/core/runtime/query-cache";
+import { REFUSED_MESSAGE } from "@/core/runtime/refusals";
 import type { CueRuntime } from "@/core/runtime/runtime";
 import { resetMarkStore } from "@/core/stores/mark-store";
 import { usePlayPolicy } from "@/core/stores/play-policy-store";
@@ -92,15 +93,14 @@ it("sends a movie mark again when its answer was lost, and Trakt keeps one play"
 it("gives up a write Trakt keeps refusing, and sends the writes queued behind it", async () => {
   vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
   vi.setSystemTime(new Date(AT));
-  fake.fail({ method: "POST", path: HIDDEN, times: EVERY }, 500);
+  fake.fail({ method: "POST", path: HIDDEN, times: EVERY }, 429, 60);
   const cue = await buildRuntime();
   void cue.submit(buildStopShowOp("hidden", { opId: "stuck", ids: { trakt: 8801 } }));
   void cue.submit(buildAddWatchlistOp({ opId: "behind", section: "shows", ids: { trakt: 8901 } }));
 
   for (let minute = 0; minute < 10 && cue.pendingWrites() > 0; minute += 1) {
-    const flushed = cue.flushWrites();
+    void cue.flushWrites();
     await vi.advanceTimersByTimeAsync(60_000);
-    await flushed;
   }
 
   expect(cue.pendingWrites()).toBe(0);
@@ -484,7 +484,7 @@ it("keeps the play another app made when an offline mark replaced it and the mar
 
   expect(await cue.loadEpisodePlays(NEXT_EPISODE)).toHaveLength(1);
   expect(posts("/sync/history/remove")).toHaveLength(0);
-  expect(said).toContain("Couldn't save an earlier change to Trakt.");
+  expect(said).toContain(REFUSED_MESSAGE);
 });
 
 it("keeps the play a mark replaced when the app is relaunched before that mark's Undo is sent", async () => {
