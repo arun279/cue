@@ -24,9 +24,8 @@ export interface QueuedOp {
    */
   readonly undoes?: string;
   readonly target?: WriteTarget;
-  /** When Trakt first asked this write to wait, moved later by any time no attempt was made. */
-  readonly waitingSince?: number;
-  readonly lastRefusedAt?: number;
+  /** How long Trakt has kept this write waiting between attempts, across flushes and restarts. */
+  readonly waitedMs?: number;
   /** Trakt refused it, and what it showed on screen has not been read back from Trakt yet. */
   readonly refused?: true;
 }

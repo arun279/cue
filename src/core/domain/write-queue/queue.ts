@@ -37,19 +37,6 @@ interface Delivery {
   readonly resolve: (outcome: WriteOutcome) => void;
 }
 
-/** The write after Trakt asked it to wait at `now`; a wait that began a flush counts no time before it. */
-const waited = (op: QueuedOp, now: number, waitedOn: boolean): QueuedOp => {
-  const { waitingSince = now, lastRefusedAt = now } = op;
-  return {
-    ...op,
-    waitingSince: waitedOn ? waitingSince : waitingSince + now - lastRefusedAt,
-    lastRefusedAt: now,
-  };
-};
-
-const waitedTooLong = ({ waitingSince = 0, lastRefusedAt = 0 }: QueuedOp): boolean =>
-  lastRefusedAt - waitingSince >= GIVE_UP_AFTER_MS;
-
 /**
  * Sends writes to Trakt one at a time, in the order they were made. Every write Cue makes can be
  * sent again safely (a history add carries its own watched_at, which Trakt does not add twice:
@@ -116,7 +103,9 @@ export class WriteQueue {
     if (twin === undefined || twin.sent || twin.op.undoes !== undefined) {
       const delivery = this.track(op, false);
       this.pending.push(delivery);
-      this.saved = this.save().then((kept) => kept || this.finish(delivery, "failed"));
+      this.saved = this.save().then((kept) => {
+        if (!kept && this.pending.includes(delivery)) this.finish(delivery, "failed");
+      });
     } else if (twin.op.toState === op.toState) {
       this.deliveries.set(op.id, twin);
     } else {
@@ -203,6 +192,7 @@ export class WriteQueue {
 
   private async send(next: Delivery, firstSend: boolean): Promise<WriteOutcome | null> {
     let first = firstSend;
+    let refusedAt: number | null = null;
     for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_FLUSH; attempt += 1) {
       await this.pace();
       let result: DispatchResult;
@@ -222,11 +212,18 @@ export class WriteQueue {
       if (classification.kind === "failed") return "failed";
       first = false;
       this.resumeAt = now + classification.delayMs;
-      next.op = waited(next.op, now, attempt > 0);
-      void this.save();
-      if (waitedTooLong(next.op)) return "failed";
+      if (this.waited(next, now, refusedAt)) return "failed";
+      refusedAt = now;
     }
     return null;
+  }
+
+  /** Adds the wait since the write's last refusal in this flush, saves it, and whether to give up. */
+  private waited(next: Delivery, now: number, refusedAt: number | null): boolean {
+    const waitedMs = (next.op.waitedMs ?? 0) + (refusedAt === null ? 0 : now - refusedAt);
+    next.op = { ...next.op, waitedMs };
+    void this.save();
+    return waitedMs >= GIVE_UP_AFTER_MS;
   }
 
   private failTakeBacks(addId: string): void {

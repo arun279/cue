@@ -59,7 +59,7 @@ function patchLibraryProgress(qc: QueryClient, showId: number, progress: ShowPro
 }
 
 /** Reads the show's progress, seasons and episode pages again; fails unless Trakt answered. */
-export function refreshShowProgress(
+export async function refreshShowProgress(
   qc: QueryClient,
   showId: number,
   load: () => Promise<ShowProgress>,
@@ -68,14 +68,14 @@ export function refreshShowProgress(
 ): Promise<void> {
   if (ownMark === undefined) forgetOwnMark(showId);
   else keepOwnMark(showId, ownMark);
-  const progress = qc
-    .fetchQuery({ queryKey: queryKeys.showProgress(showId), queryFn: load })
-    .then((read) => {
-      if (!isBehindOwnMark(showId, read.completed)) patchLibraryProgress(qc, showId, read);
-    });
-  return Promise.all([progress, reread(qc, showProgressKeys(showId, episode))]).then(
-    () => undefined,
-  );
+  const progressKey = queryKeys.showProgress(showId);
+  const views = showProgressKeys(showId, episode).slice(1);
+  await qc.invalidateQueries({ queryKey: progressKey, refetchType: "none" });
+  const progress = qc.fetchQuery({ queryKey: progressKey, queryFn: load }).then((read) => {
+    assertRead(qc, [progressKey], "all");
+    if (!isBehindOwnMark(showId, read.completed)) patchLibraryProgress(qc, showId, read);
+  });
+  await Promise.all([progress, reread(qc, views)]);
 }
 
 /** Reads lists that hold many shows or movies again once no write to any of them is pending. */
@@ -84,15 +84,29 @@ export const rereadLists = (qc: QueryClient, keys: readonly (readonly unknown[])
     for (const queryKey of keys) void qc.invalidateQueries({ queryKey });
   });
 
-/** Reads these queries again, those no screen shows too with "all"; fails unless Trakt answered. */
-const reread = (
-  qc: QueryClient,
-  keys: readonly (readonly unknown[])[],
-  refetchType: "active" | "all" = "active",
-): Promise<unknown> =>
-  Promise.all(
-    keys.map((queryKey) => qc.invalidateQueries({ queryKey, refetchType }, { throwOnError: true })),
+type Keys = readonly (readonly unknown[])[];
+
+/** Fails unless every one of these queries has been read since it was marked out of date. */
+function assertRead(qc: QueryClient, keys: Keys, type: "active" | "all"): void {
+  const cache = qc.getQueryCache();
+  const unread = keys.some((queryKey) =>
+    cache.findAll({ queryKey, type }).some((query) => query.state.isInvalidated),
   );
+  if (unread) throw new Error("Trakt was not read again");
+}
+
+/**
+ * Reads these queries again, those no screen shows too with "all". All are marked out of date before
+ * any is fetched, so one built from another reads it fresh; a read that pauses or is cancelled fails.
+ */
+async function reread(qc: QueryClient, keys: Keys, type: "active" | "all" = "active") {
+  await Promise.all(
+    keys.map((queryKey) => qc.invalidateQueries({ queryKey, refetchType: "none" })),
+  );
+  const options = { throwOnError: true, cancelRefetch: false };
+  await Promise.all(keys.map((queryKey) => qc.refetchQueries({ queryKey, type }, options)));
+  assertRead(qc, keys, type);
+}
 
 const LIBRARY = queryKeys.library();
 const MOVIE_LISTS = [queryKeys.movieLibrary(), queryKeys.movieWatchlist()];

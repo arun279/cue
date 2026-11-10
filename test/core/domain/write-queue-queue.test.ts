@@ -331,6 +331,36 @@ describe("WriteQueue saving", () => {
   });
 });
 
+describe("WriteQueue saving a cancelled pair", () => {
+  it("leaves two opposite writes cancelled when saving the first of them fails afterwards", async () => {
+    const h = harness(ok);
+    let full: (error: Error) => void = () => {};
+    let holding = false;
+    const refused: string[] = [];
+    const q = new WriteQueue({
+      ...h.deps,
+      save: () =>
+        holding
+          ? Promise.resolve()
+          : new Promise((_, reject) => {
+              holding = true;
+              full = reject;
+            }),
+      refused: (op) => refused.push(op.id),
+    });
+    q.enqueue(mark("a", 1));
+    await h.clock.sleep(0);
+    q.enqueue(unmark("b", 1));
+    await expect(q.settled("a")).resolves.toBe("cancelled");
+    full(new Error("storage full"));
+    await q.flush();
+
+    expect(states(q, "a", "b")).toEqual(["cancelled", "cancelled"]);
+    expect(refused).toEqual([]);
+    expect(h.dispatch).not.toHaveBeenCalled();
+  });
+});
+
 describe("WriteQueue coalescing", () => {
   it("cancels an unsent write and its opposite, and leaves other items alone", async () => {
     const h = harness(ok);

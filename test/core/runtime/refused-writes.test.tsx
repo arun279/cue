@@ -6,7 +6,12 @@
  */
 
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
-import { IsRestoringProvider, type QueryClient, useQuery } from "@tanstack/react-query";
+import {
+  IsRestoringProvider,
+  onlineManager,
+  type QueryClient,
+  useQuery,
+} from "@tanstack/react-query";
 import {
   persistQueryClientRestore,
   persistQueryClientSubscribe,
@@ -36,7 +41,7 @@ import { useSetWatchlisted } from "@/core/hooks/useSetWatchlisted";
 import type { KeyValueStore } from "@/core/ports/kv";
 import { OP_LOG_KEY } from "@/core/ports/storage-keys";
 import { libraryQuery, movieLibraryQuery, movieWatchlistQuery } from "@/core/queries/library";
-import { episodeQuery, showSeasonsQuery } from "@/core/queries/shows";
+import { episodeQuery, showProgressQuery, showSeasonsQuery } from "@/core/queries/shows";
 import {
   createQueryCachePolicy,
   createQueryClient,
@@ -671,4 +676,110 @@ it("says once that Trakt refused a long season write, however many of its parts 
 
   expect(posts(HISTORY)).toHaveLength(2);
   expect(shown.filter((message) => message === REFUSED_MESSAGE)).toHaveLength(1);
+});
+
+/** Stops the show offline, then has Trakt refuse it after a restart, with no root yet to read it back. */
+async function refusedAfterRestart() {
+  const kv = memoryKeyValueStore();
+  const first = await launch(kv);
+  const { queryClient, entry } = await cached(first);
+  await stoppedOffline(first, queryClient);
+  fake.fail({ method: "POST", path: HIDDEN }, 404);
+  const refusing = await relaunch(kv);
+  await waited(() => refusing.flushWrites());
+  expect(savedLog(kv)).toEqual([expect.objectContaining({ refused: true })]);
+  return { kv, refusing, queryClient, entry };
+}
+
+it("keeps a refused write while its read-back waits for a connection", async () => {
+  const { kv, refusing, queryClient, entry } = await refusedAfterRestart();
+  onlineManager.setOnline(false);
+  try {
+    mountRoot(refusing, queryClient);
+    await act(() => vi.advanceTimersByTimeAsync(100));
+    expect(entry(SHOW)?.hidden).toBe(true);
+    expect(savedLog(kv)).toEqual([expect.objectContaining({ refused: true })]);
+  } finally {
+    onlineManager.setOnline(true);
+  }
+  await vi.waitFor(() => expect(entry(SHOW)?.hidden).toBe(false));
+  await vi.waitFor(() => expect(savedLog(kv)).toEqual([]));
+});
+
+it("keeps a refused write when another change cancels its read-back", async () => {
+  const { kv, refusing, queryClient, entry } = await refusedAfterRestart();
+  const release = fake.hold({ method: "GET", path: HIDDEN });
+  mountRoot(refusing, queryClient);
+  await act(() => vi.advanceTimersByTimeAsync(100));
+  await act(() => queryClient.cancelQueries({ queryKey: queryKeys.library() }));
+  await act(() => vi.advanceTimersByTimeAsync(0));
+
+  expect(entry(SHOW)?.hidden).toBe(true);
+  expect(savedLog(kv)).toEqual([expect.objectContaining({ refused: true })]);
+  release();
+});
+
+it("saves a movie library rebuilt from the corrected watchlist when Trakt refuses adding a movie", async () => {
+  const kv = memoryKeyValueStore();
+  const cue = await launch(kv);
+  const queryClient = createQueryClient();
+  await queryClient.fetchQuery(movieLibraryQuery(cue));
+  const disk = new Map<string, string>();
+  const storage = {
+    getItem: async (key: string) => disk.get(key) ?? null,
+    setItem: async (key: string, value: string) => void disk.set(key, value),
+    removeItem: async (key: string) => void disk.delete(key),
+  };
+  mountRoot(cue, queryClient, () => writeQueryCache(queryClient, storage, CACHE_KEY, ""));
+  const list = renderHook(useSetWatchlisted, {
+    wrapper: withRuntime(forScreens(cue), queryClient),
+  });
+  fake.fail({ method: "POST", path: WATCHLIST }, 404);
+  const movie = {
+    type: "movie" as const,
+    traktId: NEW_MOVIE,
+    ids: { trakt: NEW_MOVIE },
+    year: 2015,
+  };
+  await waited(() =>
+    list.result.current({ ...movie, title: "Harbor Sound", posters: [], tmdbId: null }, true),
+  );
+  await vi.waitFor(() => expect(savedLog(kv)).toEqual([]));
+
+  const restored = createQueryClient();
+  const persister = createAsyncStoragePersister({ storage, key: CACHE_KEY });
+  await persistQueryClientRestore({ queryClient: restored, persister });
+  const listed = restored
+    .getQueryData<{ entries: readonly MovieEntry[] }>(queryKeys.movieLibrary())
+    ?.entries.some((entry) => entry.movieId === NEW_MOVIE);
+  expect(listed).toBe(false);
+});
+
+it("keeps a refused mark when another change cancels the read of its show's progress", async () => {
+  const kv = memoryKeyValueStore();
+  const first = await launch(kv);
+  const { queryClient, entry } = await cached(first);
+  await queryClient.fetchQuery(showProgressQuery(first, SHOW));
+  const shown = entry(SHOW);
+  if (shown === undefined) throw new Error("the show needs to be in the library");
+  fake.drop({ method: "POST", path: HISTORY }, "before");
+  const upNext = renderHook(useMarkWatched, {
+    wrapper: withRuntime(forScreens(first), queryClient),
+  });
+  await waited(() => upNext.result.current.mark(shown));
+  upNext.unmount();
+  fake.fail({ method: "POST", path: HISTORY }, 404);
+  const refusing = await relaunch(kv);
+  await waited(() => refusing.flushWrites());
+  const release = fake.hold({
+    method: "GET",
+    path: new RegExp(`^/shows/${SHOW}/progress/watched$`),
+  });
+  mountRoot(refusing, queryClient);
+  await act(() => vi.advanceTimersByTimeAsync(100));
+  await act(() => queryClient.cancelQueries({ queryKey: queryKeys.showProgress(SHOW) }));
+  await act(() => vi.advanceTimersByTimeAsync(5_000));
+
+  expect(savedLog(kv)).toEqual([expect.objectContaining({ refused: true })]);
+  release();
 });
