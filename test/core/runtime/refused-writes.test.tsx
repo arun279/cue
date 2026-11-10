@@ -185,14 +185,7 @@ it("reads a write back and says so when Trakt refuses it after the app restarted
 });
 
 it("keeps a refused write until it is read back, so the next launch still corrects the screen", async () => {
-  const kv = memoryKeyValueStore();
-  const first = await launch(kv);
-  const { queryClient, entry } = await cached(first);
-  await stoppedOffline(first, queryClient);
-
-  fake.fail({ method: "POST", path: HIDDEN }, 404);
-  const refusing = await relaunch(kv);
-  await waited(() => refusing.flushWrites());
+  const { kv, queryClient, entry } = await refusedAfterRestart();
   expect(entry(SHOW)?.hidden).toBe(true);
 
   mountRoot(await relaunch(kv), queryClient);
