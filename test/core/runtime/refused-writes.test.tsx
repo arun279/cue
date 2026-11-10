@@ -49,7 +49,7 @@ import { dismissSnack, snackText, useSnackbar } from "@/core/stores/snackbar-sto
 import { buildRuntime } from "../data/_runtime";
 import { waited } from "../support/queue-time";
 import { withRuntime } from "../support/runtime";
-import { memoryKeyValueStore } from "../support/stores";
+import { type MemoryKeyValueStore, memoryKeyValueStore } from "../support/stores";
 import { defaultAccount, libraryShow, type ShowSpec } from "../trakt-fake/account.ts";
 import { startTraktFake } from "../trakt-fake/in-process.ts";
 
@@ -277,6 +277,38 @@ it("keeps later changes to a new watchlist entry when Trakt refuses adding it", 
   expect(entry(NEW_SHOW)).toBeUndefined();
 });
 
+/** The long run's show screen: its first season as the screen shows it, and its season mark. */
+async function longRunScreen() {
+  const cue = await launch();
+  const { queryClient } = await cached(cue);
+  mountRoot(cue, queryClient);
+  const wrapper = withRuntime(forScreens(cue), queryClient);
+  const marks = renderHook(useMarkSeason, { wrapper }).result;
+  renderHook(() => useQuery(showSeasonsQuery(useRuntime(), LONG_RUN)), { wrapper });
+  const first = () =>
+    queryClient
+      .getQueryData<readonly SeasonView[]>(queryKeys.showSeasons(LONG_RUN))
+      ?.find((season) => season.number === 1);
+  await vi.waitFor(() => expect(first()).toBeDefined());
+  const season = first();
+  if (season === undefined) throw new Error("the long run needs its first season");
+  const target = { showId: LONG_RUN, ids: { trakt: LONG_RUN }, includeSpecials: false };
+  return {
+    flush: () => cue.flushWrites(),
+    mark: () => marks.current.markSeason(target, season),
+    watched: () => (first()?.episodes ?? []).filter((e) => e.watched).map((e) => e.number),
+  };
+}
+
+/** Stops the app now, lets held requests through, and starts it again from what it had saved. */
+async function stopAndRelaunch(kv: MemoryKeyValueStore, release: () => void): Promise<void> {
+  await act(() => vi.advanceTimersByTimeAsync(0));
+  const atStop = copyOf(kv);
+  release();
+  const relaunched = await relaunch(atStop);
+  await waited(() => relaunched.flushWrites());
+}
+
 /** The episodes of the long run's first season Trakt counts as watched. */
 const watchedOnTrakt = async (): Promise<number[]> =>
   (await (await fake.peek(`/shows/${LONG_RUN}/progress/watched`)).json()).seasons[0].episodes
@@ -284,35 +316,18 @@ const watchedOnTrakt = async (): Promise<number[]> =>
     .map((episode: { number: number }) => episode.number);
 
 it("reads back a refused part of a long season write while the other part is still unanswered", async () => {
-  const cue = await launch();
-  const { queryClient } = await cached(cue);
-  mountRoot(cue, queryClient);
-  const screen = renderHook(
-    () => ({
-      marks: useMarkSeason(),
-      seasons: useQuery(showSeasonsQuery(forScreens(cue), LONG_RUN)),
-    }),
-    { wrapper: withRuntime(forScreens(cue), queryClient) },
-  );
-  await vi.waitFor(() => expect(screen.result.current.seasons.data).toBeDefined());
-  const watched = () =>
-    (screen.result.current.seasons.data?.find((season) => season.number === 1)?.episodes ?? [])
-      .filter((episode) => episode.watched)
-      .map((episode) => episode.number);
-  const season = screen.result.current.seasons.data?.find((candidate) => candidate.number === 1);
-  if (season === undefined) throw new Error("the long run needs its first season");
-  const target = { showId: LONG_RUN, ids: { trakt: LONG_RUN }, includeSpecials: false };
+  const { flush, mark, watched } = await longRunScreen();
   fake.drop({ method: "POST", path: HISTORY }, "before");
-  await waited(() => screen.result.current.marks.markSeason(target, season));
+  await waited(mark);
   expect(watched()).toHaveLength(150);
 
   fake.fail({ method: "POST", path: HISTORY }, 422);
   fake.drop({ method: "POST", path: HISTORY }, "before");
-  await waited(() => cue.flushWrites());
+  await waited(flush);
 
   expect(shown).toContain(REFUSED_MESSAGE);
   expect(watched()).toEqual(await watchedOnTrakt());
-  await waited(() => cue.flushWrites());
+  await waited(flush);
   expect(watched()).toEqual(await watchedOnTrakt());
 });
 
@@ -458,12 +473,7 @@ it("keeps two opposite writes cancelled when the app stops while an earlier writ
   void cue.submit(buildAddWatchlistOp({ opId: "add", ...title }));
   await act(() => vi.advanceTimersByTimeAsync(0));
   void cue.submit(buildRemoveWatchlistOp({ opId: "remove", ...title }));
-  await act(() => vi.advanceTimersByTimeAsync(0));
-  const atStop = copyOf(kv);
-  release();
-
-  const relaunched = await relaunch(atStop);
-  await waited(() => relaunched.flushWrites());
+  await stopAndRelaunch(kv, release);
 
   expect(posts(WATCHLIST)).toHaveLength(0);
 });
@@ -478,12 +488,7 @@ it("never sends a refused write again when the app stops before the writes behin
     buildAddWatchlistOp({ opId: "behind", section: "shows", ids: { trakt: NEW_SHOW } }),
   );
   await vi.waitFor(() => expect(cue.writeState("refused")).toBe("failed"));
-  await act(() => vi.advanceTimersByTimeAsync(0));
-  const atStop = copyOf(kv);
-  release();
-
-  const relaunched = await relaunch(atStop);
-  await waited(() => relaunched.flushWrites());
+  await stopAndRelaunch(kv, release);
 
   expect(posts(HIDDEN)).toHaveLength(1);
 });
@@ -557,23 +562,10 @@ it("keeps a refused write while Trakt cannot be read, and reads it back at the n
 });
 
 it("says at once that Trakt refused part of a long season write, while the rest is unanswered", async () => {
-  const cue = await launch();
-  const { queryClient } = await cached(cue);
-  mountRoot(cue, queryClient);
-  const screen = renderHook(
-    () => ({
-      marks: useMarkSeason(),
-      seasons: useQuery(showSeasonsQuery(forScreens(cue), LONG_RUN)),
-    }),
-    { wrapper: withRuntime(forScreens(cue), queryClient) },
-  );
-  await vi.waitFor(() => expect(screen.result.current.seasons.data).toBeDefined());
-  const season = screen.result.current.seasons.data?.find((candidate) => candidate.number === 1);
-  if (season === undefined) throw new Error("the long run needs its first season");
+  const { mark } = await longRunScreen();
   fake.fail({ method: "POST", path: HISTORY }, 422);
   const release = fake.hold({ method: "POST", path: HISTORY });
-  const target = { showId: LONG_RUN, ids: { trakt: LONG_RUN }, includeSpecials: false };
-  const marking = screen.result.current.marks.markSeason(target, season);
+  const marking = mark();
   await act(() => vi.advanceTimersByTimeAsync(5_000));
 
   expect(shown.filter((message) => message === REFUSED_MESSAGE)).toHaveLength(1);
@@ -673,22 +665,9 @@ it("shows a rewatched episode at its newest play when Trakt refuses removing tha
 });
 
 it("says once that Trakt refused a long season write, however many of its parts it refused", async () => {
-  const cue = await launch();
-  const { queryClient } = await cached(cue);
-  mountRoot(cue, queryClient);
-  const wrapper = withRuntime(forScreens(cue), queryClient);
-  const show = renderHook(useMarkSeason, { wrapper });
-  renderHook(() => useQuery(showSeasonsQuery(useRuntime(), LONG_RUN)), { wrapper });
-  const first = () =>
-    queryClient
-      .getQueryData<readonly SeasonView[]>(queryKeys.showSeasons(LONG_RUN))
-      ?.find((season) => season.number === 1);
-  await vi.waitFor(() => expect(first()).toBeDefined());
-  const season = first();
-  if (season === undefined) throw new Error("the long run needs its first season");
+  const { mark } = await longRunScreen();
   fake.fail({ method: "POST", path: HISTORY, times: 2 }, 422);
-  const target = { showId: LONG_RUN, ids: { trakt: LONG_RUN }, includeSpecials: false };
-  await waited(() => show.result.current.markSeason(target, season));
+  await waited(mark);
 
   expect(posts(HISTORY)).toHaveLength(2);
   expect(shown.filter((message) => message === REFUSED_MESSAGE)).toHaveLength(1);
