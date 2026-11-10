@@ -4,6 +4,11 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # CodeQL fails when its init and analyze steps run different versions, and
+    # Dependabot otherwise bumps them in separate pull requests.
+    groups:
+      actions:
+        patterns: ["*"]
   - package-ecosystem: npm
     directory: /
     schedule:

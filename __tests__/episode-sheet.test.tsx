@@ -1,8 +1,9 @@
-import { memoryPreferenceStorage } from "../test/core/support/stores";
+import { memoryKeyValueStore, memoryPreferenceStorage } from "../test/core/support/stores";
 import "./support/detail-mocks";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
 import { Platform } from "react-native";
 import { persistMediaVisibility } from "@/core/prefs/media-visibility";
+import { clearAccount } from "@/core/runtime/create-runtime";
 import { UNDO_WINDOW_MS } from "@/core/sync-contract";
 import EpisodeRoute from "../app/show/[showId]/episode/[season]/[episode]";
 import { EpisodeBody, EpisodeSheet } from "../src/screens/EpisodeSheet";
@@ -79,6 +80,39 @@ it("reveals only the selected episode for the session and drops a broken still",
   expect(screen.queryByTestId(TEST_IDS.episodeStillReveal)).toBeNull();
   await view.rerender(<EpisodeStill key={4001} episodeId={4001} stills={detail.stills} guarded />);
   expect(screen.queryByTestId(TEST_IDS.episodeStillReveal)).toBeNull();
+});
+
+it("draws a replacement still after the one before it failed to load", async () => {
+  const view = await render(
+    <EpisodeStill episodeId={4001} stills={["https://example.com/a.jpg"]} guarded />,
+  );
+  await fireEvent(screen.getByTestId(TEST_IDS.episodeStillBlur), "error");
+  expect(screen.queryByTestId(TEST_IDS.episodeStillBlur)).toBeNull();
+
+  await view.rerender(
+    <EpisodeStill episodeId={4001} stills={["https://example.com/b.jpg"]} guarded />,
+  );
+
+  expect(screen.getByTestId(TEST_IDS.episodeStillBlur)).toHaveProp(
+    "source",
+    "https://example.com/b.jpg",
+  );
+});
+
+it("guards a still revealed under the last account again after it is cleared", async () => {
+  const view = await render(<EpisodeStill episodeId={4001} stills={detail.stills} guarded />);
+  await fireEvent.press(screen.getByRole("button", { name: "Reveal episode still" }));
+  await view.unmount();
+
+  await clearAccount({
+    kv: memoryKeyValueStore(),
+    clearPersistedCaches: () => Promise.resolve(),
+    clearLocalPreferences: () => {},
+    reminders: { cancelAll: () => Promise.resolve() },
+  });
+  await render(<EpisodeStill episodeId={4001} stills={detail.stills} guarded />);
+
+  expect(screen.getByRole("button", { name: "Reveal episode still" })).toBeOnTheScreen();
 });
 
 it("does not guard a watched episode or a still with guarding disabled", async () => {

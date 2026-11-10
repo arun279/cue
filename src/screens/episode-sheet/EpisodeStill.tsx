@@ -1,12 +1,13 @@
 import { Image } from "expo-image";
-import { type ReactElement, useState } from "react";
+import type { ReactElement } from "react";
 import { Pressable, StyleSheet, useWindowDimensions, View, type ViewStyle } from "react-native";
 import { resolveStill } from "@/core/domain/image-source";
+import { useRevealedStills } from "@/core/stores/revealed-stills-store";
 import { TEST_IDS } from "../../ui/test-ids";
 import { RADIUS, SPACE, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
+import { useImageUrl } from "../../ui/useImageUrl";
 
-const revealedStills = new Set<number>();
 const SPOILER_BLUR_RADIUS = 24;
 const STILL_MIN_HEIGHT = 96;
 
@@ -23,10 +24,9 @@ export function EpisodeStill({
 }): ReactElement | null {
   const colors = useColors();
   const { width } = useWindowDimensions();
-  const [revealed, setRevealed] = useState(() => revealedStills.has(episodeId));
-  const [failed, setFailed] = useState(false);
-  const source = resolveStill(stills);
-  if (source === null || failed) return null;
+  const revealed = useRevealedStills(({ episodeIds }) => episodeIds.has(episodeId));
+  const [source, onError] = useImageUrl(resolveStill(stills));
+  if (source === null) return null;
   const hidden = guarded && !revealed;
   return (
     <View style={[styles.still, widescreen((width - SPACE.s4 * 2) * (9 / 16))]}>
@@ -36,7 +36,7 @@ export function EpisodeStill({
         style={StyleSheet.absoluteFill}
         contentFit="cover"
         blurRadius={hidden ? SPOILER_BLUR_RADIUS : 0}
-        onError={() => setFailed(true)}
+        onError={onError}
       />
       {hidden && (
         <Pressable
@@ -44,10 +44,11 @@ export function EpisodeStill({
           accessibilityRole="button"
           accessibilityLabel="Reveal episode still"
           style={styles.reveal}
-          onPress={() => {
-            revealedStills.add(episodeId);
-            setRevealed(true);
-          }}
+          onPress={() =>
+            useRevealedStills.setState(({ episodeIds }) => ({
+              episodeIds: new Set(episodeIds).add(episodeId),
+            }))
+          }
         >
           <View style={[styles.chip, { backgroundColor: colors.scrim }]}>
             <CueText variant="rowTitleSecondary" style={{ color: colors.onImage }}>
