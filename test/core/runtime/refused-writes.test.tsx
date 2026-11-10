@@ -7,8 +7,10 @@
 
 import { IsRestoringProvider, type QueryClient, useQuery } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
+import fc from "fast-check";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { queryKeys } from "@/core/data/query-keys";
+import type { LibraryEntry } from "@/core/domain/model/library";
 import type { MovieEntry } from "@/core/domain/model/movie";
 import { useActivitiesPoll } from "@/core/hooks/useActivitiesPoll";
 import { useHideShow } from "@/core/hooks/useHideShow";
@@ -20,7 +22,7 @@ import { OP_LOG_KEY } from "@/core/ports/storage-keys";
 import { libraryQuery, movieWatchlistQuery } from "@/core/queries/library";
 import { showSeasonsQuery } from "@/core/queries/shows";
 import { createQueryClient } from "@/core/runtime/query-cache";
-import { type CueRuntime, forScreens, type UpNextData } from "@/core/runtime/runtime";
+import { type CueRuntime, forScreens, type UpNextData, useRuntime } from "@/core/runtime/runtime";
 import { resetMarkStore } from "@/core/stores/mark-store";
 import { dismissSnack, snackText, useSnackbar } from "@/core/stores/snackbar-store";
 import { buildRuntime } from "../data/_runtime";
@@ -320,3 +322,61 @@ it("reads the movie lists back when Trakt refuses adding a movie to the watchlis
       ?.map((entry) => entry.movieId),
   ).not.toContain(NEW_MOVIE);
 });
+
+type Step = "mark" | "undo" | "refuse" | "offline" | "restart";
+const STEPS: readonly Step[] = ["mark", "undo", "refuse", "offline", "restart"];
+const ACTIVITIES_POLL_MS = 60_000;
+const HISTORY_WRITES = /^\/sync\/history(\/remove)?$/;
+const progressOf = (shown: LibraryEntry | undefined) => ({
+  completed: shown?.completed,
+  next: shown?.nextEpisode?.ids.trakt,
+});
+
+it("shows what Trakt has once every write has settled, after any run of marks, Undo presses, refusals and restarts", async () => {
+  vi.useFakeTimers({
+    toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+  });
+  await fc.assert(
+    fc.asyncProperty(fc.array(fc.constantFrom(...STEPS), { maxLength: 8 }), async (steps) => {
+      fake.reset();
+      resetMarkStore();
+      const kv = memoryKeyValueStore();
+      let cue = await launch(kv);
+      const { queryClient, entry } = await cached(cue);
+      const mount = (runtime: CueRuntime) =>
+        renderHook(
+          () => {
+            useActivitiesPoll();
+            useQuery(libraryQuery(useRuntime()));
+            return useMarkWatched();
+          },
+          { wrapper: withRuntime(forScreens(runtime), queryClient) },
+        );
+      let screen = mount(cue);
+      const run: Record<Step, () => Promise<unknown>> = {
+        mark: () =>
+          waited(async () => {
+            const shown = entry(SHOW);
+            if (shown !== undefined) await screen.result.current.mark(shown);
+          }),
+        undo: () => waited(() => screen.result.current.reverse(SHOW)),
+        refuse: async () => fake.fail({ method: "POST", path: HISTORY_WRITES }, 422),
+        offline: async () => fake.drop({ method: "POST", path: HISTORY_WRITES }, "before"),
+        restart: async () => {
+          await waited(() => Promise.resolve());
+          screen.unmount();
+          cue = await relaunch(kv);
+          screen = mount(cue);
+        },
+      };
+      for (const step of steps) await run[step]();
+      for (let flush = 0; flush < 4; flush += 1) await waited(() => cue.flushWrites());
+      await act(() => vi.advanceTimersByTimeAsync(ACTIVITIES_POLL_MS));
+
+      const onTrakt = (await cue.loadUpNext()).entries.find((show) => show.showId === SHOW);
+      expect(progressOf(entry(SHOW))).toEqual(progressOf(onTrakt));
+      screen.unmount();
+    }),
+    { numRuns: 100 },
+  );
+}, 60_000);

@@ -119,9 +119,8 @@ it("gives up a write five minutes after Trakt first refused it, though the app s
   await vi.advanceTimersByTimeAsync(150_000);
 
   const relaunched = await buildRuntime({ kv: memoryKeyValueStore(Object.fromEntries(kv.values)) });
-  const flushed = relaunched.flushWrites();
+  void relaunched.flushWrites();
   await vi.advanceTimersByTimeAsync(180_000);
-  await flushed;
 
   expect(relaunched.writeState("stuck")).toBe("failed");
 });
@@ -199,13 +198,20 @@ it("undoes a mark whose answer was lost by removing only that mark's play", asyn
   expect(await playsOf(cue, FIRST_EPISODE)).toEqual(earlier.map((play) => play.historyId));
 });
 
-it("removes nothing, and says so, when it cannot tell which play a lost mark added", async () => {
-  const { cue, entry, wrapper } = await restarted();
+it("removes nothing, says so, and shows the show as Trakt has it, when it cannot tell which play a lost mark added", async () => {
+  const { cue, queryClient, entry, wrapper } = await restarted();
   fake.drop({ method: "POST", path: HISTORY }, "after");
   const up = renderHook(useMarkWatched, { wrapper });
   await act(() => up.result.current.mark(entry));
   await act(() => up.result.current.reverse(SHOW));
 
+  const shown = () =>
+    queryClient
+      .getQueryData(libraryQuery(cue).queryKey)
+      ?.entries.find((candidate) => candidate.showId === SHOW);
+  const onTrakt = (await cue.loadUpNext()).entries.find((candidate) => candidate.showId === SHOW);
+  await vi.waitFor(() => expect(shown()?.pendingAdvance).toBe(false));
+  expect(shown()?.nextEpisode?.ids.trakt).toBe(onTrakt?.nextEpisode?.ids.trakt);
   expect(await playsOf(cue, FIRST_EPISODE)).toHaveLength(2);
   expect(posts("/sync/history/remove")).toHaveLength(0);
   expect(useSnackbar.getState().snack?.message).toBe(

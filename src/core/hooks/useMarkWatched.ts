@@ -201,6 +201,18 @@ export function useMarkWatched(): MarkWatched {
     [runtime],
   );
 
+  /** Keeps a mark its Undo cannot take back, says why, and reads the show back from Trakt. */
+  const keepMark = useCallback(
+    (record: MarkRecord, why: "replaced" | "unknown") => {
+      showKept(record);
+      if (why === "replaced") showReplaced(record, true);
+      else showUndoFailed(haptics, record.title);
+      const at = { season: record.season, number: record.number };
+      revalidate(record.showId, at, why === "unknown" ? record : undefined);
+    },
+    [showKept, haptics, revalidate],
+  );
+
   const runReversal = useCallback(
     async (record: MarkRecord): Promise<SubmitOutcome | null> => {
       const pressed = writesBegun();
@@ -210,9 +222,7 @@ export function useMarkWatched(): MarkWatched {
       }
       const mark = takeBackMark(record, priorPlay);
       if (mark === "replaced" || mark === "unknown") {
-        showKept(record);
-        if (mark === "replaced") showReplaced(record, true);
-        else showUndoFailed(haptics, record.title);
+        keepMark(record, mark);
         return null;
       }
       const target = writeTarget("show", record.showId);
@@ -233,7 +243,7 @@ export function useMarkWatched(): MarkWatched {
       }
       return reversal;
     },
-    [runtime, takeBackMark, submit, showKept, revalidate, haptics, resume],
+    [runtime, takeBackMark, submit, keepMark, revalidate, resume],
   );
 
   const submitReversal = useCallback(
