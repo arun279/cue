@@ -1,4 +1,4 @@
-import { focusManager, QueryObserver } from "@tanstack/react-query";
+import { focusManager, onlineManager, QueryObserver } from "@tanstack/react-query";
 import type { NetworkState } from "expo-network";
 import { AppState, type AppStateStatus } from "react-native";
 import { createAppQueryClient } from "../src/platform/query-client";
@@ -48,14 +48,32 @@ function watchRead(refetchInterval?: number) {
   }).subscribe(() => {});
   return {
     read,
-    stop: () => {
+    stop: async () => {
       unsubscribe();
       client.unmount();
+      await client.cancelQueries();
+      client.clear();
     },
   };
 }
 
 const settle = () => new Promise((resolve) => setImmediate(resolve));
+
+it.each([
+  true,
+  false,
+])("releases query timers when a watched read stops while online is %s", async (online) => {
+  jest.useFakeTimers({ doNotFake: ["setImmediate", "queueMicrotask", "nextTick"] });
+  onlineManager.setOnline(online);
+  const { read, stop } = watchRead(1000);
+  await settle();
+  expect(read).toHaveBeenCalledTimes(online ? 1 : 0);
+
+  await stop();
+  await settle();
+
+  expect(jest.getTimerCount()).toBe(0);
+});
 
 const launchOffline = async (): Promise<void> => {
   mockNetwork.atLaunch = { isConnected: false };
@@ -81,7 +99,7 @@ it.each([
   mockNetwork.announce({ isConnected: true });
   await settle();
   expect(read).toHaveBeenCalledTimes(1);
-  stop();
+  await stop();
 });
 
 it.each([
@@ -96,7 +114,7 @@ it.each([
   const { read, stop } = watchRead();
   await settle();
   expect(read).toHaveBeenCalledTimes(expected === "online" ? 1 : 0);
-  stop();
+  await stop();
 });
 
 it("keeps a network change that lands before the launch read answers", async () => {
@@ -109,7 +127,7 @@ it("keeps a network change that lands before the launch read answers", async () 
   const { read, stop } = watchRead();
   await settle();
   expect(read).not.toHaveBeenCalled();
-  stop();
+  await stop();
 });
 
 it.each([
@@ -122,7 +140,7 @@ it.each([
   const { read, stop } = watchRead(1000);
   await jest.advanceTimersByTimeAsync(3000);
   expect(read).toHaveBeenCalledTimes(4);
-  stop();
+  await stop();
 });
 
 it("starts in the background when the app launches there", async () => {
@@ -132,7 +150,7 @@ it("starts in the background when the app launches there", async () => {
   const { read, stop } = watchRead(1000);
   await jest.advanceTimersByTimeAsync(3000);
   expect(read).toHaveBeenCalledTimes(1);
-  stop();
+  await stop();
 });
 
 it("stops interval refetches while the app is inactive or in the background, and resumes in the foreground", async () => {
@@ -151,5 +169,5 @@ it("stops interval refetches while the app is inactive or in the background, and
   announceAppState("active");
   await jest.advanceTimersByTimeAsync(1000);
   expect(read).toHaveBeenCalledTimes(4);
-  stop();
+  await stop();
 });
